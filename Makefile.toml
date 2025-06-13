@@ -101,6 +101,25 @@ description = "Clean build artifacts"
 command = "cargo"
 args = ["clean"]
 
+[tasks.lint]
+description = "Run clippy linting on the whole project"
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[tasks.lint-fix]
+description = "Run clippy with automatic fixes on the whole project"
+command = "cargo"
+args = [
+    "clippy",
+    "--all-targets",
+    "--all-features",
+    "--fix",
+    "--allow-dirty",
+    "--",
+    "-D",
+    "warnings",
+]
+
 [tasks.setup]
 description = "Setup development environment"
 dependencies = ["add-targets"]
