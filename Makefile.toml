@@ -1,0 +1,106 @@
+[tasks.install-deps-debian]
+description = "Install build dependencies on Debian/Ubuntu"
+command = "sudo"
+args = [
+    "apt-get",
+    "update",
+    "&&",
+    "sudo",
+    "apt-get",
+    "install",
+    "-y",
+    "gcc-multilib",
+    "g++-multilib",
+]
+condition = { platforms = ["linux"], files_exist = ["/etc/debian_version"] }
+
+[tasks.install-deps-arch]
+description = "Install build dependencies on Arch Linux"
+command = "sudo"
+args = ["pacman", "-S", "--needed", "multilib-devel"]
+condition = { platforms = ["linux"], files_exist = ["/etc/arch-release"] }
+
+[tasks.add-targets]
+description = "Add required compilation targets"
+script = [
+    "rustup target add i686-pc-windows-msvc",
+    "rustup target add x86_64-pc-windows-msvc",
+    "rustup target add i686-unknown-linux-gnu",
+    "rustup target add x86_64-unknown-linux-gnu",
+]
+
+[tasks.build-x86-windows]
+description = "Build for Windows x86"
+command = "cargo"
+args = ["build", "--target", "i686-pc-windows-msvc", "--release"]
+condition = { platforms = ["windows"] }
+
+[tasks.build-x64-windows]
+description = "Build for Windows x64"
+command = "cargo"
+args = ["build", "--target", "x86_64-pc-windows-msvc", "--release"]
+condition = { platforms = ["windows"] }
+
+[tasks.build-x86-linux]
+description = "Build for Linux x86"
+command = "cargo"
+args = ["build", "--target", "i686-unknown-linux-gnu", "--release"]
+condition = { platforms = ["linux"] }
+
+[tasks.build-x64-linux]
+description = "Build for Linux x64"
+command = "cargo"
+args = ["build", "--target", "x86_64-unknown-linux-gnu", "--release"]
+condition = { platforms = ["linux"] }
+
+[tasks.build-all-windows]
+description = "Build all Windows targets"
+dependencies = ["build-x86-windows", "build-x64-windows"]
+condition = { platforms = ["windows"] }
+
+[tasks.build-all-linux]
+description = "Build all Linux targets"
+dependencies = ["build-x86-linux", "build-x64-linux"]
+condition = { platforms = ["linux"] }
+
+[tasks.build-all]
+description = "Build all targets for current platform"
+dependencies = ["build-all-windows", "build-all-linux"]
+
+[tasks.build-cross-all]
+description = "Build all targets for all platforms (requires cross-compilation setup)"
+script = [
+    "cargo build --target i686-pc-windows-msvc --release",
+    "cargo build --target x86_64-pc-windows-msvc --release",
+    "cargo build --target i686-unknown-linux-gnu --release",
+    "cargo build --target x86_64-unknown-linux-gnu --release",
+]
+
+[tasks.test]
+description = "Run the test suite"
+command = "cargo"
+args = ["test"]
+
+[tasks.test-verbose]
+description = "Run the test suite with verbose output"
+command = "cargo"
+args = ["test", "--", "--nocapture"]
+
+[tasks.test-release]
+description = "Run the test suite in release mode"
+command = "cargo"
+args = ["test", "--release"]
+
+[tasks.bench]
+description = "Run benchmarks"
+command = "cargo"
+args = ["bench"]
+
+[tasks.clean]
+description = "Clean build artifacts"
+command = "cargo"
+args = ["clean"]
+
+[tasks.setup]
+description = "Setup development environment"
+dependencies = ["add-targets"]

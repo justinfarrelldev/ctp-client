@@ -1,0 +1,1 @@
+cargo make build-x64-windows
