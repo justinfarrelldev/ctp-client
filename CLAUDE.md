@@ -18,6 +18,18 @@ This project uses cargo-make, which is available via the command line.
 
 Just before each commit, remember to run the lint-fix command. Once your current task is complete and the lint-fix command has been run, commit your changes to Git (this will check your work with the linter, tests and build commands).
 
+# Examples
+
+You can refer to the scripts folder for an example script for how to build using cargo-make. You cannot edit anything in the scripts folder, nor the folder itself.
+
 # Paradigms
 
-Utilize test-driven development.
+Utilize test-driven development. You are required to maintain a minimum of 80% code coverage, as enforced in the pre-commit hook.
+
+# Hands Off The Following
+
+Do not touch any of the following files or folders:
+- the .git folder (including the hooks)
+- this file (CLAUDE.md)
+- any files in the target folder (or the folder itself)
+- the scripts folder
