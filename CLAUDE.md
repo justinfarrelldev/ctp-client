@@ -17,3 +17,7 @@ This project uses cargo-make, which is available via the command line.
 - `cargo make test-release` - Run tests in release mode for performance testing
 
 Just before each commit, remember to run the lint-fix command. Once your current task is complete and the lint-fix command has been run, commit your changes to Git (this will check your work with the linter, tests and build commands).
+
+# Paradigms
+
+Utilize test-driven development.
