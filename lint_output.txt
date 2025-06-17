@@ -1,0 +1,1644 @@
+[cargo-make] INFO - cargo make 0.37.24
+[cargo-make] INFO - 
+[cargo-make] INFO - Project: ctp-client
+[cargo-make] INFO - Build File: Makefile.toml
+[cargo-make] INFO - Task: lint
+[cargo-make] INFO - Profile: development
+[cargo-make] INFO - Execute Command: "cargo" "clippy" "--all-targets" "--all-features" "--" "-D" "warnings" "-D" "clippy::all" "-D" "clippy::pedantic" "-D" "clippy::nursery" "-D" "clippy::cargo" "-D" "clippy::undocumented_unsafe_blocks" "-D" "clippy::multiple_unsafe_ops_per_block" "-D" "clippy::missing_docs_in_private_items" "-D" "clippy::missing_safety_doc" "-D" "clippy::panic" "-D" "clippy::todo" "-D" "clippy::unimplemented" "-D" "clippy::unreachable" "-D" "clippy::indexing_slicing" "-D" "clippy::arithmetic_side_effects" "-D" "clippy::integer_division" "-D" "clippy::lossy_float_literal" "-D" "clippy::dbg_macro" "-D" "clippy::empty_drop" "-D" "clippy::exit" "-D" "clippy::filetype_is_file" "-D" "clippy::float_cmp_const" "-D" "clippy::get_unwrap" "-D" "clippy::shadow_unrelated" "-D" "clippy::string_slice" "-D" "clippy::try_err" "-D" "clippy::clone_on_ref_ptr" "-D" "clippy::create_dir" "-D" "clippy::decimal_literal_representation" "-D" "clippy::deref_by_slicing" "-D" "clippy::float_arithmetic" "-D" "clippy::if_then_some_else_none" "-D" "clippy::let_underscore_must_use" "-D" "clippy::map_err_ignore" "-D" "clippy::mem_forget" "-D" "clippy::missing_assert_message" "-D" "clippy::mod_module_files" "-D" "clippy::partial_pub_fields" "-D" "clippy::pub_use" "-D" "clippy::rc_buffer" "-D" "clippy::rc_mutex" "-D" "clippy::ref_patterns" "-D" "clippy::rest_pat_in_fully_bound_structs" "-D" "clippy::same_name_method" "-D" "clippy::self_named_module_files" "-D" "clippy::separated_literal_suffix" "-D" "clippy::single_char_lifetime_names" "-D" "clippy::str_to_string" "-D" "clippy::string_add" "-D" "clippy::string_to_string" "-D" "clippy::suspicious_xor_used_as_pow" "-D" "clippy::tests_outside_test_module" "-D" "clippy::unseparated_literal_suffix" "-D" "clippy::use_debug" "-D" "clippy::verbose_file_reads" "-D" "clippy::absolute_paths" "-D" "clippy::allow_attributes" "-D" "clippy::allow_attributes_without_reason" "-D" "clippy::as_conversions" "-D" "clippy::assertions_on_result_states" "-D" "clippy::big_endian_bytes" "-D" "clippy::default_numeric_fallback" "-D" "clippy::empty_enum_variants_with_brackets" "-D" "clippy::empty_structs_with_brackets" "-D" "clippy::error_impl_error" "-D" "clippy::exhaustive_enums" "-D" "clippy::exhaustive_structs" "-D" "clippy::fn_to_numeric_cast_any" "-D" "clippy::format_push_string" "-D" "clippy::host_endian_bytes" "-D" "clippy::infinite_loop" "-D" "clippy::large_include_file" "-D" "clippy::let_underscore_untyped" "-D" "clippy::little_endian_bytes" "-D" "clippy::macro_use_imports" "-D" "clippy::min_ident_chars" "-D" "clippy::missing_trait_methods" "-D" "clippy::mixed_read_write_in_expression" "-D" "clippy::multiple_inherent_impl" "-D" "clippy::mutex_atomic" "-D" "clippy::needless_raw_strings" "-D" "clippy::non_ascii_literal" "-D" "clippy::panic_in_result_fn" "-D" "clippy::pattern_type_mismatch" "-D" "clippy::print_literal" "-D" "clippy::redundant_type_annotations" "-D" "clippy::renamed_function_params" "-D" "clippy::semicolon_inside_block" "-D" "clippy::semicolon_outside_block" "-D" "clippy::std_instead_of_alloc" "-D" "clippy::std_instead_of_core" "-D" "clippy::tuple_array_conversions" "-D" "clippy::unneeded_field_pattern" "-D" "clippy::unwrap_in_result"
+    Checking ctp-client v0.1.0 (/home/justi/Projects/ctp-client)
+error: #[allow] attribute found
+   --> src/config.rs:159:7
+    |
+159 |     #[allow(dead_code, reason = "Used in tests")]
+    |       ^^^^^ help: replace it with: `expect`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#allow_attributes
+    = note: requested on the command line with `-D clippy::allow-attributes`
+
+error: #[allow] attribute found
+   --> src/ui.rs:313:7
+    |
+313 |     #[allow(dead_code, reason = "Used in tests")]
+    |       ^^^^^ help: replace it with: `expect`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#allow_attributes
+
+error: unnecessary raw string literal
+   --> src/config.rs:469:30
+    |
+469 |           let invalid_config = r#"
+    |  ______________________________^
+470 | | version = 999
+471 | | installations = {}
+472 | | "#;
+    | |__^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#needless_raw_strings
+    = note: requested on the command line with `-D clippy::needless-raw-strings`
+help: use a plain string literal instead
+    |
+469 ~         let invalid_config = "
+470 | version = 999
+471 | installations = {}
+472 ~ ";
+    |
+
+error: multiple versions for dependency `bitflags`: 1.3.2, 2.9.1
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+  = note: `-D clippy::multiple-crate-versions` implied by `-D clippy::cargo`
+  = help: to override `-D clippy::cargo` add `#[allow(clippy::multiple_crate_versions)]`
+
+error: multiple versions for dependency `getrandom`: 0.2.16, 0.3.3
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `wasi`: 0.11.1+wasi-snapshot-preview1, 0.14.2+wasi-0.2.4
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows-sys`: 0.48.0, 0.52.0, 0.59.0
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows-targets`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_aarch64_gnullvm`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_aarch64_msvc`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_i686_gnu`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_i686_msvc`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_x86_64_gnu`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_x86_64_gnullvm`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: multiple versions for dependency `windows_x86_64_msvc`: 0.48.5, 0.52.6
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_crate_versions
+
+error: exported structs should not be exhaustive
+  --> src/config.rs:13:1
+   |
+13 | / pub struct GameInstallation {
+14 | |     /// The filesystem path to the installation directory.
+15 | |     pub path: PathBuf,
+16 | |     /// The version of Call to Power (CTP1 or CTP2).
+...  |
+21 | |     pub validated_at: Option<String>,
+22 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_structs
+   = note: requested on the command line with `-D clippy::exhaustive-structs`
+help: try adding #[non_exhaustive]
+   |
+13 + #[non_exhaustive]
+14 | pub struct GameInstallation {
+   |
+
+error: exported enums should not be exhaustive
+  --> src/config.rs:26:1
+   |
+26 | / pub enum GameVersion {
+27 | |     /// Call to Power (original).
+28 | |     CTP1,
+29 | |     /// Call to Power II.
+30 | |     CTP2,
+31 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_enums
+   = note: requested on the command line with `-D clippy::exhaustive-enums`
+help: try adding #[non_exhaustive]
+   |
+26 + #[non_exhaustive]
+27 | pub enum GameVersion {
+   |
+
+error: this method could have a `#[must_use]` attribute
+  --> src/config.rs:40:5
+   |
+40 |     pub const fn required_folders(&self) -> (&'static str, &'static str) {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub const fn required_folders(&self) -> (&'static str, &'static str)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
+   = note: `-D clippy::must-use-candidate` implied by `-D clippy::pedantic`
+   = help: to override `-D clippy::pedantic` add `#[allow(clippy::must_use_candidate)]`
+
+error: type of pattern does not match the expression type
+  --> src/config.rs:42:13
+   |
+42 |             Self::CTP1 => ("ctp_data", "ctp_program"),
+   |             ^^^^^^^^^^
+   |
+   = help: use `*` to dereference the match expression or explicitly match against a `&_` pattern and adjust the enclosed variable bindings
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#pattern_type_mismatch
+   = note: requested on the command line with `-D clippy::pattern-type-mismatch`
+
+error: exported structs should not be exhaustive
+  --> src/config.rs:50:1
+   |
+50 | / pub struct AppConfig {
+51 | |     /// Configuration version for migration purposes.
+52 | |     pub version: u32,
+53 | |     /// Map of installation ID to GameInstallation.
+54 | |     pub installations: HashMap<String, GameInstallation>,
+55 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_structs
+help: try adding #[non_exhaustive]
+   |
+50 + #[non_exhaustive]
+51 | pub struct AppConfig {
+   |
+
+error: item in documentation is missing backticks
+  --> src/config.rs:53:35
+   |
+53 |     /// Map of installation ID to GameInstallation.
+   |                                   ^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D clippy::pedantic`
+   = help: to override `-D clippy::pedantic` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+53 -     /// Map of installation ID to GameInstallation.
+53 +     /// Map of installation ID to `GameInstallation`.
+   |
+
+error: this method could have a `#[must_use]` attribute
+  --> src/config.rs:69:5
+   |
+69 |     pub fn new() -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn new() -> Self`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
+
+error: used import from `std` instead of `core`
+  --> src/config.rs:92:43
+   |
+92 |     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
+   |                                           ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+   = note: requested on the command line with `-D clippy::std-instead-of-core`
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/config.rs:92:43
+   |
+92 |     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
+   |                                           ^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+   = note: requested on the command line with `-D clippy::absolute-paths`
+
+error: used import from `std` instead of `core`
+   --> src/config.rs:130:46
+    |
+130 |     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    |                                              ^^^ help: consider importing the item from `core`: `core`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:130:46
+    |
+130 |     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    |                                              ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: item in documentation is missing backticks
+   --> src/config.rs:168:42
+    |
+168 |     /// A reference to the installations HashMap
+    |                                          ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#doc_markdown
+help: try
+    |
+168 -     /// A reference to the installations HashMap
+168 +     /// A reference to the installations `HashMap`
+    |
+
+error: this method could have a `#[must_use]` attribute
+   --> src/config.rs:169:5
+    |
+169 |     pub const fn get_installations(&self) -> &HashMap<String, GameInstallation> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub const fn get_installations(&self) -> &HashMap<String, GameInstallation>`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
+
+error: used import from `std` instead of `core`
+   --> src/config.rs:183:53
+    |
+183 |     fn get_config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    |                                                     ^^^ help: consider importing the item from `core`: `core`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:183:53
+    |
+183 |     fn get_config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    |                                                     ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: exported enums should not be exhaustive
+  --> src/installation.rs:11:1
+   |
+11 | / pub enum ValidationError {
+12 | |     /// The installation path does not exist.
+13 | |     PathNotFound,
+14 | |     /// The required data folder is missing.
+...  |
+19 | |     NotADirectory,
+20 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_enums
+help: try adding #[non_exhaustive]
+   |
+11 + #[non_exhaustive]
+12 | pub enum ValidationError {
+   |
+
+error: item in documentation is missing backticks
+  --> src/installation.rs:22:32
+   |
+22 | /// Display implementation for ValidationError.
+   |                                ^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#doc_markdown
+help: try
+   |
+22 - /// Display implementation for ValidationError.
+22 + /// Display implementation for `ValidationError`.
+   |
+
+error: used import from `std` instead of `core`
+  --> src/installation.rs:23:6
+   |
+23 | impl std::fmt::Display for ValidationError {
+   |      ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/installation.rs:23:6
+   |
+23 | impl std::fmt::Display for ValidationError {
+   |      ^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: used import from `std` instead of `core`
+  --> src/installation.rs:25:27
+   |
+25 |     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+   |                           ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/installation.rs:25:27
+   |
+25 |     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: used import from `std` instead of `core`
+  --> src/installation.rs:25:55
+   |
+25 |     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+   |                                                       ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/installation.rs:25:55
+   |
+25 |     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+   |                                                       ^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: this ident consists of a single char
+  --> src/installation.rs:25:19
+   |
+25 |     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+   |                   ^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#min_ident_chars
+   = note: requested on the command line with `-D clippy::min-ident-chars`
+
+error: type of pattern does not match the expression type
+  --> src/installation.rs:27:13
+   |
+27 |             ValidationError::PathNotFound => write!(f, "Installation path not found"),
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: use `*` to dereference the match expression or explicitly match against a `&_` pattern and adjust the enclosed variable bindings
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#pattern_type_mismatch
+
+error: unnecessary structure name repetition
+  --> src/installation.rs:27:13
+   |
+27 |             ValidationError::PathNotFound => write!(f, "Installation path not found"),
+   |             ^^^^^^^^^^^^^^^ help: use the applicable keyword: `Self`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#use_self
+   = note: `-D clippy::use-self` implied by `-D clippy::nursery`
+   = help: to override `-D clippy::nursery` add `#[allow(clippy::use_self)]`
+
+error: unnecessary structure name repetition
+  --> src/installation.rs:28:13
+   |
+28 |             ValidationError::MissingDataFolder => write!(f, "Data folder missing"),
+   |             ^^^^^^^^^^^^^^^ help: use the applicable keyword: `Self`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#use_self
+
+error: unnecessary structure name repetition
+  --> src/installation.rs:29:13
+   |
+29 |             ValidationError::MissingProgramFolder => write!(f, "Program folder missing"),
+   |             ^^^^^^^^^^^^^^^ help: use the applicable keyword: `Self`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#use_self
+
+error: unnecessary structure name repetition
+  --> src/installation.rs:30:13
+   |
+30 |             ValidationError::NotADirectory => write!(f, "Path is not a directory"),
+   |             ^^^^^^^^^^^^^^^ help: use the applicable keyword: `Self`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#use_self
+
+error: item in documentation is missing backticks
+  --> src/installation.rs:35:36
+   |
+35 | /// Error trait implementation for ValidationError.
+   |                                    ^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#doc_markdown
+help: try
+   |
+35 - /// Error trait implementation for ValidationError.
+35 + /// Error trait implementation for `ValidationError`.
+   |
+
+error: missing trait method provided by default: `source`
+  --> src/installation.rs:36:1
+   |
+36 | impl std::error::Error for ValidationError {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: implement the method
+  --> /home/justi/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:81:5
+   |
+81 |     fn source(&self) -> Option<&(dyn Error + 'static)> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_trait_methods
+   = note: requested on the command line with `-D clippy::missing-trait-methods`
+
+error: missing trait method provided by default: `type_id`
+  --> src/installation.rs:36:1
+   |
+36 | impl std::error::Error for ValidationError {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: implement the method
+  --> /home/justi/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:92:5
+   |
+92 | /     fn type_id(&self, _: private::Internal) -> TypeId
+93 | |     where
+94 | |         Self: 'static,
+   | |______________________^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_trait_methods
+
+error: missing trait method provided by default: `description`
+   --> src/installation.rs:36:1
+    |
+36  | impl std::error::Error for ValidationError {}
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: implement the method
+   --> /home/justi/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:107:5
+    |
+107 |     fn description(&self) -> &str {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_trait_methods
+
+error: missing trait method provided by default: `cause`
+   --> src/installation.rs:36:1
+    |
+36  | impl std::error::Error for ValidationError {}
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: implement the method
+   --> /home/justi/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:117:5
+    |
+117 |     fn cause(&self) -> Option<&dyn Error> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_trait_methods
+
+error: missing trait method provided by default: `provide`
+   --> src/installation.rs:36:1
+    |
+36  | impl std::error::Error for ValidationError {}
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: implement the method
+   --> /home/justi/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/error.rs:180:5
+    |
+180 |     fn provide<'a>(&'a self, request: &mut Request<'a>) {}
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_trait_methods
+
+error: used import from `std` instead of `core`
+  --> src/installation.rs:36:6
+   |
+36 | impl std::error::Error for ValidationError {}
+   |      ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/installation.rs:36:6
+   |
+36 | impl std::error::Error for ValidationError {}
+   |      ^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: exported structs should not be exhaustive
+  --> src/installation.rs:42:1
+   |
+42 | pub struct InstallationValidator;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_structs
+help: try adding #[non_exhaustive]
+   |
+42 + #[non_exhaustive]
+43 | pub struct InstallationValidator;
+   |
+
+error: item in documentation is missing backticks
+   --> src/installation.rs:111:19
+    |
+111 |     /// Creates a GameInstallation from a validated path.
+    |                   ^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#doc_markdown
+help: try
+    |
+111 -     /// Creates a GameInstallation from a validated path.
+111 +     /// Creates a `GameInstallation` from a validated path.
+    |
+
+error: type of pattern does not match the expression type
+   --> src/installation.rs:150:13
+    |
+150 |             GameVersion::CTP1 => "Call to Power",
+    |             ^^^^^^^^^^^^^^^^^
+    |
+    = help: use `*` to dereference the match expression or explicitly match against a `&_` pattern and adjust the enclosed variable bindings
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#pattern_type_mismatch
+
+error: this method could have a `#[must_use]` attribute
+   --> src/installation.rs:165:5
+    |
+165 |     pub fn scan_common_paths() -> Vec<PathBuf> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn scan_common_paths() -> Vec<PathBuf>`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
+
+error: exported enums should not be exhaustive
+  --> src/ui.rs:19:1
+   |
+19 | / pub enum UIResult {
+20 | |     /// User selected a game installation to play.
+21 | |     PlayGame(GameInstallation),
+22 | |     /// User requested to exit the application.
+23 | |     Exit,
+24 | | }
+   | |_^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#exhaustive_enums
+help: try adding #[non_exhaustive]
+   |
+19 + #[non_exhaustive]
+20 | pub enum UIResult {
+   |
+
+error: used import from `std` instead of `core`
+  --> src/ui.rs:61:42
+   |
+61 |     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+   |                                          ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/ui.rs:61:42
+   |
+61 |     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+   |                                          ^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: used import from `std` instead of `core`
+  --> src/ui.rs:85:55
+   |
+85 |     pub fn run(&mut self) -> Result<UIResult, Box<dyn std::error::Error>> {
+   |                                                       ^^^ help: consider importing the item from `core`: `core`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+  --> src/ui.rs:85:55
+   |
+85 |     pub fn run(&mut self) -> Result<UIResult, Box<dyn std::error::Error>> {
+   |                                                       ^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: consider moving the `;` outside the block for consistent formatting
+   --> src/ui.rs:112:13
+    |
+112 | /             unsafe {
+113 | |                 gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+114 | |                 gl::Clear(gl::COLOR_BUFFER_BIT);
+115 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#semicolon_outside_block
+    = note: requested on the command line with `-D clippy::semicolon-outside-block`
+help: put the `;` here
+    |
+114 ~                 gl::Clear(gl::COLOR_BUFFER_BIT)
+115 ~             };
+    |
+
+error: unsafe block missing a safety comment
+   --> src/ui.rs:112:13
+    |
+112 |             unsafe {
+    |             ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+    = note: requested on the command line with `-D clippy::undocumented-unsafe-blocks`
+
+error: this `unsafe` block contains 2 unsafe operations, expected only one
+   --> src/ui.rs:112:13
+    |
+112 | /             unsafe {
+113 | |                 gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+114 | |                 gl::Clear(gl::COLOR_BUFFER_BIT);
+115 | |             }
+    | |_____________^
+    |
+note: unsafe function call occurs here
+   --> src/ui.rs:113:17
+    |
+113 |                 gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: unsafe function call occurs here
+   --> src/ui.rs:114:17
+    |
+114 |                 gl::Clear(gl::COLOR_BUFFER_BIT);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#multiple_unsafe_ops_per_block
+    = note: requested on the command line with `-D clippy::multiple-unsafe-ops-per-block`
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/ui.rs:139:52
+    |
+139 |                     Event::KeyDown { keycode: Some(sdl2::keyboard::Keycode::Escape), .. } => {
+    |                                                    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: unnecessary boolean `not` operation
+   --> src/ui.rs:214:21
+    |
+214 | /                     if !self.found_installations.is_empty() {
+215 | |                         ui.label("Auto-detected installations:");
+216 | |                         ui.separator();
+...   |
+231 | |                         ui.label("No installations auto-detected.");
+232 | |                     }
+    | |_____________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#if_not_else
+    = note: `-D clippy::if-not-else` implied by `-D clippy::pedantic`
+    = help: to override `-D clippy::pedantic` add `#[allow(clippy::if_not_else)]`
+help: try
+    |
+214 ~                     if self.found_installations.is_empty() {
+215 +                         ui.label("No installations auto-detected.");
+216 +                     } else {
+217 +                         ui.label("Auto-detected installations:");
+218 +                         ui.separator();
+219 + 
+220 +                         let paths: Vec<_> = self.found_installations.clone();
+221 +                         for path in paths {
+222 +                             ui.horizontal(|ui| {
+223 +                                 if ui.button("Add").clicked() {
+224 +                                     self.add_installation(path.clone());
+225 +                                     self.ui_state.show_auto_detected = false;
+226 +                                 }
+227 +                                 ui.label(path.display().to_string());
+228 +                             });
+229 +                         }
+230 + 
+231 +                         ui.separator();
+232 +                     }
+    |
+
+error: this ident consists of a single char
+   --> src/ui.rs:298:28
+    |
+298 |                 if let Err(e) = self.config.save() {
+    |                            ^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#min_ident_chars
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:299:21
+    |
+299 |                     log::error!("Failed to save config: {}", e);
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+    = note: `-D clippy::uninlined-format-args` implied by `-D clippy::pedantic`
+    = help: to override `-D clippy::pedantic` add `#[allow(clippy::uninlined_format_args)]`
+help: change this to
+    |
+299 -                     log::error!("Failed to save config: {}", e);
+299 +                     log::error!("Failed to save config: {e}");
+    |
+
+error: this ident consists of a single char
+   --> src/ui.rs:302:17
+    |
+302 |             Err(e) => {
+    |                 ^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#min_ident_chars
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:303:17
+    |
+303 |                 log::error!("Invalid installation: {}", e);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+303 -                 log::error!("Invalid installation: {}", e);
+303 +                 log::error!("Invalid installation: {e}");
+    |
+
+error: this method could have a `#[must_use]` attribute
+   --> src/ui.rs:314:5
+    |
+314 |     pub fn get_config(&self) -> &AppConfig {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add the attribute: `#[must_use] pub fn get_config(&self) -> &AppConfig`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#must_use_candidate
+
+error: this could be a `const fn`
+   --> src/ui.rs:314:5
+    |
+314 | /     pub fn get_config(&self) -> &AppConfig {
+315 | |         &self.config
+316 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_const_for_fn
+    = note: `-D clippy::missing-const-for-fn` implied by `-D clippy::nursery`
+    = help: to override `-D clippy::nursery` add `#[allow(clippy::missing_const_for_fn)]`
+help: make the function `const`
+    |
+314 |     pub const fn get_config(&self) -> &AppConfig {
+    |         +++++
+
+error: could not compile `ctp-client` (lib) due to 71 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: `to_string()` called on a `&str`
+   --> src/config.rs:233:27
+    |
+233 |             display_name: "Test Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+    = note: requested on the command line with `-D clippy::str-to-string`
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:234:32
+    |
+234 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: redundant clone
+   --> src/config.rs:253:68
+    |
+253 |         config.add_installation("test_id".to_string(), installation.clone());
+    |                                                                    ^^^^^^^^ help: remove this
+    |
+note: this value is dropped without further use
+   --> src/config.rs:253:56
+    |
+253 |         config.add_installation("test_id".to_string(), installation.clone());
+    |                                                        ^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_clone
+    = note: `-D clippy::redundant-clone` implied by `-D clippy::nursery`
+    = help: to override `-D clippy::nursery` add `#[allow(clippy::redundant_clone)]`
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:249:27
+    |
+249 |             display_name: "Test".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^ help: try: `"Test".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:253:33
+    |
+253 |         config.add_installation("test_id".to_string(), installation.clone());
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"test_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: indexing may panic
+   --> src/config.rs:256:20
+    |
+256 |         assert_eq!(config.installations["test_id"].display_name, "Test");
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+    = note: requested on the command line with `-D clippy::indexing-slicing`
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:265:27
+    |
+265 |             display_name: "Test".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^ help: try: `"Test".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:269:33
+    |
+269 |         config.add_installation("test_id".to_string(), installation);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"test_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:290:27
+    |
+290 |             display_name: "Test".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^ help: try: `"Test".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:294:33
+    |
+294 |         config.add_installation("test_id".to_string(), installation);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"test_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:306:27
+    |
+306 |             display_name: "Test CTP2".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test CTP2".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:307:32
+    |
+307 |             validated_at: Some("2023-12-25 10:30:45 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-12-25 10:30:45 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:309:33
+    |
+309 |         config.add_installation("ctp2_test".to_string(), installation);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"ctp2_test".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: indexing may panic
+   --> src/config.rs:322:13
+    |
+322 |             deserialized.installations["ctp2_test"].display_name,
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/config.rs:326:13
+    |
+326 |             deserialized.installations["ctp2_test"].version,
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:338:27
+    |
+338 |             display_name: "CTP1 Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"CTP1 Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:339:32
+    |
+339 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:345:27
+    |
+345 |             display_name: "CTP2 Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"CTP2 Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:346:32
+    |
+346 |             validated_at: Some("2023-01-02 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-02 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:349:33
+    |
+349 |         config.add_installation("ctp1_id".to_string(), installation1);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"ctp1_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:350:33
+    |
+350 |         config.add_installation("ctp2_id".to_string(), installation2);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"ctp2_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: indexing may panic
+   --> src/config.rs:355:20
+    |
+355 |         assert_eq!(config.installations["ctp1_id"].version, GameVersion::CTP1);
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/config.rs:356:20
+    |
+356 |         assert_eq!(config.installations["ctp2_id"].version, GameVersion::CTP2);
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:366:27
+    |
+366 |             display_name: "Old Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Old Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:373:27
+    |
+373 |             display_name: "New Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"New Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:374:32
+    |
+374 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:377:33
+    |
+377 |         config.add_installation("same_id".to_string(), installation1);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"same_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: indexing may panic
+   --> src/config.rs:380:13
+    |
+380 |             config.installations["same_id"].display_name,
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:384:33
+    |
+384 |         config.add_installation("same_id".to_string(), installation2);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"same_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: indexing may panic
+   --> src/config.rs:387:13
+    |
+387 |             config.installations["same_id"].display_name,
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/config.rs:390:20
+    |
+390 |         assert_eq!(config.installations["same_id"].version, GameVersion::CTP2);
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: redundant clone
+   --> src/config.rs:402:34
+    |
+402 |         let cloned = installation.clone();
+    |                                  ^^^^^^^^ help: remove this
+    |
+note: cloned value is neither consumed nor mutated
+   --> src/config.rs:402:22
+    |
+402 |         let cloned = installation.clone();
+    |                      ^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_clone
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:398:27
+    |
+398 |             display_name: "Test Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:399:32
+    |
+399 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:414:27
+    |
+414 |             display_name: "Test".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^ help: try: `"Test".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: variables can be used directly in the `format!` string
+   --> src/config.rs:418:25
+    |
+418 |         let debug_str = format!("{:?}", installation);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+    = note: `-D clippy::uninlined-format-args` implied by `-D clippy::pedantic`
+    = help: to override `-D clippy::pedantic` add `#[allow(clippy::uninlined_format_args)]`
+help: change this to
+    |
+418 -         let debug_str = format!("{:?}", installation);
+418 +         let debug_str = format!("{installation:?}");
+    |
+
+error: consider moving the `;` outside the block for consistent formatting
+   --> src/config.rs:442:9
+    |
+442 | /         unsafe {
+443 | |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+444 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#semicolon_outside_block
+    = note: requested on the command line with `-D clippy::semicolon-outside-block`
+help: put the `;` here
+    |
+443 ~             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path())
+444 ~         };
+    |
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:442:9
+    |
+442 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+    = note: requested on the command line with `-D clippy::undocumented-unsafe-blocks`
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:443:13
+    |
+443 |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+    |             ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:454:9
+    |
+454 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:455:13
+    |
+455 |             std::env::remove_var("XDG_CONFIG_HOME");
+    |             ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: consider moving the `;` outside the block for consistent formatting
+   --> src/config.rs:476:9
+    |
+476 | /         unsafe {
+477 | |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+478 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#semicolon_outside_block
+help: put the `;` here
+    |
+477 ~             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path())
+478 ~         };
+    |
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:476:9
+    |
+476 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:477:13
+    |
+477 |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+    |             ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:489:9
+    |
+489 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:490:13
+    |
+490 |             std::env::remove_var("XDG_CONFIG_HOME");
+    |             ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: consider moving the `;` outside the block for consistent formatting
+   --> src/config.rs:503:9
+    |
+503 | /         unsafe {
+504 | |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+505 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#semicolon_outside_block
+help: put the `;` here
+    |
+504 ~             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path())
+505 ~         };
+    |
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:503:9
+    |
+503 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:504:13
+    |
+504 |             std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+    |             ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:512:27
+    |
+512 |             display_name: "Test Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/config.rs:515:33
+    |
+515 |         config.add_installation("test_id".to_string(), installation);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^ help: try: `"test_id".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: called `assert!` with `Result::is_ok`
+   --> src/config.rs:519:9
+    |
+519 |         assert!(save_result.is_ok());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `save_result.unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assertions_on_result_states
+    = note: requested on the command line with `-D clippy::assertions-on-result-states`
+
+error: unsafe block missing a safety comment
+   --> src/config.rs:531:9
+    |
+531 |         unsafe {
+    |         ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/config.rs:532:13
+    |
+532 |             std::env::remove_var("XDG_CONFIG_HOME");
+    |             ^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:263:9
+    |
+263 |         assert_eq!(format!("{}", error), "Installation path not found");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+263 -         assert_eq!(format!("{}", error), "Installation path not found");
+263 +         assert_eq!(format!("{error}"), "Installation path not found");
+    |
+
+error: `error` shadows a previous, unrelated binding
+   --> src/installation.rs:265:13
+    |
+265 |         let error = ValidationError::MissingDataFolder;
+    |             ^^^^^
+    |
+note: previous binding is here
+   --> src/installation.rs:262:13
+    |
+262 |         let error = ValidationError::PathNotFound;
+    |             ^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#shadow_unrelated
+    = note: requested on the command line with `-D clippy::shadow-unrelated`
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:266:9
+    |
+266 |         assert_eq!(format!("{}", error), "Data folder missing");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+266 -         assert_eq!(format!("{}", error), "Data folder missing");
+266 +         assert_eq!(format!("{error}"), "Data folder missing");
+    |
+
+error: `error` shadows a previous, unrelated binding
+   --> src/installation.rs:268:13
+    |
+268 |         let error = ValidationError::MissingProgramFolder;
+    |             ^^^^^
+    |
+note: previous binding is here
+   --> src/installation.rs:265:13
+    |
+265 |         let error = ValidationError::MissingDataFolder;
+    |             ^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#shadow_unrelated
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:269:9
+    |
+269 |         assert_eq!(format!("{}", error), "Program folder missing");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+269 -         assert_eq!(format!("{}", error), "Program folder missing");
+269 +         assert_eq!(format!("{error}"), "Program folder missing");
+    |
+
+error: `error` shadows a previous, unrelated binding
+   --> src/installation.rs:271:13
+    |
+271 |         let error = ValidationError::NotADirectory;
+    |             ^^^^^
+    |
+note: previous binding is here
+   --> src/installation.rs:268:13
+    |
+268 |         let error = ValidationError::MissingProgramFolder;
+    |             ^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#shadow_unrelated
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:272:9
+    |
+272 |         assert_eq!(format!("{}", error), "Path is not a directory");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+272 -         assert_eq!(format!("{}", error), "Path is not a directory");
+272 +         assert_eq!(format!("{error}"), "Path is not a directory");
+    |
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:278:25
+    |
+278 |         let debug_str = format!("{:?}", error);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+278 -         let debug_str = format!("{:?}", error);
+278 +         let debug_str = format!("{error:?}");
+    |
+
+error: `error` shadows a previous, unrelated binding
+   --> src/installation.rs:281:13
+    |
+281 |         let error = ValidationError::MissingProgramFolder;
+    |             ^^^^^
+    |
+note: previous binding is here
+   --> src/installation.rs:277:13
+    |
+277 |         let error = ValidationError::PathNotFound;
+    |             ^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#shadow_unrelated
+
+error: variables can be used directly in the `format!` string
+   --> src/installation.rs:282:25
+    |
+282 |         let debug_str = format!("{:?}", error);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+282 -         let debug_str = format!("{:?}", error);
+282 +         let debug_str = format!("{error:?}");
+    |
+
+error: `debug_str` shadows a previous, unrelated binding
+   --> src/installation.rs:282:13
+    |
+282 |         let debug_str = format!("{:?}", error);
+    |             ^^^^^^^^^
+    |
+note: previous binding is here
+   --> src/installation.rs:278:13
+    |
+278 |         let debug_str = format!("{:?}", error);
+    |             ^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#shadow_unrelated
+
+error: used import from `std` instead of `core`
+   --> src/installation.rs:289:21
+    |
+289 |         let _: &dyn std::error::Error = &error;
+    |                     ^^^ help: consider importing the item from `core`: `core`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/installation.rs:289:21
+    |
+289 |         let _: &dyn std::error::Error = &error;
+    |                     ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: called `assert!` with `Result::is_err`
+   --> src/installation.rs:547:9
+    |
+547 |         assert!(result.is_err());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `result.unwrap_err()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#assertions_on_result_states
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/installation.rs:558:9
+    |
+558 |         std::thread::sleep(std::time::Duration::from_millis(1100));
+    |         ^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: used import from `std` instead of `core`
+   --> src/installation.rs:558:28
+    |
+558 |         std::thread::sleep(std::time::Duration::from_millis(1100));
+    |                            ^^^ help: consider importing the item from `core`: `core`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#std_instead_of_core
+
+error: consider bringing this path into scope with the `use` keyword
+   --> src/installation.rs:558:28
+    |
+558 |         std::thread::sleep(std::time::Duration::from_millis(1100));
+    |                            ^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#absolute_paths
+
+error: consider moving the `;` outside the block for consistent formatting
+   --> src/ui.rs:112:13
+    |
+112 | /             unsafe {
+113 | |                 gl::ClearColor(0.2, 0.2, 0.2, 1.0);
+114 | |                 gl::Clear(gl::COLOR_BUFFER_BIT);
+115 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#semicolon_outside_block
+help: put the `;` here
+    |
+114 ~                 gl::Clear(gl::COLOR_BUFFER_BIT)
+115 ~             };
+    |
+
+error: unsafe block missing a safety comment
+   --> src/ui.rs:112:13
+    |
+112 |             unsafe {
+    |             ^^^^^^^^
+    |
+    = help: consider adding a safety comment on the preceding line
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#undocumented_unsafe_blocks
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:299:21
+    |
+299 |                     log::error!("Failed to save config: {}", e);
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+299 -                     log::error!("Failed to save config: {}", e);
+299 +                     log::error!("Failed to save config: {e}");
+    |
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:369:27
+    |
+369 |             display_name: "Test Game".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Game".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:376:26
+    |
+376 |         let play_debug = format!("{:?}", play_result);
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+376 -         let play_debug = format!("{:?}", play_result);
+376 +         let play_debug = format!("{play_result:?}");
+    |
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:377:26
+    |
+377 |         let exit_debug = format!("{:?}", exit_result);
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+377 -         let exit_debug = format!("{:?}", exit_result);
+377 +         let exit_debug = format!("{exit_result:?}");
+    |
+
+error: indexing may panic
+   --> src/ui.rs:510:24
+    |
+510 |         let first_id = id_keys[0];
+    |                        ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: indexing may panic
+   --> src/ui.rs:527:24
+    |
+527 |         let first_id = id_keys[0];
+    |                        ^^^^^^^^^^
+    |
+    = help: consider using `.get(n)` or `.get_mut(n)` instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#indexing_slicing
+
+error: redundant clone
+   --> src/ui.rs:589:53
+    |
+589 |         ui.selected_installation = Some(installation.clone());
+    |                                                     ^^^^^^^^ help: remove this
+    |
+note: this value is dropped without further use
+   --> src/ui.rs:589:41
+    |
+589 |         ui.selected_installation = Some(installation.clone());
+    |                                         ^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_clone
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:581:27
+    |
+581 |             display_name: "Test Game".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Game".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:582:32
+    |
+582 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: this ident consists of a single char
+   --> src/ui.rs:623:17
+    |
+623 |             Err(e) => {
+    |                 ^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#min_ident_chars
+
+error: variables can be used directly in the `format!` string
+   --> src/ui.rs:625:33
+    |
+625 |                 let error_str = format!("{}", e);
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args
+help: change this to
+    |
+625 -                 let error_str = format!("{}", e);
+625 +                 let error_str = format!("{e}");
+    |
+
+error: redundant clone
+   --> src/ui.rs:657:34
+    |
+657 |         let cloned = installation.clone();
+    |                                  ^^^^^^^^ help: remove this
+    |
+note: cloned value is neither consumed nor mutated
+   --> src/ui.rs:657:22
+    |
+657 |         let cloned = installation.clone();
+    |                      ^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_clone
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:653:27
+    |
+653 |             display_name: "Test Installation".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Installation".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:654:32
+    |
+654 |             validated_at: Some("2023-01-01 12:00:00 UTC".to_string()),
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"2023-01-01 12:00:00 UTC".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: redundant clone
+   --> src/ui.rs:674:58
+    |
+674 |         let play_result = UIResult::PlayGame(installation.clone());
+    |                                                          ^^^^^^^^ help: remove this
+    |
+note: this value is dropped without further use
+   --> src/ui.rs:674:46
+    |
+674 |         let play_result = UIResult::PlayGame(installation.clone());
+    |                                              ^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#redundant_clone
+
+error: `to_string()` called on a `&str`
+   --> src/ui.rs:670:27
+    |
+670 |             display_name: "Test Game".to_string(),
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^ help: try: `"Test Game".to_owned()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#str_to_string
+
+error: `panic` should not be present in production code
+   --> src/ui.rs:682:31
+    |
+682 |             UIResult::Exit => panic!("Expected PlayGame"),
+    |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#panic
+    = note: requested on the command line with `-D clippy::panic`
+
+error: `panic` should not be present in production code
+   --> src/ui.rs:687:38
+    |
+687 |             UIResult::PlayGame(_) => panic!("Expected Exit"),
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#panic
+
+error: could not compile `ctp-client` (lib test) due to 160 previous errors
+Error while executing command, exit code: 101

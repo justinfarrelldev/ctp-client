@@ -9,6 +9,29 @@ readme = "README.md"
 keywords = ["game", "strategy", "civilization", "multiplayer", "client"]
 categories = ["games", "network-programming"]
 
+[lints.clippy]
+multiple_crate_versions = "allow"
+
 [dependencies]
 env_logger = "0.11.8"
 log = "0.4.27"
+sdl2 = { version = "0.37.0", features = ["ttf", "image", "mixer"] }
+egui = "0.28.0"
+egui_sdl2_gl = "0.28.0"
+gl = "0.14.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8.0"
+dirs = "5.0.1"
+rfd = "0.14.0"
+chrono = { version = "0.4.0", features = ["serde"] }
+
+[[bin]]
+name = "ctp-client"
+path = "src/main.rs"
+
+[lib]
+name = "ctp_client"
+path = "src/lib.rs"
+
+[dev-dependencies]
+tempfile = "3.8.0"

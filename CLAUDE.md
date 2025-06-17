@@ -1,3 +1,7 @@
+IMPORTANT: Run `lint-fix` before each commit. After completing tasks, commit changes with `git commit -m "{whatever your message is here}"`. Fix any failures - success requires all checks to pass.
+
+ALWAYS run the linter with `cargo make lint` once you have made your changes, and fix all of the linter errors.
+
 # Common Commands
 
 Uses cargo-make for build automation.
@@ -17,8 +21,6 @@ Uses cargo-make for build automation.
 - `cargo make test-verbose` - Run tests with verbose output (--nocapture)
 - `cargo make test-release` - Run tests in release mode for performance testing
 
-Run `lint-fix` before each commit. After completing tasks, commit changes (triggers linter, tests, and build checks). Fix any failures - success requires all checks to pass.
-
 # Examples
 
 See scripts folder for cargo-make build examples. Scripts folder is read-only.
@@ -26,7 +28,6 @@ See scripts folder for cargo-make build examples. Scripts folder is read-only.
 # Requirements
 
 - Use test-driven development
-- Maintain minimum 80% code coverage (enforced by pre-commit hook)
 
 # Asset Information
 
@@ -54,8 +55,13 @@ Do not modify:
 # Technology Stack
 
 **SDL2**: Main canvas, tile/terrain rendering, texture management, input capture
-**ImGui**: Overlays, menus, debug panels, HUD elements
+**egui**: Overlays, menus, debug panels, HUD elements
 **ffmpeg-next + SDL2**: Movie playback with texture streaming
 **sdl2::mixer**: Audio and music
 
-Primary libraries: rust-sdl2, imgui-rs, imgui-sdl2, imgui-sdl2-imgui-renderer
+Primary libraries: rust-sdl2, egui
+
+# Documentation
+
+You can fetch documentation here as needed: 
+- egui_sdl2_gl: https://github.com/arjunnair/egui_sdl2_gl
