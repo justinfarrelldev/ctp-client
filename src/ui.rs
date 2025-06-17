@@ -8,11 +8,11 @@ use crate::installation::InstallationValidator;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use egui_sdl2_gl as egui_backend;
 use egui_backend::egui::FullOutput;
 use egui_backend::sdl2::video::GLProfile;
+use egui_backend::{DpiScaling, ShaderVersion, sdl2::event::Event};
 use egui_backend::{egui, gl, sdl2};
-use egui_backend::{sdl2::event::Event, DpiScaling, ShaderVersion};
+use egui_sdl2_gl as egui_backend;
 
 /// Result of UI operations, indicating the next action to take.
 #[derive(Debug)]
@@ -86,7 +86,7 @@ impl EguiUI {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let gl_attr = video_subsystem.gl_attr();
-        
+
         gl_attr.set_context_profile(GLProfile::Core);
         gl_attr.set_double_buffer(true);
         gl_attr.set_multisample_samples(4);
@@ -99,7 +99,7 @@ impl EguiUI {
             .build()?;
 
         let _ctx = window.gl_create_context()?;
-        
+
         let shader_ver = ShaderVersion::Default;
         let (mut painter, mut egui_state) =
             egui_backend::with_sdl2(&window, shader_ver, DpiScaling::Default);
@@ -138,7 +138,10 @@ impl EguiUI {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit { .. } => break 'running,
-                    Event::KeyDown { keycode: Some(sdl2::keyboard::Keycode::Escape), .. } => {
+                    Event::KeyDown {
+                        keycode: Some(sdl2::keyboard::Keycode::Escape),
+                        ..
+                    } => {
                         self.exit_requested = true;
                     }
                     _ => {
@@ -174,8 +177,11 @@ impl EguiUI {
     /// # Arguments
     ///
     /// * `ctx` - The egui context for rendering UI elements
-    #[expect(clippy::too_many_lines, reason = "Complex UI layout requires many lines for readability")]
-    fn draw_ui(&mut self, ctx: &egui::Context) {        
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Complex UI layout requires many lines for readability"
+    )]
+    fn draw_ui(&mut self, ctx: &egui::Context) {
         // Set a tan background color
         let tan_color = egui::Color32::from_rgb(245, 222, 179);
         let mut style = (*ctx.style()).clone();
@@ -193,12 +199,14 @@ impl EguiUI {
                 columns[0].vertical_centered(|left_ui| {
                     left_ui.heading("Civilization: Call to Power");
                     left_ui.add_space(10.0);
-                    
-                    let ctp1_installations: Vec<_> = self.config.get_installations()
+
+                    let ctp1_installations: Vec<_> = self
+                        .config
+                        .get_installations()
                         .iter()
                         .filter(|&(_, inst)| inst.version == GameVersion::CTP1)
                         .collect();
-                    
+
                     if ctp1_installations.is_empty() {
                         left_ui.add_space(20.0);
                         if left_ui.button("Add Installation").clicked() {
@@ -225,12 +233,14 @@ impl EguiUI {
                 columns[1].vertical_centered(|right_ui| {
                     right_ui.heading("Call to Power II");
                     right_ui.add_space(10.0);
-                    
-                    let ctp2_installations: Vec<_> = self.config.get_installations()
+
+                    let ctp2_installations: Vec<_> = self
+                        .config
+                        .get_installations()
                         .iter()
                         .filter(|&(_, inst)| inst.version == GameVersion::CTP2)
                         .collect();
-                    
+
                     if ctp2_installations.is_empty() {
                         right_ui.add_space(20.0);
                         if right_ui.button("Add Installation").clicked() {
@@ -312,19 +322,22 @@ impl EguiUI {
     fn add_installation(&mut self, path: PathBuf) {
         match InstallationValidator::create_installation(path) {
             Ok(installation) => {
-                let id = format!("{}_{}", 
+                let id = format!(
+                    "{}_{}",
                     match installation.version {
                         GameVersion::CTP1 => "ctp1",
                         GameVersion::CTP2 => "ctp2",
                     },
-                    installation.path.file_name()
+                    installation
+                        .path
+                        .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown")
                 );
-                
+
                 log::info!("Added installation: {}", installation.display_name);
                 self.config.add_installation(id, installation);
-                
+
                 if let Err(e) = self.config.save() {
                     log::error!("Failed to save config: {e}");
                 }
@@ -349,8 +362,8 @@ impl EguiUI {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     /// Helper function to create a test UI instance
     fn create_test_ui() -> EguiUI {
@@ -371,11 +384,11 @@ mod tests {
     fn create_mock_ctp1_installation() -> TempDir {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = temp_dir.path();
-        
+
         // Create CTP1 folder structure
         fs::create_dir_all(base_path.join("ctp_data")).unwrap();
         fs::create_dir_all(base_path.join("ctp_program")).unwrap();
-        
+
         temp_dir
     }
 
@@ -383,11 +396,11 @@ mod tests {
     fn create_mock_ctp2_installation() -> TempDir {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let base_path = temp_dir.path();
-        
+
         // Create CTP2 folder structure
         fs::create_dir_all(base_path.join("ctp2_data")).unwrap();
         fs::create_dir_all(base_path.join("ctp2_program")).unwrap();
-        
+
         temp_dir
     }
 
@@ -420,7 +433,7 @@ mod tests {
     #[test]
     fn test_egui_ui_new() {
         let ui = create_test_ui();
-        
+
         // Verify initial state
         assert!(!ui.show_browse_dialog);
         assert!(!ui.exit_requested);
@@ -432,7 +445,7 @@ mod tests {
     fn test_egui_ui_get_config() {
         let ui = create_test_ui();
         let config = ui.get_config();
-        
+
         assert_eq!(config.version, 1);
         // Config should be empty initially (no installations detected)
         assert!(config.get_installations().is_empty() || !config.get_installations().is_empty());
@@ -442,23 +455,23 @@ mod tests {
     fn test_add_installation_valid_ctp1() {
         let mut ui = create_test_ui();
         let temp_dir = create_mock_ctp1_installation();
-        
+
         // Count installations before
         let initial_count = ui.config.get_installations().len();
-        
+
         // Add the installation
         ui.add_installation(temp_dir.path().to_path_buf());
-        
+
         // Verify installation was added
         let final_count = ui.config.get_installations().len();
         assert_eq!(final_count, initial_count + 1);
-        
+
         // Find the added installation
         let installations = ui.config.get_installations();
-        let added_installation = installations.values().find(|inst| {
-            inst.version == GameVersion::CTP1 && inst.path == temp_dir.path()
-        });
-        
+        let added_installation = installations
+            .values()
+            .find(|inst| inst.version == GameVersion::CTP1 && inst.path == temp_dir.path());
+
         assert!(added_installation.is_some());
         let installation = added_installation.unwrap();
         assert!(installation.display_name.contains("Call to Power"));
@@ -469,23 +482,23 @@ mod tests {
     fn test_add_installation_valid_ctp2() {
         let mut ui = create_test_ui();
         let temp_dir = create_mock_ctp2_installation();
-        
+
         // Count installations before
         let initial_count = ui.config.get_installations().len();
-        
+
         // Add the installation
         ui.add_installation(temp_dir.path().to_path_buf());
-        
+
         // Verify installation was added
         let final_count = ui.config.get_installations().len();
         assert_eq!(final_count, initial_count + 1);
-        
+
         // Find the added installation
         let installations = ui.config.get_installations();
-        let added_installation = installations.values().find(|inst| {
-            inst.version == GameVersion::CTP2 && inst.path == temp_dir.path()
-        });
-        
+        let added_installation = installations
+            .values()
+            .find(|inst| inst.version == GameVersion::CTP2 && inst.path == temp_dir.path());
+
         assert!(added_installation.is_some());
         let installation = added_installation.unwrap();
         assert!(installation.display_name.contains("Call to Power II"));
@@ -496,13 +509,13 @@ mod tests {
     fn test_add_installation_invalid_path() {
         let mut ui = create_test_ui();
         let invalid_path = PathBuf::from("/absolutely/nonexistent/path");
-        
+
         // Count installations before
         let initial_count = ui.config.get_installations().len();
-        
+
         // Try to add invalid installation
         ui.add_installation(invalid_path);
-        
+
         // Verify no installation was added
         let final_count = ui.config.get_installations().len();
         assert_eq!(final_count, initial_count);
@@ -512,13 +525,13 @@ mod tests {
     fn test_add_installation_empty_directory() {
         let mut ui = create_test_ui();
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Count installations before
         let initial_count = ui.config.get_installations().len();
-        
+
         // Try to add empty directory
         ui.add_installation(temp_dir.path().to_path_buf());
-        
+
         // Verify no installation was added
         let final_count = ui.config.get_installations().len();
         assert_eq!(final_count, initial_count);
@@ -528,16 +541,18 @@ mod tests {
     fn test_installation_id_generation() {
         let mut ui = create_test_ui();
         let temp_dir = create_mock_ctp1_installation();
-        
+
         // Add installation
         ui.add_installation(temp_dir.path().to_path_buf());
-        
+
         // Check that an ID was generated correctly
         let installations = ui.config.get_installations();
         let id_keys: Vec<&String> = installations.keys().collect();
-        
+
         assert!(!id_keys.is_empty());
-        let first_id = id_keys.first().expect("Should have at least one installation");
+        let first_id = id_keys
+            .first()
+            .expect("Should have at least one installation");
         assert!(first_id.starts_with("ctp1_"));
     }
 
@@ -545,16 +560,18 @@ mod tests {
     fn test_installation_id_generation_ctp2() {
         let mut ui = create_test_ui();
         let temp_dir = create_mock_ctp2_installation();
-        
+
         // Add installation
         ui.add_installation(temp_dir.path().to_path_buf());
-        
+
         // Check that an ID was generated correctly
         let installations = ui.config.get_installations();
         let id_keys: Vec<&String> = installations.keys().collect();
-        
+
         assert!(!id_keys.is_empty());
-        let first_id = id_keys.first().expect("Should have at least one installation");
+        let first_id = id_keys
+            .first()
+            .expect("Should have at least one installation");
         assert!(first_id.starts_with("ctp2_"));
     }
 
@@ -563,21 +580,25 @@ mod tests {
         let mut ui = create_test_ui();
         let ctp1_dir = create_mock_ctp1_installation();
         let ctp2_dir = create_mock_ctp2_installation();
-        
+
         let initial_count = ui.config.get_installations().len();
-        
+
         // Add both installations
         ui.add_installation(ctp1_dir.path().to_path_buf());
         ui.add_installation(ctp2_dir.path().to_path_buf());
-        
+
         let final_count = ui.config.get_installations().len();
         assert_eq!(final_count, initial_count + 2);
-        
+
         // Verify both versions are present
         let installations = ui.config.get_installations();
-        let has_ctp1 = installations.values().any(|inst| inst.version == GameVersion::CTP1);
-        let has_ctp2 = installations.values().any(|inst| inst.version == GameVersion::CTP2);
-        
+        let has_ctp1 = installations
+            .values()
+            .any(|inst| inst.version == GameVersion::CTP1);
+        let has_ctp2 = installations
+            .values()
+            .any(|inst| inst.version == GameVersion::CTP2);
+
         assert!(has_ctp1);
         assert!(has_ctp2);
     }
@@ -585,18 +606,18 @@ mod tests {
     #[test]
     fn test_ui_state_manipulation() {
         let mut ui = create_test_ui();
-        
+
         // Test initial state
         assert!(!ui.ui_state.show_auto_detected);
         assert!(!ui.show_browse_dialog);
         assert!(!ui.exit_requested);
         assert!(ui.selected_installation.is_none());
-        
+
         // Manually modify state to test behavior
         ui.ui_state.show_auto_detected = true;
         ui.show_browse_dialog = true;
         ui.exit_requested = true;
-        
+
         assert!(ui.ui_state.show_auto_detected);
         assert!(ui.show_browse_dialog);
         assert!(ui.exit_requested);
@@ -611,14 +632,14 @@ mod tests {
             "Test Game".to_owned(),
             Some("2023-01-01 12:00:00 UTC".to_owned()),
         );
-        
+
         // Initially no selection
         assert!(ui.selected_installation.is_none());
-        
+
         // Set selection
         ui.selected_installation = Some(installation);
         assert!(ui.selected_installation.is_some());
-        
+
         let selected = ui.selected_installation.as_ref().unwrap();
         assert_eq!(selected.display_name, "Test Game");
         assert_eq!(selected.version, GameVersion::CTP1);
@@ -627,11 +648,11 @@ mod tests {
     #[test]
     fn test_found_installations_behavior() {
         let ui = create_test_ui();
-        
+
         // found_installations should be populated by scan_common_paths
         // The actual content depends on the system, but we can verify it's a vector
         assert!(ui.found_installations.is_empty() || !ui.found_installations.is_empty()); // Always true, tests type
-        
+
         // Test that it's the correct type
         let _: &Vec<PathBuf> = &ui.found_installations;
     }
@@ -640,11 +661,11 @@ mod tests {
     fn test_ui_error_handling() {
         // Test that UI creation handles config loading errors gracefully
         // This tests the error path in EguiUI::new()
-        
+
         // We can't easily force config loading to fail without unsafe code,
         // but we can verify that the Result type is properly handled
         let result = EguiUI::new();
-        
+
         // Should either succeed or return a proper error
         match result {
             Ok(_ui) => {
@@ -663,14 +684,14 @@ mod tests {
         // Test the path display functionality used in the UI
         let path = PathBuf::from("/some/test/path/game_dir");
         let display_string = path.display().to_string();
-        
+
         assert!(display_string.contains("game_dir"));
         assert!(display_string.contains("test"));
-        
+
         // Test with special characters
         let special_path = PathBuf::from("/path/with spaces/and-dashes");
         let special_display = special_path.display().to_string();
-        
+
         assert!(special_display.contains("with spaces"));
         assert!(special_display.contains("and-dashes"));
     }
@@ -683,13 +704,13 @@ mod tests {
             "Test Installation".to_owned(),
             Some("2023-01-01 12:00:00 UTC".to_owned()),
         );
-        
+
         // Test that clone produces identical data
         let cloned = installation.clone();
-        
+
         // Move original to ensure they're independent
         let original = installation;
-        
+
         assert_eq!(original.path, cloned.path);
         assert_eq!(original.version, cloned.version);
         assert_eq!(original.display_name, cloned.display_name);
@@ -709,30 +730,38 @@ mod tests {
         let exit_result = UIResult::Exit;
 
         // Test pattern matching
-        assert!(matches!(play_result, UIResult::PlayGame(_)), "Expected PlayGame variant");
+        assert!(
+            matches!(play_result, UIResult::PlayGame(_)),
+            "Expected PlayGame variant"
+        );
         if let UIResult::PlayGame(inst) = play_result {
             assert_eq!(inst.display_name, "Test Game");
         }
 
-        assert!(matches!(exit_result, UIResult::Exit), "Expected Exit variant");
+        assert!(
+            matches!(exit_result, UIResult::Exit),
+            "Expected Exit variant"
+        );
     }
 
     #[test]
     fn test_directory_name_handling() {
         // Test path file name extraction used in add_installation
         let path_with_name = PathBuf::from("/some/path/game_directory");
-        let file_name = path_with_name.file_name()
+        let file_name = path_with_name
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
-        
+
         assert_eq!(file_name, "game_directory");
-        
+
         // Test path without file name
         let root_path = PathBuf::from("/");
-        let no_name = root_path.file_name()
+        let no_name = root_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
-        
+
         assert_eq!(no_name, "unknown");
     }
 }
