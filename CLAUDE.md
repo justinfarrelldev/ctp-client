@@ -51,3 +51,31 @@ Do not touch any of the following files or folders:
 - the ctp2_source folder
 
 You may not change any lint rules, either.
+
+# Technologies to Use
+
+Use rust-sdl2 and imgui-rs with imgui-sdl2 and imgui-sdl2-imgui-renderer where applicable for graphics rendering.
+
+Use SDL2 for:
+
+    - Main game canvas
+
+    - Tile/terrain rendering
+
+    - Texture management
+
+    - Input capture (e.g., for map interaction)
+
+Use ImGui for:
+
+    - Overlays
+
+    - Options menus
+
+    - Debug panels
+
+    - HUD elements
+
+Use ffmpeg-next + SDL2 texture streaming for movies (such as intro movies and wonder movies). Manage audio separately (preferably, with sdl2::mixer).
+
+Use sdl2:mixer for music, if possible. 
