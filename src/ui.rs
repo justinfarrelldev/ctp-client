@@ -174,38 +174,93 @@ impl EguiUI {
     /// # Arguments
     ///
     /// * `ctx` - The egui context for rendering UI elements
-    fn draw_ui(&mut self, ctx: &egui::Context) {
+    #[expect(clippy::too_many_lines, reason = "Complex UI layout requires many lines for readability")]
+    fn draw_ui(&mut self, ctx: &egui::Context) {        
+        // Set a tan background color
+        let tan_color = egui::Color32::from_rgb(245, 222, 179);
+        let mut style = (*ctx.style()).clone();
+        style.visuals.window_fill = tan_color;
+        style.visuals.panel_fill = tan_color;
+        ctx.set_style(style);
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("CTP Client - Game Selection");
-            ui.separator();
+            ui.add_space(20.0);
 
-            if self.config.get_installations().is_empty() {
-                ui.label("No game installations found.");
-                self.show_auto_detected_ui(ui);
-            } else {
-                ui.label("Available installations:");
-                ui.separator();
-
-                let installations: Vec<_> = self.config.get_installations().iter().enumerate().collect();
-                for (_i, (_id, installation)) in installations {
-                    ui.horizontal(|ui| {
-                        if ui.button("Play").clicked() {
-                            self.selected_installation = Some(installation.clone());
+            // Create horizontal layout for side-by-side sections using columns
+            ui.columns(2, |columns| {
+                // Left column - CTP1
+                columns[0].vertical_centered(|left_ui| {
+                    left_ui.heading("Civilization: Call to Power");
+                    left_ui.add_space(10.0);
+                    
+                    let ctp1_installations: Vec<_> = self.config.get_installations()
+                        .iter()
+                        .filter(|&(_, inst)| inst.version == GameVersion::CTP1)
+                        .collect();
+                    
+                    if ctp1_installations.is_empty() {
+                        left_ui.add_space(20.0);
+                        if left_ui.button("Add Installation").clicked() {
+                            self.ui_state.show_auto_detected = true;
                         }
-                        ui.label(format!("{} - {}", installation.display_name, installation.path.display()));
-                    });
-                }
+                    } else {
+                        for (_id, installation) in ctp1_installations {
+                            left_ui.add_space(10.0);
+                            if left_ui.button("Play").clicked() {
+                                self.selected_installation = Some(installation.clone());
+                            }
+                            left_ui.label(&installation.display_name);
+                            left_ui.label(format!("Path: {}", installation.path.display()));
+                            left_ui.add_space(5.0);
+                        }
+                        left_ui.add_space(10.0);
+                        if left_ui.button("Add Another Installation").clicked() {
+                            self.ui_state.show_auto_detected = true;
+                        }
+                    }
+                });
 
-                ui.separator();
-                if ui.button("Add Installation").clicked() {
-                    self.ui_state.show_auto_detected = true;
-                }
-            }
+                // Right column - CTP2
+                columns[1].vertical_centered(|right_ui| {
+                    right_ui.heading("Call to Power II");
+                    right_ui.add_space(10.0);
+                    
+                    let ctp2_installations: Vec<_> = self.config.get_installations()
+                        .iter()
+                        .filter(|&(_, inst)| inst.version == GameVersion::CTP2)
+                        .collect();
+                    
+                    if ctp2_installations.is_empty() {
+                        right_ui.add_space(20.0);
+                        if right_ui.button("Add Installation").clicked() {
+                            self.ui_state.show_auto_detected = true;
+                        }
+                    } else {
+                        for (_id, installation) in ctp2_installations {
+                            right_ui.add_space(10.0);
+                            if right_ui.button("Play").clicked() {
+                                self.selected_installation = Some(installation.clone());
+                            }
+                            right_ui.label(&installation.display_name);
+                            right_ui.label(format!("Path: {}", installation.path.display()));
+                            right_ui.add_space(5.0);
+                        }
+                        right_ui.add_space(10.0);
+                        if right_ui.button("Add Another Installation").clicked() {
+                            self.ui_state.show_auto_detected = true;
+                        }
+                    }
+                });
+            });
 
-            ui.separator();
-            if ui.button("Exit").clicked() {
-                self.exit_requested = true;
-            }
+            // Exit button at the bottom, centered
+            ui.add_space(30.0);
+            ui.vertical_centered(|ui| {
+                if ui.button("Exit").clicked() {
+                    self.exit_requested = true;
+                }
+            });
         });
 
         if self.ui_state.show_auto_detected {
@@ -243,33 +298,6 @@ impl EguiUI {
                         }
                     });
                 });
-        }
-    }
-
-    /// Shows the auto-detected installations UI section.
-    ///
-    /// # Arguments
-    ///
-    /// * `ui` - The egui UI context for rendering elements
-    fn show_auto_detected_ui(&mut self, ui: &mut egui::Ui) {
-        if !self.found_installations.is_empty() {
-            ui.label("Auto-detected installations:");
-            ui.separator();
-
-            let paths: Vec<_> = self.found_installations.clone();
-            for path in paths {
-                ui.horizontal(|ui| {
-                    if ui.button("Add").clicked() {
-                        self.add_installation(path.clone());
-                    }
-                    ui.label(path.display().to_string());
-                });
-            }
-        }
-
-        ui.separator();
-        if ui.button("Browse for Installation").clicked() {
-            self.show_browse_dialog = true;
         }
     }
 
