@@ -27,6 +27,10 @@ You can refer to the scripts folder for an example script for how to build using
 
 Utilize test-driven development. You are required to maintain a minimum of 80% code coverage, as enforced in the pre-commit hook.
 
+# Useful Information
+
+The final (Windows) builds of the games - including all of the final game assets - are found in the ctp1 (for Civilization: Call to Power) and ctp2 (for Call to Power II) folders respectively. You are not allowed to copy ANY assets from either of these folders due to copyright, but you can use them as references for the names of various assets. You can use the source code in ctp2_source to cross-check what assets are used where and how some original logic works (as well as layouts for menus and things like that). Note that the Civilization: Call to Power source code is not available, as it is lost to time - only the Call to Power II source code is known. 
+
 # Hands Off The Following
 
 Do not touch any of the following files or folders:
@@ -35,5 +39,7 @@ Do not touch any of the following files or folders:
 - any files in the target folder (or the folder itself)
 - the scripts folder
 - the Makefile.toml
+- the ctp1 and ctp2 folders (do not copy anything from these, either)
+- the ctp2_source folder
 
 You may not change any lint rules, either.
