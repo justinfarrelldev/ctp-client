@@ -6,6 +6,7 @@ This project uses cargo-make, which is available via the command line.
 - `cargo make build-all-windows` - Build all Windows targets (x86 and x64)
 - `cargo make build-all-linux` - Build all Linux targets (x86 and x64)
 - `cargo make build-all` - Build all targets for current platform
+- `cargo make dev` - Build the dev server with info logging enabled
 
 ## Linting Commands
 - `cargo make lint` - Run clippy linting on the whole project with strict warnings
@@ -16,7 +17,7 @@ This project uses cargo-make, which is available via the command line.
 - `cargo make test-verbose` - Run tests with verbose output (--nocapture)
 - `cargo make test-release` - Run tests in release mode for performance testing
 
-Just before each commit, remember to run the lint-fix command. Once your current task is complete and the lint-fix command has been run, commit your changes to Git (this will check your work with the linter, tests and build commands).
+Just before each commit, remember to run the lint-fix command. Once your current task is complete and the lint-fix command has been run, commit your changes to Git (this will check your work with the linter, tests and build commands). If the commit fails due to any issues, you must fix them - your success is contingent on the checks passing.
 
 # Examples
 
@@ -33,3 +34,6 @@ Do not touch any of the following files or folders:
 - this file (CLAUDE.md)
 - any files in the target folder (or the folder itself)
 - the scripts folder
+- the Makefile.toml
+
+You may not change any lint rules, either.

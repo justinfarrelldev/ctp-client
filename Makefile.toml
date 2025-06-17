@@ -350,3 +350,9 @@ args = [
 [tasks.setup]
 description = "Setup development environment"
 dependencies = ["add-targets"]
+
+[tasks.dev]
+description = "Run the application with RUST_LOG=info"
+command = "cargo"
+args = ["run"]
+env = { RUST_LOG = "info" }
