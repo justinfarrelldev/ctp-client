@@ -1,81 +1,61 @@
 # Common Commands
 
-This project uses cargo-make, which is available via the command line.
+Uses cargo-make for build automation.
 
 ## Build Commands
 - `cargo make build-all-windows` - Build all Windows targets (x86 and x64)
 - `cargo make build-all-linux` - Build all Linux targets (x86 and x64)
 - `cargo make build-all` - Build all targets for current platform
-- `cargo make dev` - Build the dev server with info logging enabled
+- `cargo make dev` - Build dev server with info logging
 
 ## Linting Commands
-- `cargo make lint` - Run clippy linting on the whole project with strict warnings
-- `cargo make lint-fix` - Run clippy with automatic fixes on the whole project
+- `cargo make lint` - Run clippy with strict warnings
+- `cargo make lint-fix` - Run clippy with automatic fixes
 
 ## Testing Commands
-- `cargo make test` - Run the standard test suite
+- `cargo make test` - Run standard test suite
 - `cargo make test-verbose` - Run tests with verbose output (--nocapture)
 - `cargo make test-release` - Run tests in release mode for performance testing
 
-Just before each commit, remember to run the lint-fix command. Once your current task is complete and the lint-fix command has been run, commit your changes to Git (this will check your work with the linter, tests and build commands). If the commit fails due to any issues, you must fix them - your success is contingent on the checks passing.
+Run `lint-fix` before each commit. After completing tasks, commit changes (triggers linter, tests, and build checks). Fix any failures - success requires all checks to pass.
 
 # Examples
 
-You can refer to the scripts folder for an example script for how to build using cargo-make. You cannot edit anything in the scripts folder, nor the folder itself.
+See scripts folder for cargo-make build examples. Scripts folder is read-only.
 
-# Paradigms
+# Requirements
 
-Utilize test-driven development. You are required to maintain a minimum of 80% code coverage, as enforced in the pre-commit hook.
+- Use test-driven development
+- Maintain minimum 80% code coverage (enforced by pre-commit hook)
 
-# Useful Information
+# Asset Information
 
-The final (Windows) builds of the games - including all of the final game assets - are found in the ctp1 (for Civilization: Call to Power) and ctp2 (for Call to Power II) folders respectively. You are not allowed to copy ANY assets from either of these folders due to copyright, but you can use them as references for the names of various assets. You can use the source code in ctp2_source to cross-check what assets are used where and how some original logic works (as well as layouts for menus and things like that). Note that the Civilization: Call to Power source code is not available, as it is lost to time - only the Call to Power II source code is known. 
+Final builds in ctp1 (Civilization: Call to Power) and ctp2 (Call to Power II) folders contain all game assets. **Do not copy ANY assets due to copyright** - use only as reference for asset names. Use ctp2_source to cross-check asset usage and original logic. CTP1 source code is unavailable.
 
-Use the original CTP2 source code to your advantage when applicable. 
+# Bug Fixes
 
-# If You Encounter an Obvious Bug In The Original Source Code
+If you find bugs in original source code:
+1. Note the change in "FIXES.txt" (top level)
+2. Fix the bug in your implementation
+3. Use performance improvements when providing equivalent visual results
 
-If you encounter a bug in the original source code, note the change in a file called "FIXES.txt" on the top level (next to README.md) and fix the bug in the implementation within this client. For example, if the original source code for the map generation has a memory leak, do NOT include a memory leak in your implementation in this app - create an almost-equivalent implementation without the memory leak, and then note that the memory leak was noticed and will be different from the original implementation.  
+# Restricted Files/Folders
 
-If there are obvious ways to improve performance while providing an equivalent result visually, then use your more performant idea. 
+Do not modify:
+- .git folder (including hooks)
+- CLAUDE.md (this file)
+- target folder
+- scripts folder
+- Makefile.toml
+- ctp1 and ctp2 folders
+- ctp2_source folder
+- lint rules
 
-# Hands Off The Following
+# Technology Stack
 
-Do not touch any of the following files or folders:
-- the .git folder (including the hooks)
-- this file (CLAUDE.md)
-- any files in the target folder (or the folder itself)
-- the scripts folder
-- the Makefile.toml
-- the ctp1 and ctp2 folders (do not copy anything from these, either)
-- the ctp2_source folder
+**SDL2**: Main canvas, tile/terrain rendering, texture management, input capture
+**ImGui**: Overlays, menus, debug panels, HUD elements
+**ffmpeg-next + SDL2**: Movie playback with texture streaming
+**sdl2::mixer**: Audio and music
 
-You may not change any lint rules, either.
-
-# Technologies to Use
-
-Use rust-sdl2 and imgui-rs with imgui-sdl2 and imgui-sdl2-imgui-renderer where applicable for graphics rendering.
-
-Use SDL2 for:
-
-    - Main game canvas
-
-    - Tile/terrain rendering
-
-    - Texture management
-
-    - Input capture (e.g., for map interaction)
-
-Use ImGui for:
-
-    - Overlays
-
-    - Options menus
-
-    - Debug panels
-
-    - HUD elements
-
-Use ffmpeg-next + SDL2 texture streaming for movies (such as intro movies and wonder movies). Manage audio separately (preferably, with sdl2::mixer).
-
-Use sdl2:mixer for music, if possible. 
+Primary libraries: rust-sdl2, imgui-rs, imgui-sdl2, imgui-sdl2-imgui-renderer
