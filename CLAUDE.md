@@ -31,6 +31,14 @@ Utilize test-driven development. You are required to maintain a minimum of 80% c
 
 The final (Windows) builds of the games - including all of the final game assets - are found in the ctp1 (for Civilization: Call to Power) and ctp2 (for Call to Power II) folders respectively. You are not allowed to copy ANY assets from either of these folders due to copyright, but you can use them as references for the names of various assets. You can use the source code in ctp2_source to cross-check what assets are used where and how some original logic works (as well as layouts for menus and things like that). Note that the Civilization: Call to Power source code is not available, as it is lost to time - only the Call to Power II source code is known. 
 
+Use the original CTP2 source code to your advantage when applicable. 
+
+# If You Encounter an Obvious Bug In The Original Source Code
+
+If you encounter a bug in the original source code, note the change in a file called "FIXES.txt" on the top level (next to README.md) and fix the bug in the implementation within this client. For example, if the original source code for the map generation has a memory leak, do NOT include a memory leak in your implementation in this app - create an almost-equivalent implementation without the memory leak, and then note that the memory leak was noticed and will be different from the original implementation.  
+
+If there are obvious ways to improve performance while providing an equivalent result visually, then use your more performant idea. 
+
 # Hands Off The Following
 
 Do not touch any of the following files or folders:
