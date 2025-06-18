@@ -183,8 +183,14 @@ impl GtkUI {
     /// * `selected_installation` - Currently selected installation
     /// * `exit_requested` - Whether exit was requested
     /// * `ui_elements` - Storage for UI elements that need updating
-    #[expect(clippy::too_many_arguments, reason = "Building UI requires many parameters for proper initialization")]
-    #[expect(clippy::too_many_lines, reason = "UI building naturally requires many lines for proper layout")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Building UI requires many parameters for proper initialization"
+    )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "UI building naturally requires many lines for proper layout"
+    )]
     fn build_ui(
         app: &Application,
         config: Rc<RefCell<AppConfig>>,
@@ -204,26 +210,34 @@ impl GtkUI {
             .build();
 
         // Create header bar
-        let header_label = Label::new(Some(&translator.borrow().translate(&TranslationKey::AppTitle)));
-        let header = HeaderBar::builder()
-            .title_widget(&header_label)
-            .build();
+        let header_label = Label::new(Some(
+            &translator.borrow().translate(&TranslationKey::AppTitle),
+        ));
+        let header = HeaderBar::builder().title_widget(&header_label).build();
 
         // Add settings button to header bar
         let settings_button = Button::from_icon_name("preferences-system-symbolic");
-        settings_button.set_tooltip_text(Some(&translator.borrow().translate(&TranslationKey::Settings)));
-        
+        settings_button.set_tooltip_text(Some(
+            &translator.borrow().translate(&TranslationKey::Settings),
+        ));
+
         let settings_config = config.clone();
         let settings_translator = translator.clone();
         let settings_ui_elements = ui_elements.clone();
         settings_button.connect_clicked(clone!(
-            #[weak] window,
+            #[weak]
+            window,
             move |_| {
-                Self::show_settings_dialog(&window, settings_config.clone(), settings_translator.clone(), settings_ui_elements.clone());
+                Self::show_settings_dialog(
+                    &window,
+                    settings_config.clone(),
+                    settings_translator.clone(),
+                    settings_ui_elements.clone(),
+                );
             }
         ));
         header.pack_end(&settings_button);
-        
+
         window.set_titlebar(Some(&header));
 
         // Create main container
@@ -234,7 +248,11 @@ impl GtkUI {
         main_box.set_margin_end(20);
 
         // Title label
-        let title_label = Label::new(Some(&translator.borrow().translate(&TranslationKey::SelectInstallation)));
+        let title_label = Label::new(Some(
+            &translator
+                .borrow()
+                .translate(&TranslationKey::SelectInstallation),
+        ));
         title_label.add_css_class("title-1");
         main_box.append(&title_label);
 
@@ -264,7 +282,11 @@ impl GtkUI {
         buttons_box.set_halign(gtk4::Align::Center);
 
         // Add Installation button
-        let add_button = Button::with_label(&translator.borrow().translate(&TranslationKey::BrowseForInstallation));
+        let add_button = Button::with_label(
+            &translator
+                .borrow()
+                .translate(&TranslationKey::BrowseForInstallation),
+        );
         add_button.connect_clicked(clone!(
             #[weak]
             window,
@@ -283,7 +305,8 @@ impl GtkUI {
         buttons_box.append(&add_button);
 
         // Play button
-        let play_button = Button::with_label(&translator.borrow().translate(&TranslationKey::PlayGame));
+        let play_button =
+            Button::with_label(&translator.borrow().translate(&TranslationKey::PlayGame));
         play_button.add_css_class("suggested-action");
         play_button.connect_clicked(clone!(
             #[strong]
@@ -315,7 +338,7 @@ impl GtkUI {
         main_box.append(&buttons_box);
 
         window.set_child(Some(&main_box));
-        
+
         // Store UI elements for language updates
         *ui_elements.borrow_mut() = Some(UIElements {
             window: window.clone(),
@@ -326,7 +349,7 @@ impl GtkUI {
             play_button,
             exit_button,
         });
-        
+
         window.present();
     }
 
@@ -495,27 +518,34 @@ impl GtkUI {
         translator: Rc<RefCell<Translator>>,
         ui_elements: Rc<RefCell<Option<UIElements>>>,
     ) {
-        let settings_dialog = SettingsDialog::new(parent.upcast_ref::<gtk4::Window>(), config.clone(), translator.clone());
-        
-        match settings_dialog.run() {
-            SettingsResult::Saved(new_language) => {
-                // Update the translator with the new language
-                translator.borrow_mut().set_language(new_language);
-                
-                // Save the configuration
-                if let Err(e) = config.borrow().save() {
-                    log::error!("Failed to save config after language change: {e}");
-                } else {
-                    log::info!("Language settings saved successfully");
+        let settings_dialog = SettingsDialog::new(
+            parent.upcast_ref::<gtk4::Window>(),
+            config.clone(),
+            translator.clone(),
+        );
+
+        // Use callback-based approach to avoid blocking the main thread
+        settings_dialog.show(move |result| {
+            match result {
+                SettingsResult::Saved(new_language) => {
+                    // Update the translator with the new language
+                    translator.borrow_mut().set_language(new_language);
+
+                    // Save the configuration
+                    if let Err(e) = config.borrow().save() {
+                        log::error!("Failed to save config after language change: {e}");
+                    } else {
+                        log::info!("Language settings saved successfully");
+                    }
+
+                    // Refresh UI text to new language
+                    Self::refresh_ui_text(&ui_elements, &translator);
                 }
-                
-                // Refresh UI text to new language
-                Self::refresh_ui_text(&ui_elements, &translator);
+                SettingsResult::Cancelled => {
+                    log::info!("Settings dialog cancelled");
+                }
             }
-            SettingsResult::Cancelled => {
-                log::info!("Settings dialog cancelled");
-            }
-        }
+        });
     }
 
     /// Refreshes all UI text elements with the current language.
@@ -525,21 +555,39 @@ impl GtkUI {
     ) {
         if let Some(elements) = ui_elements.borrow().as_ref() {
             // Update window title
-            elements.window.set_title(Some(&translator.borrow().translate(&TranslationKey::AppTitle)));
-            
+            elements.window.set_title(Some(
+                &translator.borrow().translate(&TranslationKey::AppTitle),
+            ));
+
             // Update header label
-            elements.header_label.set_text(&translator.borrow().translate(&TranslationKey::AppTitle));
-            
+            elements
+                .header_label
+                .set_text(&translator.borrow().translate(&TranslationKey::AppTitle));
+
             // Update settings button tooltip
-            elements.settings_button.set_tooltip_text(Some(&translator.borrow().translate(&TranslationKey::Settings)));
-            
+            elements.settings_button.set_tooltip_text(Some(
+                &translator.borrow().translate(&TranslationKey::Settings),
+            ));
+
             // Update main title label
-            elements.title_label.set_text(&translator.borrow().translate(&TranslationKey::SelectInstallation));
-            
+            elements.title_label.set_text(
+                &translator
+                    .borrow()
+                    .translate(&TranslationKey::SelectInstallation),
+            );
+
             // Update button labels
-            elements.add_button.set_label(&translator.borrow().translate(&TranslationKey::BrowseForInstallation));
-            elements.play_button.set_label(&translator.borrow().translate(&TranslationKey::PlayGame));
-            elements.exit_button.set_label(&translator.borrow().translate(&TranslationKey::Exit));
+            elements.add_button.set_label(
+                &translator
+                    .borrow()
+                    .translate(&TranslationKey::BrowseForInstallation),
+            );
+            elements
+                .play_button
+                .set_label(&translator.borrow().translate(&TranslationKey::PlayGame));
+            elements
+                .exit_button
+                .set_label(&translator.borrow().translate(&TranslationKey::Exit));
         }
     }
 
