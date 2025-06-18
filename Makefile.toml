@@ -282,8 +282,6 @@ args = [
     "-D",
     "clippy::needless_raw_strings",
     "-D",
-    "clippy::non_ascii_literal",
-    "-D",
     "clippy::panic_in_result_fn",
     "-D",
     "clippy::pattern_type_mismatch",

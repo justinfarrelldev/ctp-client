@@ -3,6 +3,7 @@
 //! This module handles application configuration, including game installation
 //! registration, persistence, and management.
 
+use crate::i18n::{Language, Translator};
 use core::error::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -80,13 +81,15 @@ impl GameVersion {
 }
 
 /// Main application configuration structure.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct AppConfig {
     /// Configuration version for migration purposes.
     pub version: u32,
     /// Map of installation ID to `GameInstallation`.
     pub installations: HashMap<String, GameInstallation>,
+    /// User's preferred language setting.
+    pub language: Language,
 }
 
 /// Implementation of `AppConfig` functionality.
@@ -106,6 +109,7 @@ impl AppConfig {
         Self {
             version: Self::CONFIG_VERSION,
             installations: HashMap::new(),
+            language: Translator::detect_system_language(),
         }
     }
 
@@ -223,6 +227,13 @@ impl AppConfig {
     }
 }
 
+/// Default implementation for `AppConfig` that uses system language detection.
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,8 +249,10 @@ mod tests {
     #[test]
     fn test_app_config_default() {
         let config = AppConfig::default();
-        assert_eq!(config.version, 0); // Default should be 0, not CONFIG_VERSION
+        assert_eq!(config.version, AppConfig::CONFIG_VERSION);
         assert!(config.installations.is_empty());
+        // Should have a language set (system default)
+        // Can't test specific language since it depends on system
     }
 
     #[test]
@@ -508,6 +521,7 @@ mod tests {
         let config_path = config_dir.join("ctp-client-config.toml");
         let invalid_config = "
 version = 999
+language = \"English\"
 installations = {}
 ";
         fs::write(&config_path, invalid_config).unwrap();

@@ -106,8 +106,12 @@
 // pub mod app;
 /// Configuration management module.
 pub mod config;
+/// Internationalization module.
+pub mod i18n;
 /// Installation validation and detection module.
 pub mod installation;
+/// Settings UI module.
+pub mod settings;
 /// User interface module.
 pub mod ui;
 

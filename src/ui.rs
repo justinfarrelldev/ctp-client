@@ -23,7 +23,9 @@
 extern crate alloc;
 
 use crate::config::{AppConfig, GameInstallation, GameVersion};
+use crate::i18n::{TranslationKey, Translator};
 use crate::installation::InstallationValidator;
+use crate::settings::{SettingsDialog, SettingsResult};
 use alloc::rc::Rc;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -48,6 +50,8 @@ pub enum UIResult {
 pub struct GtkUI {
     /// Application configuration including saved installations.
     config: Rc<RefCell<AppConfig>>,
+    /// Translator for internationalization.
+    translator: Rc<RefCell<Translator>>,
     /// Automatically detected installation paths.
     found_installations: Vec<PathBuf>,
     /// Current state of the UI.
@@ -81,6 +85,7 @@ impl GtkUI {
     /// Returns an error if the configuration cannot be loaded or GTK initialization fails.
     pub fn new() -> Result<Self, alloc::boxed::Box<dyn std::error::Error>> {
         let config = AppConfig::load()?;
+        let translator = Translator::with_language(config.language.clone());
         let found_installations = InstallationValidator::scan_common_paths();
 
         let app = Application::builder()
@@ -89,6 +94,7 @@ impl GtkUI {
 
         Ok(Self {
             config: Rc::new(RefCell::new(config)),
+            translator: Rc::new(RefCell::new(translator)),
             found_installations,
             ui_state: Rc::new(RefCell::new(UIState::default())),
             selected_installation: Rc::new(RefCell::new(None)),
@@ -109,6 +115,7 @@ impl GtkUI {
     /// Returns an error if GTK initialization fails or other UI errors occur.
     pub fn run(&mut self) -> Result<UIResult, alloc::boxed::Box<dyn std::error::Error>> {
         let config = self.config.clone();
+        let translator = self.translator.clone();
         let found_installations = self.found_installations.clone();
         let ui_state = self.ui_state.clone();
         let selected_installation = self.selected_installation.clone();
@@ -118,6 +125,7 @@ impl GtkUI {
             Self::build_ui(
                 app,
                 config.clone(),
+                translator.clone(),
                 found_installations.clone(),
                 ui_state.clone(),
                 selected_installation.clone(),
@@ -146,6 +154,7 @@ impl GtkUI {
     ///
     /// * `app` - The GTK Application instance
     /// * `config` - The application configuration
+    /// * `translator` - The translator for internationalization
     /// * `found_installations` - Auto-detected installations
     /// * `ui_state` - Current UI state
     /// * `selected_installation` - Currently selected installation
@@ -153,6 +162,7 @@ impl GtkUI {
     fn build_ui(
         app: &Application,
         config: Rc<RefCell<AppConfig>>,
+        translator: Rc<RefCell<Translator>>,
         found_installations: Vec<PathBuf>,
         _ui_state: Rc<RefCell<UIState>>,
         selected_installation: Rc<RefCell<Option<GameInstallation>>>,
@@ -161,15 +171,30 @@ impl GtkUI {
         // Create the main window
         let window = ApplicationWindow::builder()
             .application(app)
-            .title("CTP Client - Game Selection")
+            .title(translator.borrow().translate(&TranslationKey::AppTitle))
             .default_width(800)
             .default_height(600)
             .build();
 
         // Create header bar
         let header = HeaderBar::builder()
-            .title_widget(&Label::new(Some("CTP Client")))
+            .title_widget(&Label::new(Some(&translator.borrow().translate(&TranslationKey::AppTitle))))
             .build();
+
+        // Add settings button to header bar
+        let settings_button = Button::from_icon_name("preferences-system-symbolic");
+        settings_button.set_tooltip_text(Some(&translator.borrow().translate(&TranslationKey::Settings)));
+        
+        let settings_config = config.clone();
+        let settings_translator = translator.clone();
+        settings_button.connect_clicked(clone!(
+            #[weak] window,
+            move |_| {
+                Self::show_settings_dialog(&window, settings_config.clone(), settings_translator.clone());
+            }
+        ));
+        header.pack_end(&settings_button);
+        
         window.set_titlebar(Some(&header));
 
         // Create main container
@@ -180,7 +205,7 @@ impl GtkUI {
         main_box.set_margin_end(20);
 
         // Title label
-        let title_label = Label::new(Some("Select a Call to Power Installation"));
+        let title_label = Label::new(Some(&translator.borrow().translate(&TranslationKey::SelectInstallation)));
         title_label.add_css_class("title-1");
         main_box.append(&title_label);
 
@@ -210,7 +235,7 @@ impl GtkUI {
         buttons_box.set_halign(gtk4::Align::Center);
 
         // Add Installation button
-        let add_button = Button::with_label("Add Installation");
+        let add_button = Button::with_label(&translator.borrow().translate(&TranslationKey::BrowseForInstallation));
         add_button.connect_clicked(clone!(
             #[weak]
             window,
@@ -229,7 +254,7 @@ impl GtkUI {
         buttons_box.append(&add_button);
 
         // Play button
-        let play_button = Button::with_label("Play Selected Game");
+        let play_button = Button::with_label(&translator.borrow().translate(&TranslationKey::PlayGame));
         play_button.add_css_class("suggested-action");
         play_button.connect_clicked(clone!(
             #[strong]
@@ -245,7 +270,7 @@ impl GtkUI {
         buttons_box.append(&play_button);
 
         // Exit button
-        let exit_button = Button::with_label("Exit");
+        let exit_button = Button::with_label(&translator.borrow().translate(&TranslationKey::Exit));
         exit_button.connect_clicked(clone!(
             #[strong]
             exit_requested,
@@ -411,6 +436,41 @@ impl GtkUI {
             }
             Err(e) => {
                 log::error!("Invalid installation: {e}");
+            }
+        }
+    }
+
+    /// Shows the settings dialog for configuring application preferences.
+    ///
+    /// # Arguments
+    ///
+    /// * `parent` - The parent window
+    /// * `config` - The application configuration
+    /// * `translator` - The current translator instance
+    fn show_settings_dialog(
+        parent: &ApplicationWindow,
+        config: Rc<RefCell<AppConfig>>,
+        translator: Rc<RefCell<Translator>>,
+    ) {
+        let settings_dialog = SettingsDialog::new(parent.upcast_ref::<gtk4::Window>(), config.clone(), translator.clone());
+        
+        match settings_dialog.run() {
+            SettingsResult::Saved(new_language) => {
+                // Update the translator with the new language
+                translator.borrow_mut().set_language(new_language);
+                
+                // Save the configuration
+                if let Err(e) = config.borrow().save() {
+                    log::error!("Failed to save config after language change: {e}");
+                } else {
+                    log::info!("Language settings saved successfully");
+                }
+                
+                // Note: In a full implementation, we would refresh the UI text here
+                // For now, changes will take effect on next restart
+            }
+            SettingsResult::Cancelled => {
+                log::info!("Settings dialog cancelled");
             }
         }
     }
