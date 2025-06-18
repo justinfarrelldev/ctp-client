@@ -28,8 +28,6 @@ pub struct SettingsDialog {
     language_combo: ComboBoxText,
     /// Language search entry.
     language_search: SearchEntry,
-    /// Whether settings were saved.
-    settings_saved: Rc<RefCell<bool>>,
 }
 
 /// Result of the settings dialog.
@@ -72,15 +70,12 @@ impl SettingsDialog {
             .placeholder_text(translator.borrow().translate(&TranslationKey::Language))
             .build();
 
-        let settings_saved = Rc::new(RefCell::new(false));
-
         let settings = Self {
             config,
             translator,
             dialog,
             language_combo,
             language_search,
-            settings_saved,
         };
 
         settings.setup_ui();
@@ -199,29 +194,7 @@ impl SettingsDialog {
             gtk4::ResponseType::Cancel,
         );
         
-        // Connect Save button
-        let config = Rc::<std::cell::RefCell<crate::config::AppConfig>>::clone(&self.config);
-        let translator = Rc::<std::cell::RefCell<crate::i18n::Translator>>::clone(&self.translator);
-        let combo = self.language_combo.clone();
-        let settings_saved = Rc::<std::cell::RefCell<bool>>::clone(&self.settings_saved);
-        let dialog = self.dialog.clone();
-        
-        self.dialog.connect_response(move |_, response| {
-            if response == gtk4::ResponseType::Ok {
-                if let Some(active_id) = combo.active_id() {
-                    if let Some(selected_language) = Language::from_locale(&active_id) {
-                        // Update config
-                        config.borrow_mut().language = selected_language.clone();
-                        
-                        // Update translator
-                        translator.borrow_mut().set_language(selected_language);
-                        
-                        *settings_saved.borrow_mut() = true;
-                    }
-                }
-            }
-            dialog.close();
-        });
+        // The response handling is now done in the run() method
     }
 
     /// Runs the settings dialog and returns the result.
@@ -231,17 +204,49 @@ impl SettingsDialog {
     /// `SettingsResult` indicating whether settings were saved or cancelled
     #[must_use]
     pub fn run(&self) -> SettingsResult {
+        use alloc::sync::Arc;
+        use std::sync::{mpsc, Mutex};
+        
+        let (tx, rx) = mpsc::channel();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+        let config = Rc::<RefCell<AppConfig>>::clone(&self.config);
+        
+        // Connect to response signal
+        let combo = self.language_combo.clone();
+        self.dialog.connect_response(glib::clone!(
+            #[strong] tx,
+            #[strong] config,
+            #[strong] combo,
+            move |dialog, response| {
+                let result = match response {
+                    gtk4::ResponseType::Accept => {
+                        // Handle language change
+                        combo.active_id().map_or(SettingsResult::Cancelled, |active_id| {
+                            Language::from_locale(&active_id).map_or(SettingsResult::Cancelled, |selected_language| {
+                                // Update config
+                                config.borrow_mut().language = selected_language.clone();
+                                SettingsResult::Saved(selected_language)
+                            })
+                        })
+                    }
+                    _ => SettingsResult::Cancelled,
+                };
+                
+                if let Ok(sender_guard) = tx.lock() {
+                    if let Some(sender) = sender_guard.as_ref() {
+                        // Ignore send errors as the receiver might be dropped
+                        drop(sender.send(result));
+                    }
+                }
+                
+                dialog.close();
+            }
+        ));
+        
         self.dialog.present();
         
-        // Wait for dialog to close (this is a simplified version)
-        // In a real GTK application, this would be handled with async/await
-        
-        if *self.settings_saved.borrow() {
-            let final_language = self.config.borrow().language.clone();
-            SettingsResult::Saved(final_language)
-        } else {
-            SettingsResult::Cancelled
-        }
+        // Block until response is received
+        rx.recv().unwrap_or(SettingsResult::Cancelled)
     }
 
     /// Gets the current language setting.
@@ -258,12 +263,26 @@ mod tests {
     use crate::i18n::{Language, Translator};
     use std::cell::RefCell;
     use alloc::rc::Rc;
+    use std::sync::Once;
+    
+    static INIT: Once = Once::new();
+    
+    fn ensure_gtk_init() {
+        INIT.call_once(|| {
+            gtk4::init().expect("Failed to initialize GTK");
+        });
+    }
 
     // Helper function to create test window
     fn create_test_window() -> Window {
+        ensure_gtk_init();
+        
         let app = gtk4::Application::builder()
             .application_id("com.test.ctp-client")
             .build();
+        
+        // Register the application to trigger startup signal
+        app.register(gtk4::gio::Cancellable::NONE).ok();
         
         Window::builder()
             .application(&app)
@@ -277,8 +296,6 @@ mod tests {
         if std::env::var("DISPLAY").is_err() && std::env::var("WAYLAND_DISPLAY").is_err() {
             return;
         }
-
-        gtk4::init().unwrap_or(());
 
         let window = create_test_window();
         let config = Rc::new(RefCell::new(AppConfig::new()));
