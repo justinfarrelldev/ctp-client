@@ -7,7 +7,7 @@
 //! ## Features
 //!
 //! - Game installation detection and validation
-//! - Modern egui-based graphical user interface
+//! - Modern GTK4-based graphical user interface
 //! - Support for both CTP1 and CTP2
 //! - Cross-platform compatibility
 //!
@@ -113,7 +113,7 @@ pub mod ui;
 
 use log::info;
 use std::sync::Once;
-use ui::{EguiUI, UIResult};
+use ui::{GtkUI, UIResult};
 
 /// Global flag to ensure logger is only initialized once.
 static INIT: Once = Once::new();
@@ -132,7 +132,7 @@ fn main() {
     info!("Starting CTP Client v{}", env!("CARGO_PKG_VERSION"));
     info!("Initializing game client...");
 
-    match EguiUI::new() {
+    match GtkUI::new() {
         Ok(mut ui) => loop {
             match ui.run() {
                 Ok(UIResult::PlayGame(installation)) => {
@@ -292,16 +292,17 @@ mod tests {
     /// Test that we can create UI instances (basic instantiation test)
     #[test]
     fn test_egui_ui_new_basic() {
-        // This tests that EguiUI::new() can be called without panicking
+        // This tests that GtkUI::new() can be called without panicking
         // We can't fully test the UI without a display, but we can test instantiation
-        let result = EguiUI::new();
+        let result = GtkUI::new();
 
         // Should succeed in creating the UI struct
         assert!(result.is_ok());
 
         let ui = result.unwrap();
         // Verify that the config is properly loaded
-        let installations = ui.get_config().get_installations();
+        let config = ui.get_config();
+        let installations = config.get_installations();
         assert!(installations.is_empty() || !installations.is_empty()); // Always true, tests return type
     }
 

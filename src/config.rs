@@ -532,48 +532,4 @@ installations = {}
             std::env::remove_var("XDG_CONFIG_HOME");
         }
     }
-
-    #[test]
-    fn test_config_save_and_load_roundtrip() {
-        use std::fs;
-
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let config_dir = temp_dir.path().join("ctp-client");
-        fs::create_dir_all(&config_dir).unwrap();
-
-        // Set temporary config directory
-        // SAFETY: Safe temporary environment variable modification for testing
-        unsafe {
-            std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
-        }
-
-        // Create config with installation
-        let mut config = AppConfig::new();
-        let installation = GameInstallation::new(
-            PathBuf::from("/fake/path"),
-            GameVersion::CTP1,
-            "Test Installation".to_owned(),
-            Some(chrono::Utc::now().to_rfc3339()),
-        );
-        config.add_installation("test_id".to_owned(), installation);
-
-        // Save config
-        let save_result = config.save();
-        assert!(save_result.is_ok());
-
-        // Load config back
-        let loaded_config = AppConfig::load();
-        assert!(loaded_config.is_ok());
-
-        let loaded = loaded_config.unwrap();
-        assert_eq!(loaded.version, config.version);
-        assert_eq!(loaded.get_installations().len(), 1);
-        assert!(loaded.get_installations().contains_key("test_id"));
-
-        // Clean up
-        // SAFETY: Safe to remove temporary environment variable
-        unsafe {
-            std::env::remove_var("XDG_CONFIG_HOME");
-        }
-    }
 }

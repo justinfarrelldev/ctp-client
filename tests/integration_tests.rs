@@ -169,7 +169,7 @@ fn test_config_file_operations() {
 #[test]
 fn test_ui_state_transitions() {
     // Test that UI can be created
-    let ui_result = ctp_client::ui::EguiUI::new();
+    let ui_result = ctp_client::ui::GtkUI::new();
     assert!(ui_result.is_ok());
 
     let ui = ui_result.unwrap();
