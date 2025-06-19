@@ -314,8 +314,8 @@ impl GtkUI {
             #[weak]
             window,
             move |_| {
-                if selected_installation.borrow().is_some() {
-                    window.close();
+                if let Some(installation) = selected_installation.borrow().as_ref() {
+                    Self::launch_game(&window, installation.clone());
                 }
             }
         ));
@@ -610,6 +610,59 @@ impl GtkUI {
         self.config.borrow()
     }
 
+    /// Handles game launching with a temporary dialog.
+    ///
+    /// # Arguments
+    ///
+    /// * `parent` - The parent window
+    /// * `installation` - The game installation to launch
+    fn launch_game(parent: &ApplicationWindow, installation: GameInstallation) {
+        let dialog = gtk4::Dialog::builder()
+            .title("Launching Game")
+            .modal(true)
+            .transient_for(parent)
+            .build();
+
+        let content_area = dialog.content_area();
+        let main_box = GtkBox::new(Orientation::Vertical, 12);
+        main_box.set_margin_top(20);
+        main_box.set_margin_bottom(20);
+        main_box.set_margin_start(20);
+        main_box.set_margin_end(20);
+
+        let label = Label::new(Some(&format!("Launching: {}", installation.display_name)));
+        main_box.append(&label);
+
+        let path_label = Label::new(Some(&format!("Path: {}", installation.path.display())));
+        path_label.add_css_class("dim-label");
+        main_box.append(&path_label);
+
+        let info_label = Label::new(Some("Press Enter to continue..."));
+        info_label.add_css_class("dim-label");
+        main_box.append(&info_label);
+
+        let close_button = Button::with_label("OK");
+        close_button.connect_clicked(clone!(
+            #[weak]
+            dialog,
+            #[weak]
+            parent,
+            move |_| {
+                dialog.close();
+                parent.close();
+            }
+        ));
+        main_box.append(&close_button);
+
+        content_area.append(&main_box);
+        dialog.present();
+
+        log::info!(
+            "Game launch dialog shown for: {}",
+            installation.display_name
+        );
+    }
+
     /// Populates the installations list with available games.
     ///
     /// # Arguments
@@ -696,7 +749,13 @@ impl GtkUI {
         if selected_installation.borrow().is_none() && installations_count > 0 {
             if let Some(first_row) = list.row_at_index(0) {
                 list.select_row(Some(&first_row));
-                first_row.emit_activate();
+                // Don't emit_activate() here as it can cause focus issues before window is ready
+                // Instead, just set the selection data directly
+                if let Some(first_installation) =
+                    config.borrow().get_installations().values().next()
+                {
+                    *selected_installation.borrow_mut() = Some(first_installation.clone());
+                }
             }
         }
     }

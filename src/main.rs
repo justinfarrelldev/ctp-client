@@ -137,29 +137,21 @@ fn main() {
     info!("Initializing game client...");
 
     match GtkUI::new() {
-        Ok(mut ui) => loop {
-            match ui.run() {
-                Ok(UIResult::PlayGame(installation)) => {
-                    info!(
-                        "Starting game: {} at {}",
-                        installation.display_name,
-                        installation.path.display()
-                    );
-                    println!("Would start game: {}", installation.display_name);
-                    println!("Press Enter to continue...");
-                    let mut input = String::new();
-                    if std::io::stdin().read_line(&mut input).is_err() {
-                        log::error!("Failed to read input");
-                    }
-                }
-                Ok(UIResult::Exit) => {
-                    info!("User requested exit");
-                    break;
-                }
-                Err(e) => {
-                    log::error!("UI error: {}", e);
-                    break;
-                }
+        Ok(mut ui) => match ui.run() {
+            Ok(UIResult::PlayGame(installation)) => {
+                info!(
+                    "Starting game: {} at {}",
+                    installation.display_name,
+                    installation.path.display()
+                );
+                println!("Would start game: {}", installation.display_name);
+                info!("Game session completed");
+            }
+            Ok(UIResult::Exit) => {
+                info!("User requested exit");
+            }
+            Err(e) => {
+                log::error!("UI error: {}", e);
             }
         },
         Err(e) => {
