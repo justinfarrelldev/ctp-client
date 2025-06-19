@@ -792,7 +792,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -838,7 +838,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -884,7 +884,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -919,7 +919,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -954,7 +954,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -992,7 +992,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
@@ -1030,7 +1030,7 @@ mod tests {
         // Set up isolated test environment
         let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
         let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
-        
+
         // SAFETY: This is safe because we're only temporarily setting an environment variable
         // for testing purposes and will restore it afterward
         unsafe {
