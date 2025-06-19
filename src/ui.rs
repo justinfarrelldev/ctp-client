@@ -423,33 +423,42 @@ impl GtkUI {
             #[strong]
             config,
             move |_| {
-                // Use GTK4 FileChooserNative for better integration
-                let file_chooser = gtk4::FileChooserNative::new(
-                    Some("Select Call to Power Installation Directory"),
-                    Some(&dialog),
-                    gtk4::FileChooserAction::SelectFolder,
-                    Some("_Select"),
-                    Some("_Cancel"),
-                );
+                log::info!("Browse button clicked - using rfd file dialog");
 
-                file_chooser.connect_response(clone!(
-                    #[strong]
-                    config,
-                    #[weak]
-                    dialog,
-                    move |chooser, response| {
-                        if response == gtk4::ResponseType::Accept {
-                            if let Some(file) = chooser.file() {
-                                if let Some(path) = file.path() {
-                                    Self::add_installation_static(config.clone(), path);
+                // Create a channel to communicate between threads
+                let (sender, receiver) = std::sync::mpsc::channel();
+
+                // Spawn rfd dialog in a separate thread
+                std::thread::spawn(move || {
+                    log::info!("Opening rfd file dialog...");
+                    let result = rfd::FileDialog::new()
+                        .set_title("Select Call to Power Installation Directory")
+                        .pick_folder();
+
+                    if sender.send(result).is_err() {
+                        log::error!("Failed to send file dialog result");
+                    }
+                });
+
+                // Poll for the result on the main thread
+                let config_clone = config.clone();
+                glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                    receiver
+                        .try_recv()
+                        .map_or(glib::ControlFlow::Continue, |result| {
+                            match result {
+                                Some(path) => {
+                                    log::info!("rfd selected path: {path:?}");
+                                    Self::add_installation_static(config_clone.clone(), path);
+                                    dialog.close();
+                                }
+                                None => {
+                                    log::info!("rfd file dialog cancelled or no selection made");
                                 }
                             }
-                        }
-                        dialog.close();
-                    }
-                ));
-
-                file_chooser.show();
+                            glib::ControlFlow::Break
+                        })
+                });
             }
         ));
         main_box.append(&browse_button);
