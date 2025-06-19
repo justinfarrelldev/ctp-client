@@ -789,6 +789,16 @@ mod tests {
 
     #[test]
     fn test_add_installation_valid_ctp1() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let temp_dir = create_mock_ctp1_installation();
 
@@ -812,10 +822,29 @@ mod tests {
         let installation = added_installation.unwrap();
         assert!(installation.display_name.contains("Call to Power"));
         assert!(installation.validated_at.is_some());
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_add_installation_valid_ctp2() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let temp_dir = create_mock_ctp2_installation();
 
@@ -839,10 +868,29 @@ mod tests {
         let installation = added_installation.unwrap();
         assert!(installation.display_name.contains("Call to Power II"));
         assert!(installation.validated_at.is_some());
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_add_installation_invalid_path() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let invalid_path = PathBuf::from("/absolutely/nonexistent/path");
 
@@ -855,10 +903,29 @@ mod tests {
         // Verify no installation was added
         let final_count = config.borrow().get_installations().len();
         assert_eq!(final_count, initial_count);
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_add_installation_empty_directory() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
 
@@ -871,10 +938,29 @@ mod tests {
         // Verify no installation was added
         let final_count = config.borrow().get_installations().len();
         assert_eq!(final_count, initial_count);
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_installation_id_generation() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let temp_dir = create_mock_ctp1_installation();
 
@@ -890,10 +976,29 @@ mod tests {
             .first()
             .expect("Should have at least one installation");
         assert!(first_id.starts_with("ctp1_"));
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_installation_id_generation_ctp2() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let temp_dir = create_mock_ctp2_installation();
 
@@ -909,10 +1014,29 @@ mod tests {
             .first()
             .expect("Should have at least one installation");
         assert!(first_id.starts_with("ctp2_"));
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]
     fn test_multiple_installations() {
+        // Set up isolated test environment
+        let temp_config_dir = TempDir::new().expect("Failed to create temp config dir");
+        let original_config_dir = std::env::var("XDG_CONFIG_HOME").ok();
+        
+        // SAFETY: This is safe because we're only temporarily setting an environment variable
+        // for testing purposes and will restore it afterward
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp_config_dir.path());
+        }
+
         let config = Rc::new(RefCell::new(create_test_config()));
         let ctp1_dir = create_mock_ctp1_installation();
         let ctp2_dir = create_mock_ctp2_installation();
@@ -937,6 +1061,15 @@ mod tests {
 
         assert!(has_ctp1);
         assert!(has_ctp2);
+
+        // Restore original config dir
+        // SAFETY: Safe to restore the original environment variable
+        unsafe {
+            match original_config_dir {
+                Some(dir) => std::env::set_var("XDG_CONFIG_HOME", dir),
+                None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+        }
     }
 
     #[test]

@@ -191,7 +191,7 @@ impl InstallationValidator {
 
             for path_str in &common_paths {
                 let path = PathBuf::from(path_str);
-                if path.exists() {
+                if path.exists() && !path.starts_with("/tmp") {
                     paths.push(path);
                 }
             }
@@ -209,7 +209,7 @@ impl InstallationValidator {
 
                 for path_str in &common_paths {
                     let path = home.join(path_str);
-                    if path.exists() {
+                    if path.exists() && !path.starts_with("/tmp") {
                         paths.push(path);
                     }
                 }
