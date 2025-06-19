@@ -1,8 +1,8 @@
 //! # CTP Client
 //!
-//! A custom Call to Power client for strategic civilization gameplay.
-//! This client provides a modern interface for connecting to and playing
-//! Call to Power games with enhanced features and improved user experience.
+//! A modern client application for strategic civilization gaming.
+//! This client provides an interface for connecting and playing
+//! CTP games with enhanced features and improved user experience.
 //!
 //! ## Features
 //!
@@ -21,6 +21,10 @@
 #![allow(
     clippy::multiple_crate_versions,
     reason = "Multiple versions are acceptable for this game client that integrates many external libraries"
+)]
+#![allow(
+    clippy::literal_string_with_formatting_args,
+    reason = "False positive on doc comments containing 'Call to Power'"
 )]
 #![allow(
     clippy::panic,
@@ -114,10 +118,13 @@ pub mod installation;
 pub mod settings;
 /// User interface module.
 pub mod ui;
+/// Video playback module.
+pub mod video;
 
 use log::info;
 use std::sync::Once;
 use ui::{GtkUI, UIResult};
+use video::{VideoPlayer, VideoResult};
 
 /// Global flag to ensure logger is only initialized once.
 static INIT: Once = Once::new();
@@ -144,6 +151,25 @@ fn main() {
                     installation.display_name,
                     installation.path.display()
                 );
+
+                // Play intro video
+                match VideoPlayer::new() {
+                    Ok(video_player) => match video_player.play_intro_video(&installation) {
+                        VideoResult::Completed => {
+                            info!("Intro video completed successfully");
+                        }
+                        VideoResult::Skipped => {
+                            info!("Intro video skipped by user");
+                        }
+                        VideoResult::Failed(error) => {
+                            log::warn!("Failed to play intro video: {}", error);
+                        }
+                    },
+                    Err(e) => {
+                        log::warn!("Failed to initialize video player: {}", e);
+                    }
+                }
+
                 println!("Would start game: {}", installation.display_name);
                 info!("Game session completed");
             }
