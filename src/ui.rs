@@ -76,10 +76,10 @@ struct UIElements {
     settings_button: Button,
     /// Main title label.
     title_label: Label,
-    /// Add installation button.
-    add_button: Button,
-    /// Play game button.
-    play_button: Button,
+    /// CTP1 add installation button.
+    ctp1_add_button: Button,
+    /// CTP2 add installation button.
+    ctp2_add_button: Button,
     /// Exit application button.
     exit_button: Button,
 }
@@ -197,7 +197,7 @@ impl GtkUI {
         translator: Rc<RefCell<Translator>>,
         found_installations: Vec<PathBuf>,
         _ui_state: Rc<RefCell<UIState>>,
-        selected_installation: Rc<RefCell<Option<GameInstallation>>>,
+        _selected_installation: Rc<RefCell<Option<GameInstallation>>>,
         exit_requested: Rc<RefCell<bool>>,
         ui_elements: Rc<RefCell<Option<UIElements>>>,
     ) {
@@ -256,38 +256,59 @@ impl GtkUI {
         title_label.add_css_class("title-1");
         main_box.append(&title_label);
 
-        // Create scrolled window for installations list
-        let scrolled = ScrolledWindow::builder()
-            .hscrollbar_policy(gtk4::PolicyType::Never)
-            .min_content_height(300)
-            .build();
+        // Create horizontal box for two game sections
+        let games_box = GtkBox::new(Orientation::Horizontal, 20);
+        games_box.set_halign(gtk4::Align::Fill);
+        games_box.set_homogeneous(true);
 
-        let installations_list = ListBox::builder()
-            .selection_mode(gtk4::SelectionMode::Single)
-            .build();
+        // Get installations for each game version
+        let config_ref = config.borrow();
+        let installations = config_ref.get_installations();
+        let ctp1_installation = installations.values().find(|inst| inst.version == GameVersion::CTP1);
+        let ctp2_installation = installations.values().find(|inst| inst.version == GameVersion::CTP2);
+        
+        // Clone the installations since we need them after dropping the borrow
+        let ctp1_installation = ctp1_installation.cloned();
+        let ctp2_installation = ctp2_installation.cloned();
+        drop(config_ref);
 
-        // Populate installations list
-        Self::populate_installations_list(
-            &installations_list,
-            config.clone(),
-            selected_installation.clone(),
-            app,
-        );
+        // CTP1 Section
+        let ctp1_box = GtkBox::new(Orientation::Vertical, 12);
+        ctp1_box.set_halign(gtk4::Align::Fill);
 
-        scrolled.set_child(Some(&installations_list));
-        main_box.append(&scrolled);
+        let ctp1_title = Label::new(Some(&translator.borrow().translate(&TranslationKey::CallToPower1)));
+        ctp1_title.add_css_class("title-2");
+        ctp1_box.append(&ctp1_title);
 
-        // Create buttons container
-        let buttons_box = GtkBox::new(Orientation::Horizontal, 12);
-        buttons_box.set_halign(gtk4::Align::Center);
+        let ctp1_status = ctp1_installation.as_ref().map_or_else(|| Label::new(Some("Not installed")), |installation| Label::new(Some(&format!("Installed at:\n{}", installation.path.display()))));
+        ctp1_status.set_wrap(true);
+        ctp1_status.set_justify(gtk4::Justification::Center);
+        ctp1_status.add_css_class("dim-label");
+        ctp1_box.append(&ctp1_status);
 
-        // Add Installation button
-        let add_button = Button::with_label(
+        let ctp1_play_button = Button::with_label("Play CTP1");
+        ctp1_play_button.add_css_class("suggested-action");
+        ctp1_play_button.set_sensitive(ctp1_installation.is_some());
+        
+        ctp1_play_button.connect_clicked(clone!(
+            #[weak]
+            window,
+            #[strong]
+            ctp1_installation,
+            move |_| {
+                if let Some(installation) = ctp1_installation.as_ref() {
+                    Self::launch_game(&window, installation.clone());
+                }
+            }
+        ));
+        ctp1_box.append(&ctp1_play_button);
+
+        let ctp1_add_button = Button::with_label(
             &translator
                 .borrow()
                 .translate(&TranslationKey::BrowseForInstallation),
         );
-        add_button.connect_clicked(clone!(
+        ctp1_add_button.connect_clicked(clone!(
             #[weak]
             window,
             #[strong]
@@ -295,31 +316,83 @@ impl GtkUI {
             #[strong]
             found_installations,
             move |_| {
-                Self::show_add_installation_dialog(
+                Self::show_add_installation_dialog_for_version(
                     &window,
                     config.clone(),
                     found_installations.clone(),
+                    GameVersion::CTP1,
                 );
             }
         ));
-        buttons_box.append(&add_button);
+        ctp1_box.append(&ctp1_add_button);
 
-        // Play button
-        let play_button =
-            Button::with_label(&translator.borrow().translate(&TranslationKey::PlayGame));
-        play_button.add_css_class("suggested-action");
-        play_button.connect_clicked(clone!(
-            #[strong]
-            selected_installation,
+        games_box.append(&ctp1_box);
+
+        // Add separator
+        let separator = gtk4::Separator::new(Orientation::Vertical);
+        games_box.append(&separator);
+
+        // CTP2 Section
+        let ctp2_box = GtkBox::new(Orientation::Vertical, 12);
+        ctp2_box.set_halign(gtk4::Align::Fill);
+
+        let ctp2_title = Label::new(Some(&translator.borrow().translate(&TranslationKey::CallToPower2)));
+        ctp2_title.add_css_class("title-2");
+        ctp2_box.append(&ctp2_title);
+
+        let ctp2_status = ctp2_installation.as_ref().map_or_else(|| Label::new(Some("Not installed")), |installation| Label::new(Some(&format!("Installed at:\n{}", installation.path.display()))));
+        ctp2_status.set_wrap(true);
+        ctp2_status.set_justify(gtk4::Justification::Center);
+        ctp2_status.add_css_class("dim-label");
+        ctp2_box.append(&ctp2_status);
+
+        let ctp2_play_button = Button::with_label("Play CTP2");
+        ctp2_play_button.add_css_class("suggested-action");
+        ctp2_play_button.set_sensitive(ctp2_installation.is_some());
+        
+        ctp2_play_button.connect_clicked(clone!(
             #[weak]
             window,
+            #[strong]
+            ctp2_installation,
             move |_| {
-                if let Some(installation) = selected_installation.borrow().as_ref() {
+                if let Some(installation) = ctp2_installation.as_ref() {
                     Self::launch_game(&window, installation.clone());
                 }
             }
         ));
-        buttons_box.append(&play_button);
+        ctp2_box.append(&ctp2_play_button);
+
+        let ctp2_add_button = Button::with_label(
+            &translator
+                .borrow()
+                .translate(&TranslationKey::BrowseForInstallation),
+        );
+        ctp2_add_button.connect_clicked(clone!(
+            #[weak]
+            window,
+            #[strong]
+            config,
+            #[strong]
+            found_installations,
+            move |_| {
+                Self::show_add_installation_dialog_for_version(
+                    &window,
+                    config.clone(),
+                    found_installations.clone(),
+                    GameVersion::CTP2,
+                );
+            }
+        ));
+        ctp2_box.append(&ctp2_add_button);
+
+        games_box.append(&ctp2_box);
+
+        main_box.append(&games_box);
+
+        // Exit button container
+        let exit_box = GtkBox::new(Orientation::Horizontal, 12);
+        exit_box.set_halign(gtk4::Align::Center);
 
         // Exit button
         let exit_button = Button::with_label(&translator.borrow().translate(&TranslationKey::Exit));
@@ -333,9 +406,9 @@ impl GtkUI {
                 window.close();
             }
         ));
-        buttons_box.append(&exit_button);
+        exit_box.append(&exit_button);
 
-        main_box.append(&buttons_box);
+        main_box.append(&exit_box);
 
         window.set_child(Some(&main_box));
 
@@ -345,8 +418,8 @@ impl GtkUI {
             header_label,
             settings_button,
             title_label,
-            add_button,
-            play_button,
+            ctp1_add_button,
+            ctp2_add_button,
             exit_button,
         });
 
@@ -454,6 +527,152 @@ impl GtkUI {
                                 }
                                 None => {
                                     log::info!("rfd file dialog cancelled or no selection made");
+                                }
+                            }
+                            glib::ControlFlow::Break
+                        })
+                });
+            }
+        ));
+        main_box.append(&browse_button);
+
+        // Cancel button
+        let cancel_button = Button::with_label("Cancel");
+        cancel_button.connect_clicked(clone!(
+            #[weak]
+            dialog,
+            move |_| {
+                dialog.close();
+            }
+        ));
+        main_box.append(&cancel_button);
+
+        content_area.append(&main_box);
+        dialog.present();
+    }
+
+    /// Shows the add installation dialog for a specific game version.
+    ///
+    /// # Arguments
+    ///
+    /// * `parent` - The parent window
+    /// * `config` - The application configuration
+    /// * `found_installations` - Auto-detected installations
+    /// * `version` - The specific game version to install
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Dialog building naturally requires many lines for proper layout"
+    )]
+    fn show_add_installation_dialog_for_version(
+        parent: &ApplicationWindow,
+        config: Rc<RefCell<AppConfig>>,
+        found_installations: Vec<PathBuf>,
+        version: GameVersion,
+    ) {
+        let version_name = match version {
+            GameVersion::CTP1 => "Call to Power",
+            GameVersion::CTP2 => "Call to Power II",
+        };
+        
+        let dialog = gtk4::Dialog::builder()
+            .title(format!("Add {version_name} Installation"))
+            .modal(true)
+            .transient_for(parent)
+            .build();
+
+        let content_area = dialog.content_area();
+        let main_box = GtkBox::new(Orientation::Vertical, 12);
+        main_box.set_margin_top(20);
+        main_box.set_margin_bottom(20);
+        main_box.set_margin_start(20);
+        main_box.set_margin_end(20);
+
+        // Filter found installations for this version
+        let filtered_installations: Vec<PathBuf> = found_installations
+            .into_iter()
+            .filter(|path| {
+                // Check if this path contains the required folders for this version
+                let (data_folder, program_folder) = version.required_folders();
+                path.join(data_folder).exists() && path.join(program_folder).exists()
+            })
+            .collect();
+
+        if filtered_installations.is_empty() {
+            let label = Label::new(Some(&format!("No {version_name} installations auto-detected.")));
+            main_box.append(&label);
+        } else {
+            let label = Label::new(Some(&format!("Auto-detected {version_name} installations:")));
+            main_box.append(&label);
+
+            let list = ListBox::new();
+            for path in filtered_installations {
+                let row = ListBoxRow::new();
+                let path_label = Label::new(Some(&path.display().to_string()));
+                path_label.set_margin_top(6);
+                path_label.set_margin_bottom(6);
+                path_label.set_margin_start(12);
+                path_label.set_margin_end(12);
+                row.set_child(Some(&path_label));
+
+                let path_clone = path.clone();
+                row.connect_activate(clone!(
+                    #[strong]
+                    config,
+                    #[weak]
+                    dialog,
+                    move |_| {
+                        Self::add_installation_static(config.clone(), path_clone.clone());
+                        dialog.close();
+                    }
+                ));
+
+                list.append(&row);
+            }
+
+            let scrolled = ScrolledWindow::builder().height_request(200).build();
+            scrolled.set_child(Some(&list));
+            main_box.append(&scrolled);
+        }
+
+        // Browse button
+        let browse_button = Button::with_label(&format!("Browse for {version_name} Installation..."));
+        browse_button.connect_clicked(clone!(
+            #[weak]
+            dialog,
+            #[strong]
+            config,
+            move |_| {
+                log::info!("Browse button clicked for {version_name} - using rfd file dialog");
+
+                // Create a channel to communicate between threads
+                let (sender, receiver) = std::sync::mpsc::channel();
+
+                // Spawn rfd dialog in a separate thread
+                std::thread::spawn(move || {
+                    log::info!("Opening rfd file dialog for {version_name}...");
+                    let result = rfd::FileDialog::new()
+                        .set_title(format!("Select {version_name} Installation Directory"))
+                        .pick_folder();
+
+                    if sender.send(result).is_err() {
+                        log::error!("Failed to send file dialog result");
+                    }
+                });
+
+                // Poll for the result on the main thread
+                let config_clone = config.clone();
+                glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+                    receiver
+                        .try_recv()
+                        .map_or(glib::ControlFlow::Continue, |result| {
+                            match result {
+                                Some(path) => {
+                                    log::info!("rfd selected path for {version_name}: {path:?}");
+                                    Self::add_installation_static(config_clone.clone(), path);
+                                    dialog.close();
+                                }
+                                None => {
+                                    log::info!("rfd file dialog cancelled or no selection made for {version_name}");
                                 }
                             }
                             glib::ControlFlow::Break
@@ -586,14 +805,16 @@ impl GtkUI {
             );
 
             // Update button labels
-            elements.add_button.set_label(
+            elements.ctp1_add_button.set_label(
                 &translator
                     .borrow()
                     .translate(&TranslationKey::BrowseForInstallation),
             );
-            elements
-                .play_button
-                .set_label(&translator.borrow().translate(&TranslationKey::PlayGame));
+            elements.ctp2_add_button.set_label(
+                &translator
+                    .borrow()
+                    .translate(&TranslationKey::BrowseForInstallation),
+            );
             elements
                 .exit_button
                 .set_label(&translator.borrow().translate(&TranslationKey::Exit));

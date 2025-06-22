@@ -2,6 +2,8 @@ IMPORTANT: Run `lint-fix` before each commit. After completing tasks, commit cha
 
 ALWAYS run the linter with `cargo make lint` once you have made your changes, and fix all of the linter errors.
 
+**CRITICAL: Always output the results of any commands you run to temp.log (in the root directory), then read that to get the results of the previous command.**
+
 # Common Commands
 
 Uses cargo-make for build automation.
