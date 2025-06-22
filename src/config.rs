@@ -87,6 +87,7 @@ pub struct AppConfig {
     /// Configuration version for migration purposes.
     pub version: u32,
     /// Map of installation ID to `GameInstallation`.
+    #[serde(default)]
     pub installations: HashMap<String, GameInstallation>,
     /// User's preferred language setting.
     pub language: Language,
