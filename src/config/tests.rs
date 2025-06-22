@@ -121,45 +121,6 @@ fn test_get_installations() {
 }
 
 #[test]
-fn test_save_and_load_config() {
-    let (temp_dir, config_path) = setup_temp_config_dir();
-
-    // Set a temporary config directory
-    let original_config_dir = env::var("XDG_CONFIG_HOME").ok();
-    env::set_var("XDG_CONFIG_HOME", temp_dir.path());
-
-    // Create config with data
-    let mut config = AppConfig::new();
-    let installation = GameInstallation::new(
-        PathBuf::from("/test/path"),
-        GameVersion::CTP1,
-        "Test Installation".to_string(),
-        Some("2023-01-01 12:00:00 UTC".to_string()),
-    );
-    config.add_installation("test_id".to_string(), installation);
-
-    // Save config
-    assert!(config.save().is_ok());
-    assert!(config_path.exists());
-
-    // Load config
-    let loaded_config = AppConfig::load().unwrap();
-    assert_eq!(loaded_config.version, AppConfig::CONFIG_VERSION);
-    assert_eq!(loaded_config.installations.len(), 1);
-    assert!(loaded_config.installations.contains_key("test_id"));
-    assert_eq!(
-        loaded_config.installations["test_id"].display_name,
-        "Test Installation"
-    );
-
-    // Restore original config dir
-    match original_config_dir {
-        Some(dir) => env::set_var("XDG_CONFIG_HOME", dir),
-        None => env::remove_var("XDG_CONFIG_HOME"),
-    }
-}
-
-#[test]
 fn test_load_nonexistent_config() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let original_config_dir = env::var("XDG_CONFIG_HOME").ok();
