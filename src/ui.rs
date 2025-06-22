@@ -264,9 +264,13 @@ impl GtkUI {
         // Get installations for each game version
         let config_ref = config.borrow();
         let installations = config_ref.get_installations();
-        let ctp1_installation = installations.values().find(|inst| inst.version == GameVersion::CTP1);
-        let ctp2_installation = installations.values().find(|inst| inst.version == GameVersion::CTP2);
-        
+        let ctp1_installation = installations
+            .values()
+            .find(|inst| inst.version == GameVersion::CTP1);
+        let ctp2_installation = installations
+            .values()
+            .find(|inst| inst.version == GameVersion::CTP2);
+
         // Clone the installations since we need them after dropping the borrow
         let ctp1_installation = ctp1_installation.cloned();
         let ctp2_installation = ctp2_installation.cloned();
@@ -276,11 +280,21 @@ impl GtkUI {
         let ctp1_box = GtkBox::new(Orientation::Vertical, 12);
         ctp1_box.set_halign(gtk4::Align::Fill);
 
-        let ctp1_title = Label::new(Some(&translator.borrow().translate(&TranslationKey::CallToPower1)));
+        let ctp1_title = Label::new(Some(
+            &translator.borrow().translate(&TranslationKey::CallToPower1),
+        ));
         ctp1_title.add_css_class("title-2");
         ctp1_box.append(&ctp1_title);
 
-        let ctp1_status = ctp1_installation.as_ref().map_or_else(|| Label::new(Some("Not installed")), |installation| Label::new(Some(&format!("Installed at:\n{}", installation.path.display()))));
+        let ctp1_status = ctp1_installation.as_ref().map_or_else(
+            || Label::new(Some("Not installed")),
+            |installation| {
+                Label::new(Some(&format!(
+                    "Installed at:\n{}",
+                    installation.path.display()
+                )))
+            },
+        );
         ctp1_status.set_wrap(true);
         ctp1_status.set_justify(gtk4::Justification::Center);
         ctp1_status.add_css_class("dim-label");
@@ -289,7 +303,7 @@ impl GtkUI {
         let ctp1_play_button = Button::with_label("Play CTP1");
         ctp1_play_button.add_css_class("suggested-action");
         ctp1_play_button.set_sensitive(ctp1_installation.is_some());
-        
+
         ctp1_play_button.connect_clicked(clone!(
             #[weak]
             window,
@@ -336,11 +350,21 @@ impl GtkUI {
         let ctp2_box = GtkBox::new(Orientation::Vertical, 12);
         ctp2_box.set_halign(gtk4::Align::Fill);
 
-        let ctp2_title = Label::new(Some(&translator.borrow().translate(&TranslationKey::CallToPower2)));
+        let ctp2_title = Label::new(Some(
+            &translator.borrow().translate(&TranslationKey::CallToPower2),
+        ));
         ctp2_title.add_css_class("title-2");
         ctp2_box.append(&ctp2_title);
 
-        let ctp2_status = ctp2_installation.as_ref().map_or_else(|| Label::new(Some("Not installed")), |installation| Label::new(Some(&format!("Installed at:\n{}", installation.path.display()))));
+        let ctp2_status = ctp2_installation.as_ref().map_or_else(
+            || Label::new(Some("Not installed")),
+            |installation| {
+                Label::new(Some(&format!(
+                    "Installed at:\n{}",
+                    installation.path.display()
+                )))
+            },
+        );
         ctp2_status.set_wrap(true);
         ctp2_status.set_justify(gtk4::Justification::Center);
         ctp2_status.add_css_class("dim-label");
@@ -349,7 +373,7 @@ impl GtkUI {
         let ctp2_play_button = Button::with_label("Play CTP2");
         ctp2_play_button.add_css_class("suggested-action");
         ctp2_play_button.set_sensitive(ctp2_installation.is_some());
-        
+
         ctp2_play_button.connect_clicked(clone!(
             #[weak]
             window,
@@ -573,7 +597,7 @@ impl GtkUI {
             GameVersion::CTP1 => "Call to Power",
             GameVersion::CTP2 => "Call to Power II",
         };
-        
+
         let dialog = gtk4::Dialog::builder()
             .title(format!("Add {version_name} Installation"))
             .modal(true)
@@ -598,10 +622,14 @@ impl GtkUI {
             .collect();
 
         if filtered_installations.is_empty() {
-            let label = Label::new(Some(&format!("No {version_name} installations auto-detected.")));
+            let label = Label::new(Some(&format!(
+                "No {version_name} installations auto-detected."
+            )));
             main_box.append(&label);
         } else {
-            let label = Label::new(Some(&format!("Auto-detected {version_name} installations:")));
+            let label = Label::new(Some(&format!(
+                "Auto-detected {version_name} installations:"
+            )));
             main_box.append(&label);
 
             let list = ListBox::new();
@@ -635,7 +663,8 @@ impl GtkUI {
         }
 
         // Browse button
-        let browse_button = Button::with_label(&format!("Browse for {version_name} Installation..."));
+        let browse_button =
+            Button::with_label(&format!("Browse for {version_name} Installation..."));
         browse_button.connect_clicked(clone!(
             #[weak]
             dialog,
