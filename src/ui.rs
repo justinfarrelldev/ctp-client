@@ -860,57 +860,39 @@ impl GtkUI {
         self.config.borrow()
     }
 
-    /// Handles game launching with a temporary dialog.
+    /// Handles game launching by directly starting the intro video.
     ///
     /// # Arguments
     ///
     /// * `parent` - The parent window
     /// * `installation` - The game installation to launch
     fn launch_game(parent: &ApplicationWindow, installation: GameInstallation) {
-        let dialog = gtk4::Dialog::builder()
-            .title("Launching Game")
-            .modal(true)
-            .transient_for(parent)
-            .build();
-
-        let content_area = dialog.content_area();
-        let main_box = GtkBox::new(Orientation::Vertical, 12);
-        main_box.set_margin_top(20);
-        main_box.set_margin_bottom(20);
-        main_box.set_margin_start(20);
-        main_box.set_margin_end(20);
-
-        let label = Label::new(Some(&format!("Launching: {}", installation.display_name)));
-        main_box.append(&label);
-
-        let path_label = Label::new(Some(&format!("Path: {}", installation.path.display())));
-        path_label.add_css_class("dim-label");
-        main_box.append(&path_label);
-
-        let info_label = Label::new(Some("Press Enter to continue..."));
-        info_label.add_css_class("dim-label");
-        main_box.append(&info_label);
-
-        let close_button = Button::with_label("OK");
-        close_button.connect_clicked(clone!(
-            #[weak]
-            dialog,
-            #[weak]
-            parent,
-            move |_| {
-                dialog.close();
-                parent.close();
-            }
-        ));
-        main_box.append(&close_button);
-
-        content_area.append(&main_box);
-        dialog.present();
-
         log::info!(
-            "Game launch dialog shown for: {}",
-            installation.display_name
+            "Launching game: {} at {}",
+            installation.display_name,
+            installation.path.display()
         );
+
+        // Play intro video directly
+        match crate::video::VideoPlayer::new() {
+            Ok(video_player) => match video_player.play_intro_video(&installation) {
+                crate::video::VideoResult::Completed => {
+                    log::info!("Intro video completed successfully");
+                }
+                crate::video::VideoResult::Skipped => {
+                    log::info!("Intro video skipped by user");
+                }
+                crate::video::VideoResult::Failed(error) => {
+                    log::warn!("Failed to play intro video: {error}");
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to initialize video player: {e}");
+            }
+        }
+
+        // Close the application window after video playback
+        parent.close();
     }
 
     /// Populates the installations list with available games.
