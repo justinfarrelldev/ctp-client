@@ -34,7 +34,7 @@ See scripts folder for cargo-make build examples. Scripts folder is read-only.
 
 - Use test-driven development
 
-All new code should be well-tested.
+All new code should be well-tested. All tests should NEVER, UNDER ANY CIRCUMSTANCES, actually alter any files on the machine. They must be mocked or stubbed out in their entirety.
 
 # Asset Information
 
