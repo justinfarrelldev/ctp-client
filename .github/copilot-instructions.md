@@ -34,6 +34,8 @@ See scripts folder for cargo-make build examples. Scripts folder is read-only.
 
 - Use test-driven development
 
+All new code should be well-tested.
+
 # Asset Information
 
 Final builds in ctp1 (Civilization: Call to Power) and ctp2 (Call to Power II) folders contain all game assets. **Do not copy ANY assets due to copyright** - use only as reference for asset names. Use ctp2_source to cross-check asset usage and original logic. CTP1 source code is unavailable.
