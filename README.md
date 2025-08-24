@@ -2,6 +2,8 @@
 
 A custom Call to Power client for strategic civilization gameplay.
 
+**IMPORTANT: THIS REPO IS IN EARLY DEVELOPMENT. The features below will not be complete, and should act as a plan rather than a complete feature set**
+
 ## Description
 
 This client provides a modern interface for connecting to and playing Call to Power games with enhanced features and improved user experience. Built with Rust for performance and safety, this client aims to deliver a robust gaming experience.
