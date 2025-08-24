@@ -48,6 +48,8 @@ cargo build
 cargo build --release
 ```
 
+More build types are in `Makefile.toml`.
+
 ### Testing
 
 ```bash
