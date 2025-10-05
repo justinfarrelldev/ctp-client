@@ -3,11 +3,6 @@
 //! A custom Call to Power client library for strategic civilization gameplay.
 //! This library provides core functionality for game installation detection,
 //! configuration management, and user interface components.
-
-#![allow(
-    clippy::literal_string_with_formatting_args,
-    reason = "False positive on doc comments"
-)]
 //!
 //! ## Features
 //!
@@ -24,6 +19,13 @@
 //! - [`settings`] - Settings UI
 //! - [`ui`] - User interface components
 //! - [`video`] - Video playback functionality
+
+#![allow(
+    clippy::literal_string_with_formatting_args,
+    reason = "False positive on doc comments"
+)]
+
+extern crate alloc;
 
 /// Configuration management module.
 pub mod config;

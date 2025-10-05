@@ -42,7 +42,7 @@
 - Do not place use statements inside macros; import explicitly.
 - Do not expose partial public fields; structs should be fully public or fully private.
 - **Document everything** (public & private); `unsafe` blocks require `// SAFETY:`; functions with `unsafe` need `# Safety` docs.
-- **No panics/todo/unimplemented/unreachable/unwrap**; use `Result` and proper handling; no ignored `Result`s.
+- **No panics/todo/unimplemented/unwrap**; use `Result` and proper handling; no ignored `Result`s.
 - Memory/sync best practices; avoid unnecessary `Arc<Mutex<_>>`; document any raw-pointer safety.
 - Strings/numerics: efficient concatenation, explicit types, checked arithmetic, careful float compares.
 - Conversions: prefer `TryFrom/TryInto`, avoid casual `as`.

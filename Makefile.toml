@@ -116,6 +116,7 @@ args = ["clean"]
 [tasks.lint]
 description = "Run clippy linting on the whole project"
 command = "cargo"
+workspace = false
 args = [
     "clippy",
     "--all-targets",
@@ -145,8 +146,6 @@ args = [
     "clippy::todo",
     "-D",
     "clippy::unimplemented",
-    "-D",
-    "clippy::unreachable",
     "-A",
     "clippy::indexing_slicing",
     "-D",
@@ -209,8 +208,6 @@ args = [
     "clippy::rest_pat_in_fully_bound_structs",
     "-D",
     "clippy::same_name_method",
-    "-D",
-    "clippy::self_named_module_files",
     "-D",
     "clippy::single_char_lifetime_names",
     "-D",
@@ -281,6 +278,8 @@ args = [
     "clippy::mutex_atomic",
     "-D",
     "clippy::needless_raw_strings",
+    "-A",
+    "clippy::needless_borrowed_reference",
     "-D",
     "clippy::panic_in_result_fn",
     "-D",

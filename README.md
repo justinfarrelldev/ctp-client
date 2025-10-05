@@ -16,6 +16,7 @@ This client provides a modern interface for connecting to and playing Call to Po
 - **Cross-platform Compatibility**: Works on Windows, macOS, and Linux
 - **High Performance**: Built with Rust for optimal performance
 - **Memory Safety**: Leverages Rust's safety guarantees
+- **Accessible Intro Video Controls**: Skip the opening cinematic instantly using keyboard, mouse, or controller input
 
 ## Installation
 
