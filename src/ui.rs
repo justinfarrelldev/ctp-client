@@ -435,10 +435,14 @@ impl GtkUI {
                 .translate(&TranslationKey::BrowseForInstallation),
         );
         ctp2_add_button.connect_clicked(clone!(
-            #[weak] window,
-            #[strong] config,
-            #[strong] found_installations,
-            #[strong] refresh_ui,
+            #[weak]
+            window,
+            #[strong]
+            config,
+            #[strong]
+            found_installations,
+            #[strong]
+            refresh_ui,
             move |_| {
                 Self::show_add_installation_dialog_for_version(
                     &window,
@@ -561,7 +565,8 @@ impl GtkUI {
         // Cancel button
         let cancel_button = Button::with_label("Cancel");
         cancel_button.connect_clicked(clone!(
-            #[weak] dialog,
+            #[weak]
+            dialog,
             move |_| {
                 dialog.close();
             }
@@ -620,7 +625,8 @@ impl GtkUI {
         );
 
         // Browse button
-        let browse_button = Button::with_label(&format!("Browse for {version_name} Installation..."));
+        let browse_button =
+            Button::with_label(&format!("Browse for {version_name} Installation..."));
         browse_button.connect_clicked(glib::clone! {
             #[weak] dialog,
             #[strong] config,
@@ -658,7 +664,8 @@ impl GtkUI {
         // Cancel button
         let cancel_button = Button::with_label("Cancel");
         cancel_button.connect_clicked(clone!(
-            #[weak] dialog,
+            #[weak]
+            dialog,
             move |_| {
                 dialog.close();
             }
@@ -719,10 +726,7 @@ impl GtkUI {
     }
 
     /// Static method to add an installation (used in GTK callbacks).
-    fn add_installation_static(
-        config: Rc<RefCell<AppConfig>>,
-        path: PathBuf,
-    ) {
+    fn add_installation_static(config: Rc<RefCell<AppConfig>>, path: PathBuf) {
         match InstallationValidator::create_installation(path) {
             Ok(installation) => {
                 let id = format!(
