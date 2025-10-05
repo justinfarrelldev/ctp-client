@@ -28,3 +28,17 @@
 - [x] Split `src/video.rs` into focused submodules to keep each file under 1000 LOC.
 - [x] Expand overlay tests to cover controller instructions in the window title and bitmap rendering integrity.
 - [x] Resolve outstanding review issues: controller skip pattern, missing error string, joystick subsystem documentation, startup controller removal handling, layout constant documentation, and error context naming consistency.
+
+## 2025-10-05 Update
+
+- [x] Pre-initialize the SDL skip overlay before spawning video players to eliminate `BadAccess` failures on fullscreen backends.
+- [x] Enable keyboard and mouse grabs so Space/Esc/click/controller Guide skip shortcuts operate while the external player window has focus.
+- [x] Verified intro playback orchestration cleanly hands control back to the main menu workflow after skips or completions.
+
+## 2025-10-06 Global Input Tracking
+
+- [x] Prototype replacement for overlay-dependent skip handling with a global input tracker abstraction.
+- [x] Implement device-query backed provider and unit tests for keyboard, mouse, and steady-state behavior.
+- [x] Validate SkipEventListener wiring with global tracker via focused tests.
+- [x] Refresh accessibility and behavior documentation to note direct video window interaction.
+- [x] Re-run formatting, lint, tests, coverage, and build targets before finalizing changes.

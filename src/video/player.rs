@@ -4,8 +4,9 @@ use crate::config::GameInstallation;
 use log::{debug, error, info, warn};
 use std::path::PathBuf;
 
-use super::process::{run_process_with_skip, spawn_ffplay, spawn_vlc};
 use super::VideoResult;
+use super::input::SkipEventListener;
+use super::process::{run_process_with_skip, spawn_ffplay, spawn_vlc};
 
 /// Plays the intro video for the supplied installation by delegating to external players.
 ///
@@ -40,10 +41,27 @@ fn play_video_standalone(video_uri: &str) -> VideoResult {
     info!("Attempting to play video with FFmpeg: {video_uri}");
 
     let file_path = video_uri.strip_prefix("file://").unwrap_or(video_uri);
-    info!("Playing video with ffplay in separate window. Click or press Space/Start to skip.");
+    info!("Playing video with ffplay in separate window. Click or press Space/Esc/Start to skip.");
+
+    let mut skip_listener = match SkipEventListener::start() {
+        Ok(listener) => {
+            info!(
+                "Skip overlay initialized; keyboard, mouse, and controller shortcuts are captured globally."
+            );
+            Some(listener)
+        }
+        Err(err) => {
+            warn!(
+                "Skip listener unavailable ({err}); intro video can only be skipped by closing the player window."
+            );
+            None
+        }
+    };
 
     match spawn_ffplay(file_path, true) {
-        Ok(process) => return run_process_with_skip(process, "ffplay (fullscreen)"),
+        Ok(process) => {
+            return run_process_with_skip(process, "ffplay (fullscreen)", skip_listener.take());
+        }
         Err(err) => {
             error!("Failed to start ffplay: {err}");
         }
@@ -51,7 +69,7 @@ fn play_video_standalone(video_uri: &str) -> VideoResult {
 
     info!("Trying fallback with VLC media player...");
     match spawn_vlc(file_path) {
-        Ok(process) => return run_process_with_skip(process, "VLC"),
+        Ok(process) => return run_process_with_skip(process, "VLC", skip_listener.take()),
         Err(err) => {
             error!("VLC fallback failed: {err}");
         }
@@ -64,7 +82,7 @@ fn play_video_standalone(video_uri: &str) -> VideoResult {
                 "No suitable video player found. Please install ffmpeg or vlc.".to_owned(),
             )
         },
-        |process| run_process_with_skip(process, "ffplay (windowed)"),
+        |process| run_process_with_skip(process, "ffplay (windowed)", skip_listener.take()),
     )
 }
 

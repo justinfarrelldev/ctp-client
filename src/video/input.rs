@@ -1,26 +1,25 @@
 extern crate alloc;
 
+/// Global keyboard and mouse input bridge for external video playback.
+mod global;
+
 use alloc::string::String;
-use log::{debug, warn};
+use global::GlobalInputTracker;
+use log::warn;
 use sdl2::controller::{Button as ControllerButton, GameController};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
-use sdl2::{EventPump, GameControllerSubsystem, JoystickSubsystem, Sdl, VideoSubsystem};
+use sdl2::{EventPump, GameControllerSubsystem, JoystickSubsystem, Sdl};
 use std::thread;
 use std::time::Duration;
 
-use super::overlay::SkipOverlayLayout;
 use super::types::SkipTrigger;
 
 /// Collects skip-related input events on the main thread.
 pub(super) struct SkipEventListener {
     /// SDL context backing the event pump; kept for subsystem lifetime management.
     _sdl: Sdl,
-    /// Video overlay canvas presenting skip instructions.
-    canvas: Canvas<Window>,
     /// Event pump used to gather keyboard, mouse, and controller input.
     event_pump: EventPump,
     /// Controller subsystem leveraged for hot plug handling.
@@ -33,6 +32,8 @@ pub(super) struct SkipEventListener {
     _joystick_subsystem: JoystickSubsystem,
     /// Currently attached controllers opened for event delivery.
     controllers: Vec<GameController>,
+    /// Global keyboard and mouse input tracker for skip gestures.
+    global_input: GlobalInputTracker,
 }
 
 impl SkipEventListener {
@@ -46,13 +47,6 @@ impl SkipEventListener {
     /// Returns an error string if the thread cannot be spawned or SDL setup fails.
     pub(super) fn start() -> Result<Self, String> {
         let sdl = sdl2::init().map_err(|e| format!("Failed to initialize SDL: {e}"))?;
-        let video = sdl
-            .video()
-            .map_err(|e| format!("Failed to initialize SDL video subsystem: {e}"))?;
-
-        let mut canvas = Self::build_overlay_canvas(&video)?;
-        Self::configure_overlay_canvas(&mut canvas);
-
         let (controller_subsystem, joystick_subsystem, mut controllers) =
             Self::prepare_controller_state(&sdl)?;
 
@@ -67,13 +61,16 @@ impl SkipEventListener {
             }
         }
 
+        let mut global_input = GlobalInputTracker::with_default_provider();
+        global_input.initialize_baseline();
+
         Ok(Self {
             _sdl: sdl,
-            canvas,
             event_pump,
             controller_subsystem,
             _joystick_subsystem: joystick_subsystem,
             controllers,
+            global_input,
         })
     }
 
@@ -89,51 +86,20 @@ impl SkipEventListener {
             }
 
             if let Some(action) = Self::interpret_hotplug_event(&event) {
-                Self::apply_hotplug_action(action, &self.controller_subsystem, &mut self.controllers);
+                Self::apply_hotplug_action(
+                    action,
+                    &self.controller_subsystem,
+                    &mut self.controllers,
+                );
             }
         }
 
-        self.canvas.present();
+        if let Some(trigger) = self.global_input.poll_trigger() {
+            return Some(trigger);
+        }
+
         thread::sleep(Duration::from_millis(Self::POLL_INTERVAL_MS));
         None
-    }
-
-    /// Builds the skip overlay window and returns a canvas for rendering.
-    fn build_overlay_canvas(video: &VideoSubsystem) -> Result<Canvas<Window>, String> {
-        let mut window = video
-            .window(SkipOverlayLayout::window_title(), 640, 160)
-            .position_centered()
-            .allow_highdpi()
-            .build()
-            .map_err(|e| format!("Failed to create skip overlay window: {e}"))?;
-
-        window.raise();
-        window.set_always_on_top(true);
-
-        window
-            .into_canvas()
-            .accelerated()
-            .build()
-            .map_err(|e| format!("Failed to build skip overlay canvas: {e}"))
-    }
-
-    /// Configures the overlay canvas with styling and interaction hints.
-    fn configure_overlay_canvas(canvas: &mut Canvas<Window>) {
-        if let Err(e) = canvas.window_mut().set_opacity(0.9) {
-            debug!("Unable to adjust skip overlay opacity: {e}");
-        }
-
-        if SkipOverlayLayout::should_grab_input() {
-            canvas.window_mut().set_mouse_grab(true);
-            canvas.window_mut().set_keyboard_grab(true);
-        }
-
-        canvas.set_draw_color(SkipOverlayLayout::background_color());
-        canvas.clear();
-        if let Err(err) = SkipOverlayLayout::render_instructions(canvas) {
-            warn!("Failed to render skip overlay instructions: {err}");
-        }
-        canvas.present();
     }
 
     /// Prepares controller subsystems and opens any already-attached controllers.

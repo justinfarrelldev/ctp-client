@@ -23,6 +23,7 @@ toml = "0.8.0"
 dirs = "5.0.1"
 chrono = { version = "0.4.0", features = ["serde"] }
 rfd = "0.15.0"
+device_query = "1.1.1"
 
 [[bin]]
 name = "ctp-client"

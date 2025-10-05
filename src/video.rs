@@ -13,6 +13,7 @@ use log::info;
 /// Input capture and skip detection primitives.
 mod input;
 /// Overlay rendering helpers for skip instructions.
+#[cfg(test)]
 mod overlay;
 /// Video playback orchestration functions.
 mod player;

@@ -285,7 +285,27 @@ fn skip_overlay_layout_bitmap_contains_active_pixels() {
 fn skip_overlay_layout_does_not_grab_input() {
     assert!(
         !SkipOverlayLayout::should_grab_input(),
-        "skip overlay should avoid grabbing global input focus"
+        "skip overlay should not capture input when the video window handles skip gestures"
+    );
+}
+
+#[test]
+fn skip_overlay_layout_window_title_mentions_escape() {
+    let title = SkipOverlayLayout::window_title().to_ascii_lowercase();
+
+    assert!(
+        title.contains("esc"),
+        "window title should mention the Escape key for accessibility"
+    );
+}
+
+#[test]
+fn skip_overlay_instructions_reference_controller_guide_button() {
+    let controller_line = SkipOverlayLayout::instruction_lines()[2].to_ascii_uppercase();
+
+    assert!(
+        controller_line.contains("GUIDE"),
+        "controller instruction line should reference the Guide button"
     );
 }
 

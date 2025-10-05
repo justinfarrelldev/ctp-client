@@ -1,0 +1,2 @@
+2025-10-05: Resolved intro video skip failure for CTP2 by creating the SDL skip listener before launching external players, enabling global input grabs, and terminating playback on Space/Esc/click/controller Guide events without triggering X11 BadAccess errors.
+2025-10-06: Replaced the dedicated skip overlay window with a global input tracker backed by device_query so intro videos can be skipped directly from the external player window via mouse, keyboard (Space/Enter/Esc), or controller buttons without window focus gymnastics.

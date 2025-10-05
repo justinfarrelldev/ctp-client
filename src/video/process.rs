@@ -1,15 +1,15 @@
 extern crate alloc;
 
 use alloc::string::String;
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
+use super::VideoResult;
 use super::input::SkipEventListener;
 use super::types::{ProcessExit, SkipTrigger, to_process_exit};
-use super::VideoResult;
 
 /// Abstraction over a launched external video player process.
 pub(super) trait PlaybackProcess {
@@ -141,20 +141,19 @@ where
 pub(super) fn run_process_with_skip(
     mut process: ExternalPlaybackProcess,
     backend_label: &str,
+    skip_listener: Option<SkipEventListener>,
 ) -> VideoResult {
-    info!(
-        "Playing intro video via {backend_label}. Press Space, click, or controller Start to skip."
-    );
+    let mut listener_opt = skip_listener;
 
-    let mut listener_opt = match SkipEventListener::start() {
-        Ok(listener) => Some(listener),
-        Err(err) => {
-            warn!(
-                "Skip listener unavailable ({err}); intro video can only be skipped by closing the player window."
-            );
-            None
-        }
-    };
+    if listener_opt.is_some() {
+        info!(
+            "Playing intro video via {backend_label}. Press Space/Esc, click, or controller Start/Guide to skip."
+        );
+    } else {
+        info!(
+            "Playing intro video via {backend_label}. Close the video window to continue if skip shortcuts are unavailable."
+        );
+    }
 
     let mut poller = || {
         listener_opt
