@@ -171,6 +171,25 @@ impl GtkUI {
         Ok(UIResult::Exit)
     }
 
+    /// Rebuilds the main UI window to reflect changes (e.g., after adding an installation).
+    pub fn refresh_main_ui(&self) {
+        // Remove the current window and rebuild UI
+        if let Some(elements) = self.ui_elements.borrow().as_ref() {
+            elements.window.close();
+        }
+        // Re-run build_ui with current state
+        Self::build_ui(
+            &self.app,
+            self.config.clone(),
+            self.translator.clone(),
+            self.found_installations.clone(),
+            self.ui_state.clone(),
+            self.selected_installation.clone(),
+            self.exit_requested.clone(),
+            self.ui_elements.clone(),
+        );
+    }
+
     /// Builds the main UI window and connects all event handlers.
     ///
     /// # Arguments
@@ -196,8 +215,8 @@ impl GtkUI {
         config: Rc<RefCell<AppConfig>>,
         translator: Rc<RefCell<Translator>>,
         found_installations: Vec<PathBuf>,
-        _ui_state: Rc<RefCell<UIState>>,
-        _selected_installation: Rc<RefCell<Option<GameInstallation>>>,
+        ui_state: Rc<RefCell<UIState>>,
+        selected_installation: Rc<RefCell<Option<GameInstallation>>>,
         exit_requested: Rc<RefCell<bool>>,
         ui_elements: Rc<RefCell<Option<UIElements>>>,
     ) {
@@ -224,7 +243,7 @@ impl GtkUI {
         let settings_config = config.clone();
         let settings_translator = translator.clone();
         let settings_ui_elements = ui_elements.clone();
-        settings_button.connect_clicked(clone!(
+        settings_button.connect_clicked(glib::clone! {
             #[weak]
             window,
             move |_| {
@@ -235,7 +254,7 @@ impl GtkUI {
                     settings_ui_elements.clone(),
                 );
             }
-        ));
+        });
         header.pack_end(&settings_button);
 
         window.set_titlebar(Some(&header));
@@ -304,7 +323,7 @@ impl GtkUI {
         ctp1_play_button.add_css_class("suggested-action");
         ctp1_play_button.set_sensitive(ctp1_installation.is_some());
 
-        ctp1_play_button.connect_clicked(clone!(
+        ctp1_play_button.connect_clicked(glib::clone! {
             #[weak]
             window,
             #[strong]
@@ -314,30 +333,53 @@ impl GtkUI {
                     Self::launch_game(&window, installation.clone());
                 }
             }
-        ));
+        });
         ctp1_box.append(&ctp1_play_button);
+
+        // Create a refresh_ui closure for dialogs
+        let refresh_ui = {
+            let app_instance = app.clone();
+            let config_rc = Rc::clone(&config);
+            let translator_rc = Rc::clone(&translator);
+            let found_installations_snapshot = found_installations.clone();
+            let ui_state_rc = Rc::clone(&ui_state);
+            let selected_installation_rc = Rc::clone(&selected_installation);
+            let exit_requested_rc = Rc::clone(&exit_requested);
+            let ui_elements_rc = Rc::clone(&ui_elements);
+            Rc::new(move || {
+                Self::build_ui(
+                    &app_instance,
+                    Rc::clone(&config_rc),
+                    Rc::clone(&translator_rc),
+                    found_installations_snapshot.clone(),
+                    Rc::clone(&ui_state_rc),
+                    Rc::clone(&selected_installation_rc),
+                    Rc::clone(&exit_requested_rc),
+                    Rc::clone(&ui_elements_rc),
+                );
+            })
+        };
 
         let ctp1_add_button = Button::with_label(
             &translator
                 .borrow()
                 .translate(&TranslationKey::BrowseForInstallation),
         );
-        ctp1_add_button.connect_clicked(clone!(
-            #[weak]
-            window,
-            #[strong]
-            config,
-            #[strong]
-            found_installations,
+        ctp1_add_button.connect_clicked(glib::clone! {
+            #[weak] window,
+            #[strong] config,
+            #[strong] found_installations,
+            #[strong] refresh_ui,
             move |_| {
                 Self::show_add_installation_dialog_for_version(
                     &window,
                     config.clone(),
                     found_installations.clone(),
                     GameVersion::CTP1,
+                    refresh_ui.clone(),
                 );
             }
-        ));
+        });
         ctp1_box.append(&ctp1_add_button);
 
         games_box.append(&ctp1_box);
@@ -393,18 +435,17 @@ impl GtkUI {
                 .translate(&TranslationKey::BrowseForInstallation),
         );
         ctp2_add_button.connect_clicked(clone!(
-            #[weak]
-            window,
-            #[strong]
-            config,
-            #[strong]
-            found_installations,
+            #[weak] window,
+            #[strong] config,
+            #[strong] found_installations,
+            #[strong] refresh_ui,
             move |_| {
                 Self::show_add_installation_dialog_for_version(
                     &window,
                     config.clone(),
                     found_installations.clone(),
                     GameVersion::CTP2,
+                    refresh_ui.clone(),
                 );
             }
         ));
@@ -451,16 +492,12 @@ impl GtkUI {
     }
 
     /// Shows the add installation dialog with auto-detected and browse options.
-    ///
-    /// # Arguments
-    ///
-    /// * `parent` - The parent window
-    /// * `config` - The application configuration
-    /// * `found_installations` - Auto-detected installations
+    /// Now takes a `refresh_ui` closure to call after a successful add.
     fn show_add_installation_dialog(
         parent: &ApplicationWindow,
         config: Rc<RefCell<AppConfig>>,
         found_installations: Vec<PathBuf>,
+        refresh_ui: Rc<dyn Fn()>,
     ) {
         let dialog = gtk4::Dialog::builder()
             .title("Add Installation")
@@ -475,96 +512,56 @@ impl GtkUI {
         main_box.set_margin_start(20);
         main_box.set_margin_end(20);
 
-        if found_installations.is_empty() {
-            let label = Label::new(Some("No installations auto-detected."));
-            main_box.append(&label);
-        } else {
-            let label = Label::new(Some("Auto-detected installations:"));
-            main_box.append(&label);
-
-            let list = ListBox::new();
-            for path in found_installations {
-                let row = ListBoxRow::new();
-                let path_label = Label::new(Some(&path.display().to_string()));
-                path_label.set_margin_top(6);
-                path_label.set_margin_bottom(6);
-                path_label.set_margin_start(12);
-                path_label.set_margin_end(12);
-                row.set_child(Some(&path_label));
-
-                let path_clone = path.clone();
-                row.connect_activate(clone!(
-                    #[strong]
-                    config,
-                    #[weak]
-                    dialog,
-                    move |_| {
-                        Self::add_installation_static(config.clone(), path_clone.clone());
-                        dialog.close();
-                    }
-                ));
-
-                list.append(&row);
-            }
-
-            let scrolled = ScrolledWindow::builder().height_request(200).build();
-            scrolled.set_child(Some(&list));
-            main_box.append(&scrolled);
-        }
+        Self::append_installation_list(
+            &main_box,
+            dialog.clone(),
+            config.clone(),
+            refresh_ui.clone(),
+            found_installations,
+            "No installations auto-detected.",
+            "Auto-detected installations:",
+        );
 
         // Browse button
         let browse_button = Button::with_label("Browse for Installation...");
-        browse_button.connect_clicked(clone!(
-            #[weak]
-            dialog,
-            #[strong]
-            config,
-            move |_| {
-                log::info!("Browse button clicked - using rfd file dialog");
-
-                // Create a channel to communicate between threads
+        browse_button.connect_clicked(glib::clone! {
+            #[weak] dialog,
+            #[strong] config,
+            #[strong] refresh_ui,
+            move |_button| {
                 let (sender, receiver) = std::sync::mpsc::channel();
-
-                // Spawn rfd dialog in a separate thread
                 std::thread::spawn(move || {
                     log::info!("Opening rfd file dialog...");
                     let result = rfd::FileDialog::new()
                         .set_title("Select Call to Power Installation Directory")
                         .pick_folder();
-
                     if sender.send(result).is_err() {
                         log::error!("Failed to send file dialog result");
                     }
                 });
-
-                // Poll for the result on the main thread
-                let config_clone = config.clone();
+                let config_for_timeout = config.clone();
+                let refresh_ui_for_timeout = refresh_ui.clone();
+                let dialog_for_timeout = dialog;
                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
                     receiver
                         .try_recv()
                         .map_or(glib::ControlFlow::Continue, |result| {
-                            match result {
-                                Some(path) => {
-                                    log::info!("rfd selected path: {path:?}");
-                                    Self::add_installation_static(config_clone.clone(), path);
-                                    dialog.close();
-                                }
-                                None => {
-                                    log::info!("rfd file dialog cancelled or no selection made");
-                                }
+                            if let Some(path) = result {
+                                Self::add_installation_static(config_for_timeout.clone(), path);
+                                dialog_for_timeout.close();
+                                (refresh_ui_for_timeout)();
                             }
                             glib::ControlFlow::Break
                         })
                 });
             }
-        ));
+        });
         main_box.append(&browse_button);
 
         // Cancel button
         let cancel_button = Button::with_label("Cancel");
         cancel_button.connect_clicked(clone!(
-            #[weak]
-            dialog,
+            #[weak] dialog,
             move |_| {
                 dialog.close();
             }
@@ -576,22 +573,13 @@ impl GtkUI {
     }
 
     /// Shows the add installation dialog for a specific game version.
-    ///
-    /// # Arguments
-    ///
-    /// * `parent` - The parent window
-    /// * `config` - The application configuration
-    /// * `found_installations` - Auto-detected installations
-    /// * `version` - The specific game version to install
-    #[expect(
-        clippy::too_many_lines,
-        reason = "Dialog building naturally requires many lines for proper layout"
-    )]
+    /// Now takes a `refresh_ui` closure to call after a successful add.
     fn show_add_installation_dialog_for_version(
         parent: &ApplicationWindow,
         config: Rc<RefCell<AppConfig>>,
         found_installations: Vec<PathBuf>,
         version: GameVersion,
+        refresh_ui: Rc<dyn Fn()>,
     ) {
         let version_name = match version {
             GameVersion::CTP1 => "Call to Power",
@@ -621,101 +609,56 @@ impl GtkUI {
             })
             .collect();
 
-        if filtered_installations.is_empty() {
-            let label = Label::new(Some(&format!(
-                "No {version_name} installations auto-detected."
-            )));
-            main_box.append(&label);
-        } else {
-            let label = Label::new(Some(&format!(
-                "Auto-detected {version_name} installations:"
-            )));
-            main_box.append(&label);
-
-            let list = ListBox::new();
-            for path in filtered_installations {
-                let row = ListBoxRow::new();
-                let path_label = Label::new(Some(&path.display().to_string()));
-                path_label.set_margin_top(6);
-                path_label.set_margin_bottom(6);
-                path_label.set_margin_start(12);
-                path_label.set_margin_end(12);
-                row.set_child(Some(&path_label));
-
-                let path_clone = path.clone();
-                row.connect_activate(clone!(
-                    #[strong]
-                    config,
-                    #[weak]
-                    dialog,
-                    move |_| {
-                        Self::add_installation_static(config.clone(), path_clone.clone());
-                        dialog.close();
-                    }
-                ));
-
-                list.append(&row);
-            }
-
-            let scrolled = ScrolledWindow::builder().height_request(200).build();
-            scrolled.set_child(Some(&list));
-            main_box.append(&scrolled);
-        }
+        Self::append_installation_list(
+            &main_box,
+            dialog.clone(),
+            config.clone(),
+            refresh_ui.clone(),
+            filtered_installations,
+            &format!("No {version_name} installations auto-detected."),
+            &format!("Auto-detected {version_name} installations:"),
+        );
 
         // Browse button
-        let browse_button =
-            Button::with_label(&format!("Browse for {version_name} Installation..."));
-        browse_button.connect_clicked(clone!(
-            #[weak]
-            dialog,
-            #[strong]
-            config,
-            move |_| {
-                log::info!("Browse button clicked for {version_name} - using rfd file dialog");
-
-                // Create a channel to communicate between threads
+        let browse_button = Button::with_label(&format!("Browse for {version_name} Installation..."));
+        browse_button.connect_clicked(glib::clone! {
+            #[weak] dialog,
+            #[strong] config,
+            #[strong] refresh_ui,
+            move |_button| {
                 let (sender, receiver) = std::sync::mpsc::channel();
-
-                // Spawn rfd dialog in a separate thread
                 std::thread::spawn(move || {
                     log::info!("Opening rfd file dialog for {version_name}...");
                     let result = rfd::FileDialog::new()
                         .set_title(format!("Select {version_name} Installation Directory"))
                         .pick_folder();
-
                     if sender.send(result).is_err() {
                         log::error!("Failed to send file dialog result");
                     }
                 });
-
-                // Poll for the result on the main thread
-                let config_clone = config.clone();
+                let config_for_timeout = config.clone();
+                let refresh_ui_for_timeout = refresh_ui.clone();
+                let dialog_for_timeout = dialog;
                 glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
                     receiver
                         .try_recv()
                         .map_or(glib::ControlFlow::Continue, |result| {
-                            match result {
-                                Some(path) => {
-                                    log::info!("rfd selected path for {version_name}: {path:?}");
-                                    Self::add_installation_static(config_clone.clone(), path);
-                                    dialog.close();
-                                }
-                                None => {
-                                    log::info!("rfd file dialog cancelled or no selection made for {version_name}");
-                                }
+                            if let Some(path) = result {
+                                Self::add_installation_static(config_for_timeout.clone(), path);
+                                dialog_for_timeout.close();
+                                (refresh_ui_for_timeout)();
                             }
                             glib::ControlFlow::Break
                         })
                 });
             }
-        ));
+        });
         main_box.append(&browse_button);
 
         // Cancel button
         let cancel_button = Button::with_label("Cancel");
         cancel_button.connect_clicked(clone!(
-            #[weak]
-            dialog,
+            #[weak] dialog,
             move |_| {
                 dialog.close();
             }
@@ -726,13 +669,60 @@ impl GtkUI {
         dialog.present();
     }
 
+    /// Adds auto-detected installation options to the dialog body, including the
+    /// scrollable list that allows the user to pick a detected installation.
+    fn append_installation_list(
+        main_box: &GtkBox,
+        dialog: gtk4::Dialog,
+        config: Rc<RefCell<AppConfig>>,
+        refresh_ui: Rc<dyn Fn()>,
+        installations: Vec<PathBuf>,
+        empty_message: &str,
+        header_message: &str,
+    ) {
+        if installations.is_empty() {
+            main_box.append(&Label::new(Some(empty_message)));
+            return;
+        }
+
+        let header_label = Label::new(Some(header_message));
+        main_box.append(&header_label);
+
+        let list = ListBox::new();
+        for path in installations {
+            let row = ListBoxRow::new();
+            let path_label = Label::new(Some(&path.display().to_string()));
+            path_label.set_margin_top(6);
+            path_label.set_margin_bottom(6);
+            path_label.set_margin_start(12);
+            path_label.set_margin_end(12);
+            row.set_child(Some(&path_label));
+
+            let path_for_activation = path.clone();
+            row.connect_activate(glib::clone! {
+                #[strong] config,
+                #[weak] dialog,
+                #[strong] refresh_ui,
+                move |_| {
+                    Self::add_installation_static(Rc::clone(&config), path_for_activation.clone());
+                    dialog.close();
+                    (refresh_ui)();
+                }
+            });
+
+            list.append(&row);
+        }
+
+        let scrolled = ScrolledWindow::builder().height_request(200).build();
+        scrolled.set_child(Some(&list));
+        main_box.append(&scrolled);
+    }
+
     /// Static method to add an installation (used in GTK callbacks).
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - The application configuration
-    /// * `path` - The path to the installation directory
-    fn add_installation_static(config: Rc<RefCell<AppConfig>>, path: PathBuf) {
+    fn add_installation_static(
+        config: Rc<RefCell<AppConfig>>,
+        path: PathBuf,
+    ) {
         match InstallationValidator::create_installation(path) {
             Ok(installation) => {
                 let id = format!(
@@ -747,10 +737,8 @@ impl GtkUI {
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown")
                 );
-
                 log::info!("Added installation: {}", installation.display_name);
                 config.borrow_mut().add_installation(id, installation);
-
                 if let Err(e) = config.borrow().save() {
                     log::error!("Failed to save config: {e}");
                 }
