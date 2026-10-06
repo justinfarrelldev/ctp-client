@@ -129,7 +129,7 @@ You can fetch documentation here as needed:
 
 ## Steps (always)
 
-1. Open or create a plan file in the plans folder with a comprehensive checklist (all steps/substeps to complete the task at-hand).
+1. Open or create a plan file in the plans folder with a comprehensive checklist (all steps/substeps to complete the task at-hand). If the task should be broken into multiple plans, then do that with a reference to the next plan in the chain at the bottom (for example, "Once finished with this plan, see plan2 and finish that").
 2. Pick the next unchecked item → **write tests first** (incl. edge cases).
 3. Run `cargo make lint` and fix all issues; run tests; ensure coverage **≥ 80%** via `./scripts/check-coverage-fast.sh`.
 4. Implement; re-lint; re-test; update PLAN.md and check off completed items.
@@ -154,3 +154,15 @@ You can fetch documentation here as needed:
 - **Pre-commit discipline:** Run `cargo make lint-fix` **before every commit**. Then commit normally (e.g., `git commit -m "..."`). Hooks must pass; **never** use `--no-verify`.
 
 - **Allow attributes policy:** Do **not** use `#[allow(...)]` in normal flow. Prefer fixing the code or using `expect` with justification. If an `#[allow]` is absolutely unavoidable, it **must** include a `reason="..."` and be tightly scoped.
+
+## End-goal
+
+The end goal is to have near-perfect copies of the original games playable via this client. The server that the client should be integrated with is available if you `cd $CTPSERVER` - that server should be the authoritative single-source-of-truth when playing multiplayer online. The client should expose ALL prerequisite server options for logging in, for playing the games (switching gamemodes, customizations the server exposes, etc) and for allowing people to play multiplayer. Please note that the client should be built around the server's authoritativeness while playing in multiplayer, for now singleplayer should not be a target.
+
+For now, target CTP2! CTP1 can come later. Other documentation mentioning CTP1 should be ignored for now - that is a later target.
+
+The CTP2 assets are available in the ctp2 folder and the source code from the original release is available in the ctp2_source directory. Use these as references - once again, remain server-authoritative, but use the original source as a reference for how things should be laid out in the UI, rendered and how it should work as as whole. Use SDL2 and modern frameworks to render the game - DO NOT hook this into the original game's rendering pipeline, and do not preserve bugs. This version is aiming to be much more stable.
+
+One of the most important parts of this project is testing - the UI should be extensively testable with fake button clicks, the ability to skip the intro video programmatically, etc. End-to-end testing that is based on accessible interactions (not coordinate-based clicking) is paramount.
+
+The game should be buildable primarily on Linux with the understanding that a Windows build is needed for the final product. Do not neglect Windows.
