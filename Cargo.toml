@@ -24,6 +24,9 @@ dirs = "5.0.1"
 chrono = { version = "0.4.0", features = ["serde"] }
 rfd = "0.15.0"
 device_query = "1.1.1"
+unciv = "0.2"
+serde_json = "1.0"
+sysinfo = { version = "0.30" }
 
 [[bin]]
 name = "ctp-client"
@@ -34,4 +37,5 @@ name = "ctp_client"
 path = "src/lib.rs"
 
 [dev-dependencies]
+byteorder = "1.5"
 tempfile = "3.8.0"

@@ -1,11 +1,13 @@
 # Plan for Intro Video Skip Feature
 
 ## Objectives
+
 - Ensure players can skip intro videos using keyboard, mouse, or controller input.
 - Maintain accessibility by providing immediate, low-effort skip controls.
 - Preserve compatibility with existing video playback pipeline and error handling.
 
 ## Checklist
+
 - [x] Analyze current video playback implementation and process spawning behavior.
 - [x] Design input handling architecture that works alongside external video player processes.
 - [x] Define precise skip triggers for keyboard (Space/Enter/Escape), mouse (primary click), and controller (A/B/Start) interactions.
@@ -21,7 +23,6 @@
 - [x] Perform final code review for performance and maintainability.
 - [x] Update documentation/comments reflecting new skip controls.
 - [x] Prepare commit after running `cargo make lint-fix`.
-
 
 ## Post-review follow-up
 
@@ -42,3 +43,20 @@
 - [x] Validate SkipEventListener wiring with global tracker via focused tests.
 - [x] Refresh accessibility and behavior documentation to note direct video window interaction.
 - [x] Re-run formatting, lint, tests, coverage, and build targets before finalizing changes.
+
+## 2025-10-07 Asset Extraction Pipeline
+
+- [x] Audit existing installation and Play Game workflow to determine integration points for archive extraction.
+- [x] Select cross-platform user data directory (AppData equivalent) and document rationale in code comments.
+- [x] Enumerate all ZFS archives across bundled installations and verify availability before extraction.
+- [x] Document archive purposes and hierarchy in `ZFS_ASSET_NOTES.md` alongside this plan.
+- [x] Design and land initial test coverage for validation, extraction success, and missing archive errors.
+- [x] Expand tests for manifest persistence, disk space failures, and progress callbacks.
+- [x] Finalize extraction pipeline refactor (remove legacy backend trait usages, stabilise summary struct consumers).
+- [x] Integrate extraction invocation into Play Game action with sensible progress reporting and error messaging.
+- [x] Run lint, tests, coverage (or document missing script), and platform build targets.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed; `cargo make build-all` was attempted and is blocked by missing i686 GLib/pkg-config cross-compilation sysroot configuration on this host.
+- [x] Conduct final review, update documentation, and prepare commit after running `cargo make lint-fix`.

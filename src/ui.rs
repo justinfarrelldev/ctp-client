@@ -22,6 +22,11 @@
 
 extern crate alloc;
 
+use crate::asset_extraction::{
+    ArchiveExtractor, ExtractionError, ExtractionSettings, build_confirmation_prompt,
+    default_destination_root, describe_extraction_error, log_extraction_progress,
+    required_archives,
+};
 use crate::config::{AppConfig, GameInstallation, GameVersion};
 use crate::i18n::{TranslationKey, Translator};
 use crate::installation::InstallationValidator;
@@ -865,6 +870,74 @@ impl GtkUI {
             installation.path.display()
         );
 
+        let destination = match default_destination_root(&installation) {
+            Ok(path) => path,
+            Err(error) => {
+                log::error!("Failed to resolve extraction target: {error}");
+                Self::show_extraction_error_dialog(parent, &error);
+                return;
+            }
+        };
+
+        let extractor = ArchiveExtractor::new(&installation);
+        if let Err(error) = extractor.validate() {
+            log::error!("Archive validation failed: {error}");
+            Self::show_extraction_error_dialog(parent, &error);
+            return;
+        }
+
+        let archive_count = required_archives(installation.version).len();
+        if !Self::prompt_extraction_confirmation(
+            parent,
+            &destination,
+            archive_count,
+            &installation.display_name,
+        ) {
+            log::info!("User canceled extraction for {}", installation.display_name);
+            return;
+        }
+
+        let mut progress = log_extraction_progress;
+
+        match extractor.extract_with_settings(
+            &destination,
+            ExtractionSettings::default(),
+            Some(&mut progress),
+        ) {
+            Ok(outcome) => {
+                if outcome.already_up_to_date {
+                    log::info!(
+                        "Game data for {} is already up to date at {}",
+                        installation.display_name,
+                        destination.display()
+                    );
+                } else {
+                    let files_written: usize = outcome
+                        .archives
+                        .iter()
+                        .map(|summary| summary.files_written)
+                        .sum();
+                    let bytes_written: u64 = outcome
+                        .archives
+                        .iter()
+                        .map(|summary| summary.bytes_written)
+                        .sum();
+                    log::info!(
+                        "Extracted {} archives ({} files, {} bytes) to {}",
+                        outcome.archives.len(),
+                        files_written,
+                        bytes_written,
+                        destination.display()
+                    );
+                }
+            }
+            Err(error) => {
+                log::error!("Extraction failed: {error}");
+                Self::show_extraction_error_dialog(parent, &error);
+                return;
+            }
+        }
+
         // Play intro video directly
         match crate::video::VideoPlayer::new() {
             Ok(video_player) => match video_player.play_intro_video(&installation) {
@@ -885,6 +958,38 @@ impl GtkUI {
 
         // Close the application window after video playback
         parent.close();
+    }
+
+    /// Prompts the user before copying installation archives to managed storage.
+    fn prompt_extraction_confirmation(
+        _parent: &ApplicationWindow,
+        destination: &std::path::Path,
+        archive_count: usize,
+        installation_name: &str,
+    ) -> bool {
+        let description = build_confirmation_prompt(destination, archive_count, installation_name);
+
+        matches!(
+            rfd::MessageDialog::new()
+                .set_title("Prepare game data")
+                .set_description(&description)
+                .set_buttons(rfd::MessageButtons::YesNo)
+                .set_level(rfd::MessageLevel::Info)
+                .show(),
+            rfd::MessageDialogResult::Yes | rfd::MessageDialogResult::Ok
+        )
+    }
+
+    /// Displays a user-facing extraction error message.
+    fn show_extraction_error_dialog(_parent: &ApplicationWindow, error: &ExtractionError) {
+        let (title, description) = describe_extraction_error(error);
+
+        rfd::MessageDialog::new()
+            .set_title(title)
+            .set_description(&description)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .set_level(rfd::MessageLevel::Error)
+            .show();
     }
 
     /// Populates the installations list with available games.

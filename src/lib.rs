@@ -27,6 +27,8 @@
 
 extern crate alloc;
 
+/// Installation asset extraction module.
+pub mod asset_extraction;
 /// Configuration management module.
 pub mod config;
 /// Internationalization module.

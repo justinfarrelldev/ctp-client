@@ -129,7 +129,7 @@ impl InstallationValidator {
     /// Returns an error if the path fails validation.
     pub fn create_installation(path: PathBuf) -> Result<GameInstallation, ValidationError> {
         let version = Self::validate_installation(&path)?;
-        let display_name = Self::generate_display_name(&path, &version);
+        let display_name = Self::generate_display_name(&path, version);
         let validated_at = Some(
             chrono::Utc::now()
                 .format("%Y-%m-%d %H:%M:%S UTC")
@@ -154,8 +154,8 @@ impl InstallationValidator {
     /// # Returns
     ///
     /// A formatted display name combining the game version and directory name
-    fn generate_display_name(path: &Path, version: &GameVersion) -> String {
-        let version_str = match *version {
+    fn generate_display_name(path: &Path, version: GameVersion) -> String {
+        let version_str = match version {
             GameVersion::CTP1 => "Call to Power",
             GameVersion::CTP2 => "Call to Power II",
         };
@@ -475,24 +475,24 @@ mod tests {
     #[test]
     fn test_generate_display_name_ctp1() {
         let path = PathBuf::from("/some/path/game_directory");
-        let display_name = InstallationValidator::generate_display_name(&path, &GameVersion::CTP1);
+        let display_name = InstallationValidator::generate_display_name(&path, GameVersion::CTP1);
         assert_eq!(display_name, "Call to Power (game_directory)");
     }
 
     #[test]
     fn test_generate_display_name_ctp2() {
         let path = PathBuf::from("/some/path/game_directory");
-        let display_name = InstallationValidator::generate_display_name(&path, &GameVersion::CTP2);
+        let display_name = InstallationValidator::generate_display_name(&path, GameVersion::CTP2);
         assert_eq!(display_name, "Call to Power II (game_directory)");
     }
 
     #[test]
     fn test_generate_display_name_no_file_name() {
         let path = PathBuf::from("/");
-        let display_name = InstallationValidator::generate_display_name(&path, &GameVersion::CTP1);
+        let display_name = InstallationValidator::generate_display_name(&path, GameVersion::CTP1);
         assert_eq!(display_name, "Call to Power");
 
-        let display_name2 = InstallationValidator::generate_display_name(&path, &GameVersion::CTP2);
+        let display_name2 = InstallationValidator::generate_display_name(&path, GameVersion::CTP2);
         assert_eq!(display_name2, "Call to Power II");
     }
 
@@ -506,7 +506,7 @@ mod tests {
         let invalid_os_str = OsStr::from_bytes(invalid_bytes);
         let path = PathBuf::from("/some/path").join(invalid_os_str);
 
-        let display_name = InstallationValidator::generate_display_name(&path, &GameVersion::CTP1);
+        let display_name = InstallationValidator::generate_display_name(&path, GameVersion::CTP1);
         assert_eq!(display_name, "Call to Power");
     }
 

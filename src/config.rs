@@ -25,7 +25,7 @@ pub struct GameInstallation {
 }
 
 /// Supported Call to Power game versions.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum GameVersion {
     /// Call to Power (original).
