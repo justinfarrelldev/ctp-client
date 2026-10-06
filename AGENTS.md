@@ -1,3 +1,80 @@
+IMPORTANT: Run `lint-fix` before each commit. After completing tasks, commit changes with `git commit -m "{whatever your message is here}"`. Fix any failures - success requires all checks to pass.
+
+ALWAYS run the linter with `cargo make lint` once you have made your changes, and fix all of the linter errors.
+
+# Common Commands
+
+Uses cargo-make for build automation.
+
+## Build Commands
+
+- `cargo make build-all-windows` - Build all Windows targets (x86 and x64)
+- `cargo make build-all-linux` - Build all Linux targets (x86 and x64)
+- `cargo make build-all` - Build all targets for current platform
+- `cargo make dev` - Build dev server with info logging
+
+## Linting Commands
+
+- `cargo make lint` - Run clippy with strict warnings
+- `cargo make lint-fix` - Run clippy with automatic fixes
+
+## Testing Commands
+
+- `cargo make test` - Run standard test suite
+- `cargo make test-verbose` - Run tests with verbose output (--nocapture)
+- `cargo make test-release` - Run tests in release mode for performance testing
+
+# Examples
+
+See scripts folder for cargo-make build examples. Scripts folder is read-only.
+
+# Requirements
+
+- Use test-driven development with red-green-refactor
+
+All new code should be well-tested. All tests should NEVER, UNDER ANY CIRCUMSTANCES, actually alter any files on the machine. They must be mocked or stubbed out in their entirety.
+
+You cannot use allow attributes, and must use expect instead.
+
+# Asset Information
+
+Final builds in ctp1 (Civilization: Call to Power) and ctp2 (Call to Power II) folders contain all game assets. **Do not copy ANY assets due to copyright** - use only as reference for asset names. Use ctp2_source to cross-check asset usage and original logic. CTP1 source code is unavailable.
+
+# Bug Fixes
+
+If you find bugs in original source code:
+
+1. Note the change in "FIXES.txt" (top level)
+2. Fix the bug in your implementation (do not preserve bugs from the original CTP games)
+3. Use performance improvements when providing equivalent results
+
+# Restricted Files/Folders
+
+Do not modify:
+
+- .git folder (including hooks)
+- target folder
+- scripts folder
+- Makefile.toml
+- ctp1 and ctp2 folders
+- ctp2_source folder
+- lint rules
+
+# Technology Stack
+
+**SDL2**: Main canvas, tile/terrain rendering, texture management, input capture
+**egui**: Overlays, menus, debug panels, HUD elements
+**ffmpeg-next + SDL2**: Movie playback with texture streaming
+**sdl2::mixer**: Audio and music
+
+Primary libraries: rust-sdl2, egui
+
+# Documentation
+
+You can fetch documentation here as needed:
+
+- egui_sdl2_gl: <https://github.com/arjunnair/egui_sdl2_gl>
+
 # Engineering Contract (Concise, Full-Precision)
 
 ## Role & Quality Bar
@@ -10,11 +87,6 @@
 
 - `src/foo.rs` for modules; submodules as `src/foo/bar.rs`, `src/foo/bar/baz.rs`.
 - **No** `mod.rs`. Lints enforce a flat, modern layout.
-
-## Critical Behavior
-
-- **Do not ever stop to ask questions.** No prompts like “Shall I proceed?”. Continue the task.
-- **Command I/O bug:** Always pipe command output to `temp.log` with `tee` and read from `temp.log`. Avoid `echo` except for tests/important commands.
 
 ## Common Commands (cargo-make)
 
@@ -34,7 +106,7 @@
 
 ## Requirements & Approach
 
-- TDD only. **At least 3 tests per step**, include edge cases. Prefer `expect` over `allow`; avoid `#[allow]` unless absolutely necessary and documented.
+- TDD only with red-green-refactor. Include edge cases. Prefer `expect` over `allow`; avoid `#[allow]` unless absolutely necessary and documented.
 
 ## Linting (strict, summarized)
 
@@ -57,12 +129,12 @@
 
 ## Steps (always)
 
-1. Open or create **PLAN.md** with a comprehensive checklist (all steps/substeps to complete the project).
-2. Pick the next unchecked item → **write tests first** (≥3, incl. edge cases).
+1. Open or create a plan file in the plans folder with a comprehensive checklist (all steps/substeps to complete the task at-hand).
+2. Pick the next unchecked item → **write tests first** (incl. edge cases).
 3. Run `cargo make lint` and fix all issues; run tests; ensure coverage **≥ 80%** via `./scripts/check-coverage-fast.sh`.
 4. Implement; re-lint; re-test; update PLAN.md and check off completed items.
 5. Run a dedicated build step to ensure the app compiles cleanly.
-6. Final code review (security, performance, maintainability, plan adherence); you may use the **changes** tool for this pass.
+6. Final code review (security, performance, maintainability, plan adherence).
 7. Stage and commit; commit hooks must pass tests & lints. **Never** use `--no-verify`.
 
 ## Bug Fixes
