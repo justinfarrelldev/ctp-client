@@ -6,10 +6,8 @@
 use crate::asset_extraction::{
     ExtractionError, build_confirmation_prompt, describe_extraction_error,
 };
-use alloc::rc::Rc;
 use gtk4::glib;
 use gtk4::prelude::*;
-use std::cell::Cell;
 use std::path::Path;
 
 /// Testable text displayed by a modal dialog.
@@ -142,27 +140,11 @@ fn build_dialog(parent: Option<&gtk4::Window>, text: &DialogText) -> gtk4::Dialo
     dialog
 }
 
-/// Runs a GTK dialog through a nested main loop and returns the chosen response.
+/// Runs a GTK dialog until GTK emits a response for a button or close action.
 fn run_modal_dialog(dialog: &gtk4::Dialog) -> gtk4::ResponseType {
-    let selected_response = Rc::new(Cell::new(gtk4::ResponseType::None));
-    let main_loop = glib::MainLoop::new(None, false);
-
-    let response_for_signal = Rc::clone(&selected_response);
-    let loop_for_response = main_loop.clone();
-    dialog.connect_response(move |dialog, response| {
-        response_for_signal.set(response);
-        dialog.close();
-        loop_for_response.quit();
-    });
-
-    let loop_for_hide = main_loop.clone();
-    dialog.connect_hide(move |_| {
-        loop_for_hide.quit();
-    });
-
-    dialog.present();
-    main_loop.run();
-    selected_response.get()
+    let response = glib::MainContext::default().block_on(dialog.run_future());
+    dialog.close();
+    response
 }
 
 #[cfg(test)]
@@ -244,6 +226,10 @@ mod tests {
         assert!(
             !is_affirmative_response(gtk4::ResponseType::DeleteEvent),
             "Window-manager close should not proceed"
+        );
+        assert!(
+            !is_affirmative_response(gtk4::ResponseType::Other(1)),
+            "Unexpected custom responses should not proceed"
         );
     }
 }
