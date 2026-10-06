@@ -114,6 +114,7 @@ extern crate alloc;
 pub mod asset_extraction;
 /// Configuration management module.
 pub mod config;
+mod dialogs;
 /// Internationalization module.
 pub mod i18n;
 /// Installation validation and detection module.
@@ -125,16 +126,12 @@ pub mod ui;
 /// Video playback module.
 pub mod video;
 
-#[cfg(not(test))]
-use crate::asset_extraction::describe_extraction_error;
 use crate::asset_extraction::{
     ArchiveExtractor, ExtractionError, ExtractionSettings, build_confirmation_prompt,
     default_destination_root, log_extraction_progress, required_archives,
 };
 use config::GameInstallation;
 use log::info;
-#[cfg(not(test))]
-use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::PathBuf;
 use std::sync::Once;
 #[cfg(test)]
@@ -301,15 +298,8 @@ where
 #[cfg(not(test))]
 /// Shows the native confirmation dialog for asset extraction.
 fn prompt_user_for_extraction(description: &str) -> bool {
-    matches!(
-        MessageDialog::new()
-            .set_title("Prepare game data")
-            .set_description(description)
-            .set_buttons(MessageButtons::YesNo)
-            .set_level(MessageLevel::Info)
-            .show(),
-        MessageDialogResult::Yes | MessageDialogResult::Ok
-    )
+    let text = dialogs::DialogText::new("Prepare game data", description.to_owned());
+    dialogs::run_confirmation_dialog(None, &text)
 }
 
 #[cfg(test)]
@@ -325,13 +315,8 @@ fn prompt_user_for_extraction(description: &str) -> bool {
 #[cfg(not(test))]
 /// Shows the native error dialog for asset extraction failures.
 fn show_extraction_error_dialog(error: &ExtractionError) {
-    let (title, description) = describe_extraction_error(error);
-    MessageDialog::new()
-        .set_title(title)
-        .set_description(&description)
-        .set_buttons(MessageButtons::Ok)
-        .set_level(MessageLevel::Error)
-        .show();
+    let text = dialogs::extraction_error_text(error);
+    dialogs::run_message_dialog(None, &text);
 }
 
 #[cfg(test)]

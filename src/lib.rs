@@ -31,6 +31,7 @@ extern crate alloc;
 pub mod asset_extraction;
 /// Configuration management module.
 pub mod config;
+mod dialogs;
 /// Internationalization module.
 pub mod i18n;
 /// Installation validation and detection module.

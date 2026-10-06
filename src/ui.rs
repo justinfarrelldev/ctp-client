@@ -23,11 +23,11 @@
 extern crate alloc;
 
 use crate::asset_extraction::{
-    ArchiveExtractor, ExtractionError, ExtractionSettings, build_confirmation_prompt,
-    default_destination_root, describe_extraction_error, log_extraction_progress,
-    required_archives,
+    ArchiveExtractor, ExtractionError, ExtractionSettings, default_destination_root,
+    log_extraction_progress, required_archives,
 };
 use crate::config::{AppConfig, GameInstallation, GameVersion};
+use crate::dialogs;
 use crate::i18n::{TranslationKey, Translator};
 use crate::installation::InstallationValidator;
 use crate::settings::{SettingsDialog, SettingsResult};
@@ -962,34 +962,20 @@ impl GtkUI {
 
     /// Prompts the user before copying installation archives to managed storage.
     fn prompt_extraction_confirmation(
-        _parent: &ApplicationWindow,
+        parent: &ApplicationWindow,
         destination: &std::path::Path,
         archive_count: usize,
         installation_name: &str,
     ) -> bool {
-        let description = build_confirmation_prompt(destination, archive_count, installation_name);
-
-        matches!(
-            rfd::MessageDialog::new()
-                .set_title("Prepare game data")
-                .set_description(&description)
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .set_level(rfd::MessageLevel::Info)
-                .show(),
-            rfd::MessageDialogResult::Yes | rfd::MessageDialogResult::Ok
-        )
+        let text =
+            dialogs::extraction_confirmation_text(destination, archive_count, installation_name);
+        dialogs::run_confirmation_dialog(Some(parent.upcast_ref::<gtk4::Window>()), &text)
     }
 
     /// Displays a user-facing extraction error message.
-    fn show_extraction_error_dialog(_parent: &ApplicationWindow, error: &ExtractionError) {
-        let (title, description) = describe_extraction_error(error);
-
-        rfd::MessageDialog::new()
-            .set_title(title)
-            .set_description(&description)
-            .set_buttons(rfd::MessageButtons::Ok)
-            .set_level(rfd::MessageLevel::Error)
-            .show();
+    fn show_extraction_error_dialog(parent: &ApplicationWindow, error: &ExtractionError) {
+        let text = dialogs::extraction_error_text(error);
+        dialogs::run_message_dialog(Some(parent.upcast_ref::<gtk4::Window>()), &text);
     }
 
     /// Populates the installations list with available games.
