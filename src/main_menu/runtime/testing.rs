@@ -4,6 +4,8 @@ use std::path::Path;
 
 use sdl2::pixels::PixelFormatEnum;
 
+use crate::main_menu::ButtonAssetTriplet;
+
 use super::*;
 
 /// Computes average RGB color for a rendered headless menu frame.
@@ -50,7 +52,7 @@ pub(in crate::main_menu) fn button_style_asset_summaries_for_test(
 
     for triplet in triplets {
         for asset_name in [triplet.left, triplet.middle, triplet.right] {
-            let entry_name = button_asset_entry_name(asset_name);
+            let entry_name = button_art::button_asset_entry_name(asset_name);
             let image = load_rim_rgba_entry(
                 installation_root,
                 SHELL_ART_ARCHIVE,
@@ -72,7 +74,80 @@ pub(in crate::main_menu) fn button_style_asset_summaries_for_test(
 /// Returns the packed RIM entry name for a button asset in tests.
 #[cfg(test)]
 pub(in crate::main_menu) fn button_asset_entry_name_for_test(ldl_asset_name: &str) -> String {
-    button_asset_entry_name(ldl_asset_name)
+    button_art::button_asset_entry_name(ldl_asset_name)
+}
+
+/// Returns the original dark button label color used by the renderer.
+#[cfg(test)]
+pub(in crate::main_menu) const fn button_label_text_color_for_test() -> (u8, u8, u8) {
+    BUTTON_LABEL_TEXT_COLOR
+}
+
+/// Returns a native/tiled render plan for a button triplet loaded from original assets.
+#[cfg(test)]
+pub(in crate::main_menu) fn button_triplet_render_plan_for_test(
+    installation_root: &Path,
+    triplet: ButtonAssetTriplet,
+    target_width: u32,
+) -> Result<Vec<(String, u32, u32, bool)>, MainMenuError> {
+    let left = button_piece_dimensions_for_test(installation_root, triplet.left)?;
+    let middle = button_piece_dimensions_for_test(installation_root, triplet.middle)?;
+    let right = button_piece_dimensions_for_test(installation_root, triplet.right)?;
+    let middle_width =
+        button_art::tiled_middle_width(target_width, left.dimensions.width, right.dimensions.width);
+
+    Ok(vec![
+        (
+            left.entry_name,
+            left.dimensions.width,
+            left.dimensions.height,
+            false,
+        ),
+        (
+            middle.entry_name,
+            middle_width,
+            middle.dimensions.height,
+            true,
+        ),
+        (
+            right.entry_name,
+            right.dimensions.width,
+            right.dimensions.height,
+            false,
+        ),
+    ])
+}
+
+/// Original button piece metadata needed for render-plan tests.
+#[cfg(test)]
+struct ButtonPieceDimensions {
+    /// Packed RIM entry name.
+    entry_name: String,
+    /// Original image dimensions.
+    dimensions: button_art::TextureDimensions,
+}
+
+/// Loads the original dimensions for one packed button piece.
+#[cfg(test)]
+fn button_piece_dimensions_for_test(
+    installation_root: &Path,
+    ldl_asset_name: &str,
+) -> Result<ButtonPieceDimensions, MainMenuError> {
+    let entry_name = button_art::button_asset_entry_name(ldl_asset_name);
+    let image = load_rim_rgba_entry(
+        installation_root,
+        SHELL_ART_ARCHIVE,
+        &entry_name,
+        Some(BUTTON_CHROMA_KEY),
+    )?;
+
+    Ok(ButtonPieceDimensions {
+        entry_name,
+        dimensions: button_art::TextureDimensions {
+            width: image.width,
+            height: image.height,
+        },
+    })
 }
 
 /// Returns the texture format used for RGBA uploads in tests.

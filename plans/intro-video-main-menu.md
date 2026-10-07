@@ -12,6 +12,18 @@
 
 ## Checklist
 
+### Follow-up: original button graphics fidelity
+
+- [x] Add tests that pin the renderer to native original button piece dimensions and tiled center pieces instead of procedural/scaled button fills.
+- [x] Add tests that button labels use the original dark text color for readability over the original button art.
+- [x] Render original CTP2 three-piece button art at native piece height and tile the center piece, matching `CTP2_BUTTON_SIZABLE`.
+- [x] Change menu button label rendering to dark original-style text.
+- [x] Run lint, tests, build, lint-fix, and commit the button graphics fidelity fix atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
+
 ### Follow-up: original asset button styling and color fidelity
 
 - [x] Correct SDL texture upload format so original background colors are not interpreted as red.

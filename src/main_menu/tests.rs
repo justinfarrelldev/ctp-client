@@ -196,6 +196,35 @@ fn original_button_art_assets_are_resolved_from_immutable_game_copy() {
 }
 
 #[test]
+fn original_button_art_is_rendered_as_native_tiled_pieces() {
+    let render_plan = runtime::button_triplet_render_plan_for_test(
+        std::path::Path::new("ctp2"),
+        ButtonVisualStyle::blue_large().assets.up,
+        290,
+    )
+    .expect("original button triplet should produce a render plan");
+
+    assert_eq!(
+        render_plan,
+        vec![
+            ("upbt07au.rim".to_owned(), 35, 39, false),
+            ("upbt07bu.rim".to_owned(), 220, 39, true),
+            ("upbt07cu.rim".to_owned(), 35, 39, false),
+        ],
+        "button rendering should keep original endcaps native and tile only the middle piece"
+    );
+}
+
+#[test]
+fn button_labels_use_original_dark_text_color() {
+    assert_eq!(
+        runtime::button_label_text_color_for_test(),
+        (0, 0, 0),
+        "button labels should be dark over the original CTP2 button art"
+    );
+}
+
+#[test]
 fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
     let temp_dir = TempDir::new().expect("temp directory should be created");
 
