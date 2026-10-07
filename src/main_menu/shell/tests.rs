@@ -685,6 +685,24 @@ fn new_game_screen_omits_uninstantiated_profile_world_dropdown_panels() {
 }
 
 #[test]
+fn single_player_hub_omits_scenario_and_map_editor() {
+    let screen = screen_for(
+        ShellScreenId::SinglePlayerHub,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    assert!(
+        screen.find_accessible("Scenario").is_none(),
+        "Scenario should be removed from the second shell screen"
+    );
+    assert!(
+        screen.find_accessible("Map Editor").is_none(),
+        "Map Editor should be removed from the second shell screen"
+    );
+}
+
+#[test]
 fn options_screen_hides_quit_and_disables_game_management_controls() {
     let screen = screen_for(
         ShellScreenId::Options,
@@ -715,6 +733,10 @@ fn options_screen_hides_quit_and_disables_game_management_controls() {
             control.action(),
             Some(ShellAction::Disabled),
             "{accessible_name} should remain disabled in the base-game options popup"
+        );
+        assert!(
+            !control.enabled(),
+            "{accessible_name} should render with disabled visual state"
         );
     }
 }

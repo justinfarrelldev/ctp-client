@@ -54,7 +54,7 @@ These are current app UI surfaces, but they are not base-game CTP2 UI. They are 
 
 ### `SPWindow` single-player hub (`spnewgame.ldl`)
 
-All current hub controls map to original LDL/source positions: `NewGameButton`, `LoadGameButton`, `ScenarioButton`, `MapEditorButton`, `OptionsButton`, off-screen `TutorialButton` at `x=850`, `ReturnButton`, `QuitButton`, `InstaStartButton`, and background `upsg002.tga`. Button art maps to `SP_BUTTON_BIG` or `SP_BUTTON_BIG_STONE`; `InstaStartButton` is the original static/font control using `error.tga`. Remaining schism: text rendering/color/shadow is approximate.
+Current hub controls map to original LDL/source positions for `NewGameButton`, `LoadGameButton`, `OptionsButton`, off-screen `TutorialButton` at `x=850`, `ReturnButton`, `QuitButton`, `InstaStartButton`, and background `upsg002.tga`. `ScenarioButton` and `MapEditorButton` are intentionally removed from the active hub model because they are not visible/usable in the base CTP2 second screen. Button art maps to `SP_BUTTON_BIG` or `SP_BUTTON_BIG_STONE`; `InstaStartButton` is the original static/font control using `error.tga`. Remaining schism: text rendering/color/shadow is approximate.
 
 ### `SPNewGameWindow` (`spnewgame.ldl`, `spnewgamewindow.cpp`)
 
@@ -68,7 +68,7 @@ Resolved in this pass: `MapButton` now opens a modeled `CustomMapWindow` based o
 
 ### Options root (`OptionsWindow`, `options.ldl`, `optionswindow.cpp`)
 
-Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, disabled `SaveGameButton`, disabled `LoadGameButton`, disabled `RestartButton`, disabled `NewGameButton`, disabled `MapEditorButton` (`CHEAT MODE`), and generated `c3_PopupClose`. `QuitToShellButton` is not exposed in the active base-game options popup.
+Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, visibly disabled `SaveGameButton`, visibly disabled `LoadGameButton`, visibly disabled `RestartButton`, visibly disabled `NewGameButton`, visibly disabled `MapEditorButton` (`CHEAT MODE`), and generated `c3_PopupClose`. `QuitToShellButton` is not exposed in the active base-game options popup.
 
 Remaining schism: popup chrome is only the tiled `uptg20e` pattern plus generated Close button; the full `c3_PopupWindow` frame/title renderer is not cloned yet.
 

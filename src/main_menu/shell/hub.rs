@@ -6,10 +6,6 @@ use super::{ShellAction, ShellScreen, ShellScreenId};
 use crate::main_menu::ButtonVisualStyle;
 
 /// Builds the original single-player hub screen.
-#[expect(
-    clippy::too_many_lines,
-    reason = "The hub builder is a direct LDL control manifest for validation."
-)]
 pub(super) fn single_player_hub_screen() -> ShellScreen {
     ShellScreen {
         id: ShellScreenId::SinglePlayerHub,
@@ -41,30 +37,6 @@ pub(super) fn single_player_hub_screen() -> ShellScreen {
                 ButtonVisualStyle::blue_large(),
                 ShellAction::Disabled,
                 "spnewgame.ldl:174",
-            ),
-            button(
-                "ScenarioButton",
-                "SCENARIO",
-                "Scenario",
-                46,
-                134,
-                180,
-                32,
-                ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "spnewgame.ldl:188",
-            ),
-            button(
-                "MapEditorButton",
-                "MAP EDITOR",
-                "Map Editor",
-                46,
-                113,
-                180,
-                32,
-                ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "spnewgame.ldl:167",
             ),
             button(
                 "OptionsButton",

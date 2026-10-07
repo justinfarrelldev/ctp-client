@@ -330,15 +330,20 @@ fn draw_shell_control(
     let rect = screen_rect(screen, control.rect());
     match control.kind() {
         ShellControlKind::Button(style) => {
-            let hovered = rect.contains_point(mouse_x, mouse_y);
-            if let Some(button_textures) = textures_for_style(textures, style) {
-                button_art::draw_styled_button(canvas, &rect, button_textures, hovered)?;
-                let text_rect =
-                    button_art::styled_button_text_rect(&rect, button_textures, hovered);
-                draw_centered_text(canvas, font, &text_rect, control.label())
+            let enabled = control.enabled();
+            let hovered = enabled && rect.contains_point(mouse_x, mouse_y);
+            if enabled {
+                if let Some(button_textures) = textures_for_style(textures, style) {
+                    button_art::draw_styled_button(canvas, &rect, button_textures, hovered)?;
+                    let text_rect =
+                        button_art::styled_button_text_rect(&rect, button_textures, hovered);
+                    draw_centered_text(canvas, font, &text_rect, control.label())
+                } else {
+                    draw_fallback_button(canvas, &rect, style, hovered)?;
+                    draw_centered_text(canvas, font, &rect, control.label())
+                }
             } else {
-                draw_fallback_button(canvas, &rect, style, hovered)?;
-                draw_centered_text(canvas, font, &rect, control.label())
+                draw_disabled_button(canvas, font, &rect, control.label())
             }
         }
         ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
@@ -424,6 +429,20 @@ fn slider_value_at(rect: &MenuRect, kind: ShellControlKind, point_x: i32) -> i32
         .checked_div(width)
         .map_or(0_i32, |value| value);
     min.saturating_add(scaled).clamp(min, max)
+}
+
+/// Draws a disabled button fallback.
+fn draw_disabled_button(
+    canvas: &mut Canvas<Window>,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+    rect: &MenuRect,
+    label: &str,
+) -> Result<(), MainMenuError> {
+    canvas.set_draw_color(Color::RGB(82, 78, 70));
+    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
+    canvas.set_draw_color(Color::RGB(35, 32, 28));
+    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
+    draw_centered_text(canvas, font, rect, label)
 }
 
 /// Draws CTP2 listbox chrome with a patterned/beveled fallback.

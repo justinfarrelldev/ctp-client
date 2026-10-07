@@ -301,6 +301,8 @@ pub(super) struct ShellControl {
     rect: MenuRect,
     /// Kind of control and visual family.
     kind: ShellControlKind,
+    /// Whether the control is enabled for visual state and activation.
+    enabled: bool,
     /// Optional action emitted by activation.
     action: Option<ShellAction>,
     /// Original sounds for interactive controls.
@@ -335,6 +337,11 @@ impl ShellControl {
     /// Returns the control kind.
     pub(super) const fn kind(&self) -> ShellControlKind {
         self.kind
+    }
+
+    /// Returns whether the control is enabled.
+    pub(super) const fn enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Returns the activation action.
