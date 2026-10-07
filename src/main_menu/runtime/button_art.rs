@@ -15,9 +15,11 @@ use super::{
 
 /// Texture triplets for available button interaction states.
 pub(super) struct ButtonStateTextures<'texture> {
+    /// Textures for the original always/background layer.
+    always: ButtonTextureTriplet<'texture>,
     /// Textures for default/up state.
     up: ButtonTextureTriplet<'texture>,
-    /// Textures for hover state.
+    /// Textures for hover highlight overlay state.
     hover: ButtonTextureTriplet<'texture>,
 }
 
@@ -40,19 +42,19 @@ pub(super) struct TextureDimensions {
     pub(super) height: u32,
 }
 
-/// Draws a button with original three-piece art.
+/// Draws a button with original three-piece art and layer flags.
 pub(super) fn draw_styled_button(
     canvas: &mut Canvas<Window>,
     rect: &MenuRect,
     textures: &ButtonStateTextures<'_>,
     hovered: bool,
 ) -> Result<(), MainMenuError> {
-    let triplet = if hovered {
-        &textures.hover
-    } else {
-        &textures.up
-    };
-    draw_texture_triplet(canvas, rect, triplet)
+    draw_texture_triplet(canvas, rect, &textures.always)?;
+    draw_texture_triplet(canvas, rect, &textures.up)?;
+    if hovered {
+        draw_texture_triplet(canvas, rect, &textures.hover)?;
+    }
+    Ok(())
 }
 
 /// Draws a three-piece CTP2 shell button using native endcaps and a tiled center.
@@ -154,16 +156,19 @@ pub(super) fn styled_button_text_rect(
     textures: &ButtonStateTextures<'_>,
     hovered: bool,
 ) -> MenuRect {
-    let triplet = if hovered {
-        &textures.hover
+    let highlighted_height = if hovered {
+        triplet_height(&textures.hover)
     } else {
-        &textures.up
+        0
     };
     MenuRect::new(
         rect.x,
         rect.y,
         rect.width,
-        triplet_height(triplet).max(rect.height),
+        triplet_height(&textures.always)
+            .max(triplet_height(&textures.up))
+            .max(highlighted_height)
+            .max(rect.height),
     )
 }
 
@@ -187,6 +192,7 @@ pub(super) fn load_button_state_textures<'texture>(
     style: ButtonVisualStyle,
 ) -> Result<ButtonStateTextures<'texture>, MainMenuError> {
     Ok(ButtonStateTextures {
+        always: load_button_triplet(texture_creator, model, style.assets.inactive)?,
         up: load_button_triplet(texture_creator, model, style.assets.up)?,
         hover: load_button_triplet(texture_creator, model, style.assets.hover)?,
     })

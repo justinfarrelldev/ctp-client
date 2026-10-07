@@ -12,6 +12,16 @@
 
 ## Checklist
 
+### Follow-up: hover button layer fidelity
+
+- [x] Add tests proving hover rendering matches original `CTP2_BUTTON_SIZABLE` layer flags: always/background + up + highlight overlay.
+- [x] Render hover art as an overlay on the original up/background button art instead of replacing the button with the mostly-transparent highlight image.
+- [x] Run lint, tests, build, lint-fix, and commit the hover-layer fix atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `cargo build` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+
 ### Follow-up: original button graphics fidelity
 
 - [x] Add tests that pin the renderer to native original button piece dimensions and tiled center pieces instead of procedural/scaled button fills.

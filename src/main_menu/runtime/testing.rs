@@ -8,6 +8,9 @@ use crate::main_menu::ButtonAssetTriplet;
 
 use super::*;
 
+/// Named button layer render plan rows: layer, entry, width, height, and tiled flag.
+type ButtonLayerRenderPlan = Vec<(String, String, u32, u32, bool)>;
+
 /// Computes average RGB color for a rendered headless menu frame.
 #[cfg(test)]
 pub(in crate::main_menu) fn render_headless_average_color_for_test(
@@ -116,6 +119,58 @@ pub(in crate::main_menu) fn button_triplet_render_plan_for_test(
             false,
         ),
     ])
+}
+
+/// Returns the original layer stack for a styled button in one interaction state.
+#[cfg(test)]
+pub(in crate::main_menu) fn button_layer_render_plan_for_test(
+    installation_root: &Path,
+    style: ButtonVisualStyle,
+    hovered: bool,
+    target_width: u32,
+) -> Result<ButtonLayerRenderPlan, MainMenuError> {
+    let mut plan = Vec::new();
+    append_named_triplet_plan(
+        &mut plan,
+        "always",
+        installation_root,
+        style.assets.inactive,
+        target_width,
+    )?;
+    append_named_triplet_plan(
+        &mut plan,
+        "up",
+        installation_root,
+        style.assets.up,
+        target_width,
+    )?;
+    if hovered {
+        append_named_triplet_plan(
+            &mut plan,
+            "highlight",
+            installation_root,
+            style.assets.hover,
+            target_width,
+        )?;
+    }
+    Ok(plan)
+}
+
+/// Appends one named original-art triplet render plan to a layer plan.
+#[cfg(test)]
+fn append_named_triplet_plan(
+    plan: &mut ButtonLayerRenderPlan,
+    layer_name: &str,
+    installation_root: &Path,
+    triplet: ButtonAssetTriplet,
+    target_width: u32,
+) -> Result<(), MainMenuError> {
+    for (entry_name, width, height, tiled) in
+        button_triplet_render_plan_for_test(installation_root, triplet, target_width)?
+    {
+        plan.push((layer_name.to_owned(), entry_name, width, height, tiled));
+    }
+    Ok(())
 }
 
 /// Original button piece metadata needed for render-plan tests.

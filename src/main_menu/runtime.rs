@@ -653,8 +653,9 @@ pub(super) mod testing;
 #[cfg(test)]
 pub(super) use testing::{
     button_asset_entry_name_for_test, button_label_text_color_for_test,
-    button_style_asset_summaries_for_test, button_triplet_render_plan_for_test,
-    menu_texture_format_for_test, render_headless_average_color_for_test,
+    button_layer_render_plan_for_test, button_style_asset_summaries_for_test,
+    button_triplet_render_plan_for_test, menu_texture_format_for_test,
+    render_headless_average_color_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

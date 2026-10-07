@@ -216,6 +216,69 @@ fn original_button_art_is_rendered_as_native_tiled_pieces() {
 }
 
 #[test]
+fn hover_button_art_layers_match_original_ctp2_sizable_button_flags() {
+    let render_plan = runtime::button_layer_render_plan_for_test(
+        std::path::Path::new("ctp2"),
+        ButtonVisualStyle::blue_large(),
+        true,
+        290,
+    )
+    .expect("hovered button layers should load from original art");
+
+    assert_eq!(
+        render_plan,
+        vec![
+            (
+                "always".to_owned(),
+                "upbt07ax.rim".to_owned(),
+                35,
+                39,
+                false
+            ),
+            (
+                "always".to_owned(),
+                "upbt07bx.rim".to_owned(),
+                220,
+                39,
+                true
+            ),
+            (
+                "always".to_owned(),
+                "upbt07cx.rim".to_owned(),
+                35,
+                39,
+                false
+            ),
+            ("up".to_owned(), "upbt07au.rim".to_owned(), 35, 39, false),
+            ("up".to_owned(), "upbt07bu.rim".to_owned(), 220, 39, true),
+            ("up".to_owned(), "upbt07cu.rim".to_owned(), 35, 39, false),
+            (
+                "highlight".to_owned(),
+                "upbt07ah.rim".to_owned(),
+                35,
+                39,
+                false,
+            ),
+            (
+                "highlight".to_owned(),
+                "upbt07bh.rim".to_owned(),
+                220,
+                39,
+                true,
+            ),
+            (
+                "highlight".to_owned(),
+                "upbt07ch.rim".to_owned(),
+                35,
+                39,
+                false,
+            ),
+        ],
+        "hover should draw the original always and up layers before the highlight overlay"
+    );
+}
+
+#[test]
 fn button_labels_use_original_dark_text_color() {
     assert_eq!(
         runtime::button_label_text_color_for_test(),
