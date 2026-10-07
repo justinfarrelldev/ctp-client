@@ -4,9 +4,7 @@ use alloc::vec::Vec;
 
 use super::builders::asset;
 use super::pickers;
-use super::{
-    GameSetupField, GameSetupState, MenuRect, ShellOptionsState, ShellScreen, ShellScreenId,
-};
+use super::{GameSetupState, MenuRect, ShellOptionsState, ShellScreen, ShellScreenId};
 
 /// Builds a screen using current setup/option state.
 pub(super) fn screen_for(
@@ -24,48 +22,13 @@ pub(super) fn screen_for(
         ShellScreenId::Sound => super::options::sound_screen(options),
         ShellScreenId::Music => super::options::music_screen(options),
         ShellScreenId::MusicTrack => pickers::music_track_screen(),
-        ShellScreenId::NationPicker => pickers::picker_screen(
-            ShellScreenId::NationPicker,
-            "SPNewGameTribeScreen",
-            "NATION",
-            GameSetupField::Nation,
-        ),
-        ShellScreenId::DifficultyPicker => pickers::picker_screen(
-            ShellScreenId::DifficultyPicker,
-            "SPNewGameDiffScreen",
-            "DIFFICULTY",
-            GameSetupField::Difficulty,
-        ),
-        ShellScreenId::MapSizePicker => pickers::picker_screen(
-            ShellScreenId::MapSizePicker,
-            "SPNewGameMapSizeScreen",
-            "MAP SIZE",
-            GameSetupField::MapSize,
-        ),
-        ShellScreenId::WorldShapePicker => pickers::picker_screen(
-            ShellScreenId::WorldShapePicker,
-            "SPNewGameMapShapeScreen",
-            "WORLD SHAPE",
-            GameSetupField::WorldShape,
-        ),
-        ShellScreenId::WorldTypePicker => pickers::picker_screen(
-            ShellScreenId::WorldTypePicker,
-            "SPNewGameMapScreen",
-            "WORLD TYPE",
-            GameSetupField::WorldType,
-        ),
-        ShellScreenId::PlayersPicker => pickers::picker_screen(
-            ShellScreenId::PlayersPicker,
-            "SPNewGamePlayersScreen",
-            "PLAYERS",
-            GameSetupField::Players,
-        ),
-        ShellScreenId::RulesPicker => pickers::picker_screen(
-            ShellScreenId::RulesPicker,
-            "SPNewGameRulesScreen",
-            "RULES",
-            GameSetupField::Rules,
-        ),
+        ShellScreenId::NationPicker => pickers::nation_picker_screen(setup),
+        ShellScreenId::DifficultyPicker => pickers::difficulty_picker_screen(),
+        ShellScreenId::MapSizePicker => pickers::map_size_picker_screen(),
+        ShellScreenId::WorldShapePicker => pickers::world_shape_picker_screen(),
+        ShellScreenId::WorldTypePicker => pickers::world_type_picker_screen(),
+        ShellScreenId::PlayersPicker => pickers::players_picker_screen(),
+        ShellScreenId::RulesPicker => pickers::rules_picker_screen(),
     }
 }
 

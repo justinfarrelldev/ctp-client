@@ -1,8 +1,10 @@
 //! Options, graphics, sound, and music screen builders.
 
 use super::MenuRect;
-use super::builders::{asset, button, decoration, label, slider, switch_control};
-use super::{ShellAction, ShellOptionField, ShellOptionsState, ShellScreen, ShellScreenId};
+use super::builders::{asset, button, decoration, image_switch_control, label, slider};
+use super::{
+    ShellAction, ShellImageSet, ShellOptionField, ShellOptionsState, ShellScreen, ShellScreenId,
+};
 use crate::main_menu::ButtonVisualStyle;
 
 /// Builds the root options popup.
@@ -243,7 +245,7 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 20,
                 "graphics.ldl:180",
             ),
-            switch_control(
+            image_switch_control(
                 "WalkButton",
                 "UNIT ANIMATION",
                 "Unit Animation",
@@ -252,10 +254,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:57",
             ),
-            switch_control(
+            image_switch_control(
                 "TradeButton",
                 "ANIMATED TRADE ROUTES",
                 "Animated Trade Routes",
@@ -264,10 +267,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:66",
             ),
-            switch_control(
+            image_switch_control(
                 "WonderButton",
                 "WONDER MOVIES",
                 "Wonder Movies",
@@ -276,10 +280,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:75",
             ),
-            switch_control(
+            image_switch_control(
                 "CityNamesButton",
                 "CITY NAMES",
                 "City Names",
@@ -288,10 +293,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:84",
             ),
-            switch_control(
+            image_switch_control(
                 "PoliticalBordersButton",
                 "POLITICAL BORDERS",
                 "Political Borders",
@@ -300,10 +306,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:96",
             ),
-            switch_control(
+            image_switch_control(
                 "TradeRoutesButton",
                 "TRADE ROUTES",
                 "Trade Routes",
@@ -312,10 +319,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:105",
             ),
-            switch_control(
+            image_switch_control(
                 "CityInflenceButton",
                 "CITY INFLUENCE",
                 "City Influence",
@@ -324,10 +332,11 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 true,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:114",
             ),
-            switch_control(
+            image_switch_control(
                 "GridButton",
                 "GRID",
                 "Grid",
@@ -336,6 +345,7 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 300,
                 24,
                 false,
+                ShellImageSet::graphics_checkbox(),
                 ShellAction::Disabled,
                 "graphics.ldl:123",
             ),
@@ -505,7 +515,7 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellAction::OpenOption(ShellOptionField::MusicTrack),
                 "musicscreen.ldl:58",
             ),
-            switch_control(
+            image_switch_control(
                 "AutoRepeatSwitch",
                 "AUTO REPEAT",
                 "Auto Repeat",
@@ -514,10 +524,11 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 146,
                 24,
                 options.auto_repeat(),
+                ShellImageSet::popup_checkbox(),
                 ShellAction::ToggleOption(ShellOptionField::AutoRepeat),
                 "musicscreen.ldl:67",
             ),
-            switch_control(
+            image_switch_control(
                 "RandomOrderSwitch",
                 "RANDOM ORDER",
                 "Random Order",
@@ -526,10 +537,11 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 146,
                 24,
                 options.random_order(),
+                ShellImageSet::popup_checkbox(),
                 ShellAction::ToggleOption(ShellOptionField::RandomOrder),
                 "musicscreen.ldl:70",
             ),
-            switch_control(
+            image_switch_control(
                 "MusicOnSwitch",
                 if options.music_enabled() {
                     "MUSIC ON"
@@ -542,6 +554,7 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 146,
                 24,
                 options.music_enabled(),
+                ShellImageSet::popup_checkbox(),
                 ShellAction::ToggleOption(ShellOptionField::MusicEnabled),
                 "musicscreen.ldl:73",
             ),

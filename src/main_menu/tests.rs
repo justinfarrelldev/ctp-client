@@ -338,6 +338,30 @@ fn headless_sdl_shell_options_back_and_quit_flow_exits_cleanly() {
 }
 
 #[test]
+fn headless_sdl_shell_nation_picker_selects_from_original_grid() {
+    let temp_dir = TempDir::new().expect("temp directory should be created");
+    let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());
+
+    let result = runtime::run_headless_events_for_test(
+        &model,
+        vec![
+            mouse_down(623_i32, 471_i32),
+            mouse_down(644_i32, 246_i32),
+            mouse_down(400_i32, 100_i32),
+            mouse_down(260_i32, 120_i32),
+            mouse_down(400_i32, 574_i32),
+        ],
+    )
+    .expect("headless SDL nation picker grid flow should reach launch");
+
+    assert_eq!(
+        result,
+        MainMenuAction::LaunchSinglePlayer,
+        "selecting a nation from the original popup grid should return to New Game and launch"
+    );
+}
+
+#[test]
 fn headless_sdl_shell_flow_reaches_single_player_launch() {
     let temp_dir = TempDir::new().expect("temp directory should be created");
     let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());

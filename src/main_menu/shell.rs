@@ -166,6 +166,72 @@ impl ShellSoundPolicy {
     }
 }
 
+/// Original single-image shell art used by radio, checkbox, and toggle controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ShellImageSet {
+    /// Normal/unselected image name from the LDL file.
+    normal: &'static str,
+    /// Selected/on image name from the LDL file.
+    selected: &'static str,
+    /// Disabled normal image name from the LDL file.
+    disabled_normal: Option<&'static str>,
+    /// Disabled selected image name from the LDL file.
+    disabled_selected: Option<&'static str>,
+}
+
+impl ShellImageSet {
+    /// Creates a new shell image set from LDL asset names.
+    const fn new(
+        normal: &'static str,
+        selected: &'static str,
+        disabled_normal: Option<&'static str>,
+        disabled_selected: Option<&'static str>,
+    ) -> Self {
+        Self {
+            normal,
+            selected,
+            disabled_normal,
+            disabled_selected,
+        }
+    }
+
+    /// Returns the popup checkbox/radio image family from `spnewgamepopups.ldl`.
+    pub(super) const fn popup_checkbox() -> Self {
+        Self::new(
+            "upba2317.tga",
+            "upba2318.tga",
+            Some("upba2323.tga"),
+            Some("upba2324.tga"),
+        )
+    }
+
+    /// Returns the graphics options checkbox image family from `graphics.ldl`.
+    pub(super) const fn graphics_checkbox() -> Self {
+        Self::new(
+            "upbt11u0.tga",
+            "upbt11u1.tga",
+            Some("upbt11x0.tga"),
+            Some("upbt11x1.tga"),
+        )
+    }
+
+    /// Returns the selected or normal image for the current control state.
+    pub(super) const fn image_for_state(self, selected: bool, enabled: bool) -> &'static str {
+        match (selected, enabled) {
+            (false, true) => self.normal,
+            (true, true) => self.selected,
+            (false, false) => match self.disabled_normal {
+                Some(image) => image,
+                None => self.normal,
+            },
+            (true, false) => match self.disabled_selected {
+                Some(image) => image,
+                None => self.selected,
+            },
+        }
+    }
+}
+
 /// Visual/control family for one shell element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ShellControlKind {
@@ -186,13 +252,20 @@ pub(super) enum ShellControlKind {
     },
     /// Toggle switch.
     Switch {
-        /// Whether the switch is currently enabled.
+        /// Whether the switch is currently selected/on.
         enabled: bool,
+        /// Optional original image family for the switch state.
+        images: Option<ShellImageSet>,
     },
     /// Pattern/image decoration or popup frame piece.
     Decoration,
     /// List or dropdown item.
-    ListItem,
+    ListItem {
+        /// Optional original image family for selectable list items.
+        images: Option<ShellImageSet>,
+        /// Whether the list item is selected/on.
+        selected: bool,
+    },
 }
 
 /// One modeled element from an original LDL shell screen.
@@ -367,12 +440,12 @@ impl Default for GameSetupState {
         Self {
             nation: "ROMANS".to_owned(),
             leader_name: "Caesar".to_owned(),
-            difficulty: "AVERAGE".to_owned(),
-            map_size: "MEDIUM".to_owned(),
-            world_shape: "EAST WEST".to_owned(),
-            world_type: "RANDOM".to_owned(),
+            difficulty: "PRINCE".to_owned(),
+            map_size: "MEDIUM 48x96".to_owned(),
+            world_shape: "EARTH WORLD".to_owned(),
+            world_type: "RANDOM MAP".to_owned(),
             players: "4 PLAYERS".to_owned(),
-            rules: "DEFAULT".to_owned(),
+            rules: "BLOODLUST OFF".to_owned(),
         }
     }
 }

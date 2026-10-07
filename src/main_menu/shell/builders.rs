@@ -2,7 +2,7 @@
 
 use super::{
     MenuAssetReference, MenuRect, SHELL_PICTURES_ARCHIVE, ShellAction, ShellControl,
-    ShellControlKind, ShellOptionField, ShellSoundPolicy,
+    ShellControlKind, ShellImageSet, ShellOptionField, ShellSoundPolicy,
 };
 use crate::main_menu::ButtonVisualStyle;
 
@@ -71,7 +71,10 @@ pub(super) fn list_button(
         action,
         source,
     );
-    control.kind = ShellControlKind::ListItem;
+    control.kind = ShellControlKind::ListItem {
+        images: None,
+        selected: false,
+    };
     control
 }
 
@@ -102,7 +105,10 @@ pub(super) fn list_item(
         action,
         source,
     );
-    control.kind = ShellControlKind::ListItem;
+    control.kind = ShellControlKind::ListItem {
+        images: None,
+        selected: false,
+    };
     control
 }
 
@@ -193,12 +199,12 @@ pub(super) fn slider(
     }
 }
 
-/// Creates a switch control.
+/// Creates a switch/radio control with an original image family.
 #[expect(
     clippy::too_many_arguments,
     reason = "Shell builder helpers preserve original LDL control geometry in one call."
 )]
-pub(super) fn switch_control(
+pub(super) fn image_switch_control(
     ldl_name: &'static str,
     label_text: &str,
     accessible_name: &str,
@@ -206,7 +212,8 @@ pub(super) fn switch_control(
     y: i32,
     width: u32,
     height: u32,
-    enabled: bool,
+    selected: bool,
+    images: ShellImageSet,
     action: ShellAction,
     source: &'static str,
 ) -> ShellControl {
@@ -215,7 +222,10 @@ pub(super) fn switch_control(
         label: label_text.to_owned(),
         accessible_name: accessible_name.to_owned(),
         rect: MenuRect::new(x, y, width, height),
-        kind: ShellControlKind::Switch { enabled },
+        kind: ShellControlKind::Switch {
+            enabled: selected,
+            images: Some(images),
+        },
         action: Some(action),
         sound: Some(ShellSoundPolicy::original_button()),
         source,

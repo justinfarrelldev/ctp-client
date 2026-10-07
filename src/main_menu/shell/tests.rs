@@ -2,6 +2,19 @@
 
 use super::*;
 
+/// Returns image metadata from a switch-like control for assertions.
+fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
+    match kind {
+        ShellControlKind::Switch { images, .. } => images,
+        ShellControlKind::Button(_)
+        | ShellControlKind::Label
+        | ShellControlKind::TextField
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::Decoration
+        | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
 #[test]
 fn single_player_hub_preserves_original_ldl_metadata_and_sound_policy() {
     let screen = screen_for(
@@ -112,6 +125,158 @@ fn new_game_flow_allows_nation_difficulty_and_launch_selection() {
         model.apply_action(ShellAction::LaunchGame),
         ShellFlowOutcome::LaunchGame,
         "launch action should leave the shell with a launch outcome"
+    );
+}
+
+#[test]
+fn nation_picker_matches_original_tribe_popup_layout_and_art() {
+    let screen = screen_for(
+        ShellScreenId::NationPicker,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    assert_eq!(
+        screen.ldl_name(),
+        "SPNewGameTribeScreen",
+        "nation picker should use the original tribe popup block"
+    );
+    assert_eq!(
+        screen.rect(),
+        MenuRect::new(75, 67, 650, 465),
+        "nation picker should be the original large centered 650x465 popup"
+    );
+    let first = screen
+        .find_accessible("GREEKS")
+        .expect("first tribe radio should exist");
+    assert_eq!(
+        first.rect(),
+        MenuRect::new(25, 45, 146, 24),
+        "first tribe radio should start at the original first column position"
+    );
+    assert_eq!(
+        switch_images(first.kind()),
+        Some(ShellImageSet::popup_checkbox()),
+        "tribe radios should use original upba2317/upba2318 checkbox art"
+    );
+    let twelfth = screen
+        .find_accessible("INDIANS")
+        .expect("twelfth tribe radio should be in the second column");
+    assert_eq!(
+        twelfth.rect(),
+        MenuRect::new(176, 45, 146, 24),
+        "tribe list should wrap to the second original radio column after eleven rows"
+    );
+    assert!(
+        screen.find_accessible("Leader Name").is_some(),
+        "original tribe popup should include the leader name label"
+    );
+    assert!(
+        screen.find_accessible("Male").is_some(),
+        "original tribe popup should include the male gender radio"
+    );
+    assert!(
+        screen.find_accessible("Female").is_some(),
+        "original tribe popup should include the female gender radio"
+    );
+}
+
+#[test]
+fn setup_picker_popups_match_original_ldl_dimensions_and_checkbox_art() {
+    let cases = [
+        (
+            ShellScreenId::DifficultyPicker,
+            MenuRect::new(200, 165, 400, 270),
+            "CHIEFTAIN",
+            MenuRect::new(40, 60, 146, 24),
+        ),
+        (
+            ShellScreenId::WorldTypePicker,
+            MenuRect::new(200, 215, 400, 170),
+            "RANDOM MAP",
+            MenuRect::new(125, 45, 146, 24),
+        ),
+        (
+            ShellScreenId::MapSizePicker,
+            MenuRect::new(200, 205, 400, 190),
+            "SMALL 24x48",
+            MenuRect::new(125, 45, 146, 24),
+        ),
+        (
+            ShellScreenId::WorldShapePicker,
+            MenuRect::new(150, 225, 500, 150),
+            "EARTH WORLD",
+            MenuRect::new(20, 45, 146, 24),
+        ),
+        (
+            ShellScreenId::PlayersPicker,
+            MenuRect::new(200, 175, 400, 250),
+            "3 PLAYERS",
+            MenuRect::new(125, 45, 146, 24),
+        ),
+        (
+            ShellScreenId::RulesPicker,
+            MenuRect::new(275, 220, 250, 160),
+            "BLOODLUST OFF",
+            MenuRect::new(50, 50, 160, 24),
+        ),
+    ];
+
+    for (screen_id, expected_rect, accessible_name, expected_control_rect) in cases {
+        let screen = screen_for(
+            screen_id,
+            &GameSetupState::default(),
+            &ShellOptionsState::default(),
+        );
+        assert_eq!(
+            screen.rect(),
+            expected_rect,
+            "{screen_id:?} should preserve original popup geometry"
+        );
+        let control = screen
+            .find_accessible(accessible_name)
+            .expect("original popup option should be addressable");
+        assert_eq!(
+            control.rect(),
+            expected_control_rect,
+            "{screen_id:?} first selectable option should preserve original geometry"
+        );
+        assert_eq!(
+            switch_images(control.kind()),
+            Some(ShellImageSet::popup_checkbox()),
+            "{screen_id:?} selectable options should use original popup checkbox/toggle art"
+        );
+    }
+}
+
+#[test]
+fn graphics_and_music_switches_use_original_art_families() {
+    let graphics = screen_for(
+        ShellScreenId::Graphics,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    let walk = graphics
+        .find_accessible("Unit Animation")
+        .expect("graphics unit animation switch should exist");
+    assert_eq!(
+        switch_images(walk.kind()),
+        Some(ShellImageSet::graphics_checkbox()),
+        "graphics switches should use original upbt11 toggle art"
+    );
+
+    let music = screen_for(
+        ShellScreenId::Music,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    let auto_repeat = music
+        .find_accessible("Auto Repeat")
+        .expect("music auto-repeat switch should exist");
+    assert_eq!(
+        switch_images(auto_repeat.kind()),
+        Some(ShellImageSet::popup_checkbox()),
+        "music switches should use the original popup checkbox art"
     );
 }
 

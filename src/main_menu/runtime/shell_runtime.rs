@@ -6,17 +6,17 @@ use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use crate::main_menu::shell::{
-    self, ShellAction, ShellControl, ShellControlKind, ShellFlowOutcome, ShellOptionField,
-    ShellScreen, ShellScreenId, SinglePlayerShellModel,
+    self, ShellAction, ShellControl, ShellControlKind, ShellFlowOutcome, ShellImageSet,
+    ShellOptionField, ShellScreen, ShellScreenId, SinglePlayerShellModel,
 };
 use crate::main_menu::{
     MainMenuAction, MainMenuError, MainMenuModel, MenuAssetReference, MenuRect,
 };
 
 use super::{
-    MenuTextures, button_art, create_texture_from_rgba, draw_centered_text,
-    draw_fallback_background, draw_fallback_button, load_rim_rgba, runtime_error,
-    textures_for_style, to_sdl_rect,
+    BUTTON_CHROMA_KEY, MenuTextures, SHELL_ART_ARCHIVE, button_art, create_texture_from_rgba,
+    draw_centered_text, draw_fallback_background, draw_fallback_button, load_rim_rgba,
+    load_rim_rgba_entry, runtime_error, textures_for_style, to_sdl_rect,
 };
 
 /// Runtime state for the navigable single-player shell.
@@ -121,7 +121,17 @@ fn draw_shell_screen(
     draw_shell_pattern(canvas, texture_creator, model, screen)?;
 
     for control in screen.controls() {
-        draw_shell_control(canvas, textures, screen, control, mouse_x, mouse_y, font)?;
+        draw_shell_control(
+            canvas,
+            texture_creator,
+            textures,
+            model,
+            screen,
+            control,
+            mouse_x,
+            mouse_y,
+            font,
+        )?;
     }
 
     canvas.present();
@@ -167,9 +177,15 @@ fn draw_shell_pattern(
 }
 
 /// Draws one shell control in screen coordinates.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Control rendering needs SDL texture resources and current mouse state."
+)]
 fn draw_shell_control(
     canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
     textures: &MenuTextures<'_>,
+    model: &MainMenuModel,
     screen: &ShellScreen,
     control: &ShellControl,
     mouse_x: i32,
@@ -195,11 +211,27 @@ fn draw_shell_control(
         ShellControlKind::Slider { min, max, value } => {
             draw_slider(canvas, font, &rect, control.label(), min, max, value)
         }
-        ShellControlKind::Switch { enabled } => {
-            draw_switch(canvas, font, &rect, control.label(), enabled)
-        }
+        ShellControlKind::Switch { enabled, images } => draw_switch(
+            canvas,
+            texture_creator,
+            model,
+            font,
+            &rect,
+            control.label(),
+            enabled,
+            images,
+        ),
         ShellControlKind::Decoration => draw_decoration(canvas, font, &rect, control),
-        ShellControlKind::ListItem => draw_list_item(canvas, font, &rect, control),
+        ShellControlKind::ListItem { images, selected } => draw_list_item(
+            canvas,
+            texture_creator,
+            model,
+            font,
+            &rect,
+            control,
+            images,
+            selected,
+        ),
     }
 }
 
@@ -300,13 +332,25 @@ fn draw_slider(
 }
 
 /// Draws a switch with its label.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Switch rendering combines state, original art, and SDL resources."
+)]
 fn draw_switch(
     canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
+    model: &MainMenuModel,
     font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
     label: &str,
     enabled: bool,
+    images: Option<ShellImageSet>,
 ) -> Result<(), MainMenuError> {
+    if let Some(image_set) = images {
+        draw_shell_image(canvas, texture_creator, model, rect, image_set, enabled)?;
+        return draw_centered_text(canvas, font, rect, label);
+    }
+
     canvas.set_draw_color(if enabled {
         Color::RGB(190, 180, 130)
     } else {
@@ -336,17 +380,54 @@ fn draw_decoration(
 }
 
 /// Draws a patterned dropdown/list item.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "List rendering combines optional original art and SDL resources."
+)]
 fn draw_list_item(
     canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
+    model: &MainMenuModel,
     font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
     control: &ShellControl,
+    images: Option<ShellImageSet>,
+    selected: bool,
 ) -> Result<(), MainMenuError> {
+    if let Some(image_set) = images {
+        draw_shell_image(canvas, texture_creator, model, rect, image_set, selected)?;
+        return draw_centered_text(canvas, font, rect, control.label());
+    }
+
     canvas.set_draw_color(Color::RGB(165, 150, 112));
     canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
     canvas.set_draw_color(Color::RGB(70, 60, 45));
     canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
     draw_centered_text(canvas, font, rect, control.label())
+}
+
+/// Draws one original single-image shell control.
+fn draw_shell_image(
+    canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+    rect: &MenuRect,
+    image_set: ShellImageSet,
+    selected: bool,
+) -> Result<(), MainMenuError> {
+    let image_name = image_set.image_for_state(selected, true);
+    if let Ok(texture) = create_texture_for_ldl_asset(texture_creator, model, image_name) {
+        canvas
+            .copy(&texture, None, to_sdl_rect(rect))
+            .map_err(runtime_error)
+    } else {
+        canvas.set_draw_color(if selected {
+            Color::RGB(190, 180, 130)
+        } else {
+            Color::RGB(95, 88, 70)
+        });
+        canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)
+    }
 }
 
 /// Creates a texture for a menu asset.
@@ -357,6 +438,35 @@ fn create_texture_for_asset<'texture>(
 ) -> Result<Texture<'texture>, MainMenuError> {
     let image = load_rim_rgba(&model.installation_root, asset)?;
     create_texture_from_rgba(texture_creator, &image)
+}
+
+/// Creates a texture for one LDL image name from the original shell archive.
+fn create_texture_for_ldl_asset<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+    ldl_asset_name: &str,
+) -> Result<Texture<'texture>, MainMenuError> {
+    let entry_name = ldl_asset_entry_name(ldl_asset_name);
+    let image = load_rim_rgba_entry(
+        &model.installation_root,
+        SHELL_ART_ARCHIVE,
+        &entry_name,
+        Some(BUTTON_CHROMA_KEY),
+    )?;
+    create_texture_from_rgba(texture_creator, &image)
+}
+
+/// Converts an LDL shell image name to the packed RIM entry name.
+fn ldl_asset_entry_name(ldl_asset_name: &str) -> String {
+    let lower_name = ldl_asset_name.to_ascii_lowercase();
+    lower_name
+        .strip_suffix(".tga")
+        .map_or(lower_name.clone(), |stem| {
+            let mut entry = String::with_capacity(stem.len().saturating_add(4_usize));
+            entry.push_str(stem);
+            entry.push_str(".rim");
+            entry
+        })
 }
 
 /// Tiles one texture inside the destination rectangle.
