@@ -469,6 +469,82 @@ pub fn run_sdl_main_menu(installation: &GameInstallation) -> Result<MainMenuActi
     runtime::run_sdl_main_menu(installation)
 }
 
+/// Runs a real SDL render/event-loop smoke test with headless SDL drivers.
+///
+/// # Errors
+///
+/// Returns a [`MainMenuError`] when the SDL runtime cannot create, render, or exit the menu.
+#[cfg(test)]
+pub fn run_headless_sdl_smoke_for_test(
+    installation_root: PathBuf,
+) -> Result<MainMenuAction, MainMenuError> {
+    let _guard = headless_sdl_env_lock()
+        .lock()
+        .map_err(|error| MainMenuError::Runtime {
+            message: format!("headless SDL environment lock is poisoned: {error}"),
+        })?;
+    let environment = HeadlessSdlEnvironment::apply();
+    let model = MainMenuModel::ctp2_landing(installation_root);
+    let result = runtime::run_headless_smoke_for_test(&model);
+    environment.restore();
+    result
+}
+
+/// Stores previous SDL environment values while a headless smoke test runs.
+#[cfg(test)]
+struct HeadlessSdlEnvironment {
+    /// Previous `SDL_VIDEODRIVER` value.
+    previous_video_driver: Option<std::ffi::OsString>,
+    /// Previous `SDL_AUDIODRIVER` value.
+    previous_audio_driver: Option<std::ffi::OsString>,
+}
+
+#[cfg(test)]
+impl HeadlessSdlEnvironment {
+    /// Applies dummy SDL drivers and returns a restorable snapshot.
+    fn apply() -> Self {
+        let snapshot = Self {
+            previous_video_driver: std::env::var_os("SDL_VIDEODRIVER"),
+            previous_audio_driver: std::env::var_os("SDL_AUDIODRIVER"),
+        };
+
+        // SAFETY: A process-wide mutex serializes all test mutations of these
+        // environment variables, and values are restored before the lock is released.
+        unsafe {
+            std::env::set_var("SDL_VIDEODRIVER", "dummy");
+            std::env::set_var("SDL_AUDIODRIVER", "dummy");
+        }
+
+        snapshot
+    }
+
+    /// Restores SDL environment values captured by [`Self::apply`].
+    fn restore(self) {
+        restore_env_var("SDL_VIDEODRIVER", self.previous_video_driver);
+        restore_env_var("SDL_AUDIODRIVER", self.previous_audio_driver);
+    }
+}
+
+/// Restores or removes one environment variable.
+#[cfg(test)]
+fn restore_env_var(key: &str, previous: Option<std::ffi::OsString>) {
+    // SAFETY: The same process-wide mutex held during `apply` is still held
+    // during restoration, so no concurrent test observes a partial update.
+    unsafe {
+        match previous {
+            Some(value) => std::env::set_var(key, value),
+            None => std::env::remove_var(key),
+        }
+    }
+}
+
+/// Returns the global mutex used to serialize headless SDL environment changes.
+#[cfg(test)]
+fn headless_sdl_env_lock() -> &'static std::sync::Mutex<()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
+
 /// Returns the landing-page buttons copied from `InitPlayWindow` in `spnewgame.ldl`.
 fn original_landing_buttons() -> Vec<MainMenuButton> {
     vec![
@@ -661,6 +737,16 @@ mod tests {
                 .ends_with("ctp2_program/ctp/music/Track02.ogg"),
             "main menu should use the expected CTP2 music track"
         );
+    }
+
+    #[test]
+    fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
+        let temp_dir = TempDir::new().expect("temp directory should be created");
+
+        let result = run_headless_sdl_smoke_for_test(temp_dir.path().to_path_buf())
+            .expect("headless SDL menu smoke test should render and exit");
+
+        assert_eq!(result, MainMenuAction::Quit);
     }
 
     #[test]

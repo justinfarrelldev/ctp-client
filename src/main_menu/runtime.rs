@@ -43,6 +43,33 @@ const FONT_CANDIDATES: [&str; 5] = [
     "C:/Windows/Fonts/Arial.ttf",
 ];
 
+/// Event-loop settings used by production and headless smoke tests.
+struct RuntimeLoopOptions {
+    /// Events pushed into SDL's queue immediately after window creation.
+    initial_events: Vec<Event>,
+    /// Optional maximum number of frames rendered before returning an error.
+    frame_limit: Option<u32>,
+}
+
+impl RuntimeLoopOptions {
+    /// Creates unbounded interactive event-loop options.
+    const fn interactive() -> Self {
+        Self {
+            initial_events: Vec::new(),
+            frame_limit: None,
+        }
+    }
+
+    /// Creates bounded options for smoke tests that must not hang.
+    #[cfg(test)]
+    fn headless_smoke() -> Self {
+        Self {
+            initial_events: vec![Event::Quit { timestamp: 0 }],
+            frame_limit: Some(3),
+        }
+    }
+}
+
 /// Image decoded from a RIM entry into RGBA bytes.
 struct RgbaImage {
     /// Width in pixels.
@@ -133,23 +160,41 @@ pub(super) fn run_sdl_main_menu(
 ) -> Result<MainMenuAction, MainMenuError> {
     let model = MainMenuModel::ctp2_landing(installation.path.clone());
 
-    match SdlMenuMusicBackend::new() {
-        Ok(audio) => {
-            let mut session = MainMenuSession::new(model.clone(), audio);
-            if let Err(error) = session.start_music() {
-                log::warn!("Main menu music could not be started: {error}");
-            }
-        }
+    let mut music_session = match SdlMenuMusicBackend::new() {
+        Ok(audio) => Some(MainMenuSession::new(model.clone(), audio)),
         Err(error) => {
             log::warn!("Main menu music backend is unavailable: {error}");
+            None
+        }
+    };
+
+    if let Some(session) = music_session.as_mut() {
+        if let Err(error) = session.start_music() {
+            log::warn!("Main menu music could not be started: {error}");
         }
     }
 
     run_sdl_event_loop(&model)
 }
 
+/// Runs a real SDL menu frame in headless mode for tests.
+#[cfg(test)]
+pub(super) fn run_headless_smoke_for_test(
+    model: &MainMenuModel,
+) -> Result<MainMenuAction, MainMenuError> {
+    run_sdl_event_loop_with_options(model, RuntimeLoopOptions::headless_smoke())
+}
+
 /// Runs the interactive SDL event loop until a menu action is selected.
 fn run_sdl_event_loop(model: &MainMenuModel) -> Result<MainMenuAction, MainMenuError> {
+    run_sdl_event_loop_with_options(model, RuntimeLoopOptions::interactive())
+}
+
+/// Runs the SDL event loop with configurable test hooks.
+fn run_sdl_event_loop_with_options(
+    model: &MainMenuModel,
+    options: RuntimeLoopOptions,
+) -> Result<MainMenuAction, MainMenuError> {
     let sdl = sdl2::init().map_err(runtime_error)?;
     let video = sdl.video().map_err(runtime_error)?;
     let window = video
@@ -159,7 +204,7 @@ fn run_sdl_event_loop(model: &MainMenuModel) -> Result<MainMenuAction, MainMenuE
         .map_err(|error| runtime_error(error.to_string()))?;
     let mut canvas = window
         .into_canvas()
-        .present_vsync()
+        .software()
         .build()
         .map_err(|error| runtime_error(error.to_string()))?;
     let texture_creator = canvas.texture_creator();
@@ -172,72 +217,18 @@ fn run_sdl_event_loop(model: &MainMenuModel) -> Result<MainMenuAction, MainMenuE
             .and_then(|path| context.load_font(path, 18).ok())
     });
 
+    let event_subsystem = sdl.event().map_err(runtime_error)?;
+    for event in options.initial_events {
+        event_subsystem.push_event(event).map_err(runtime_error)?;
+    }
+
     let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
     let mut selected_action = None;
+    let mut rendered_frames = 0_u32;
 
     while selected_action.is_none() {
         for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    repeat: false,
-                    ..
-                } => selected_action = Some(MainMenuAction::Quit),
-                Event::MouseButtonDown { x, y, .. } => {
-                    if let Some(action) = model.activate_at_point(x, y) {
-                        selected_action = Some(action);
-                    }
-                }
-                Event::KeyDown { .. }
-                | Event::KeyUp { .. }
-                | Event::MouseMotion { .. }
-                | Event::MouseButtonUp { .. }
-                | Event::MouseWheel { .. }
-                | Event::ControllerButtonDown { .. }
-                | Event::ControllerButtonUp { .. }
-                | Event::ControllerAxisMotion { .. }
-                | Event::Window { .. }
-                | Event::AppTerminating { .. }
-                | Event::AppLowMemory { .. }
-                | Event::AppWillEnterBackground { .. }
-                | Event::AppDidEnterBackground { .. }
-                | Event::AppWillEnterForeground { .. }
-                | Event::AppDidEnterForeground { .. }
-                | Event::Display { .. }
-                | Event::TextEditing { .. }
-                | Event::TextInput { .. }
-                | Event::JoyAxisMotion { .. }
-                | Event::JoyBallMotion { .. }
-                | Event::JoyHatMotion { .. }
-                | Event::JoyButtonDown { .. }
-                | Event::JoyButtonUp { .. }
-                | Event::JoyDeviceAdded { .. }
-                | Event::JoyDeviceRemoved { .. }
-                | Event::ControllerDeviceAdded { .. }
-                | Event::ControllerDeviceRemoved { .. }
-                | Event::ControllerDeviceRemapped { .. }
-                | Event::ControllerTouchpadDown { .. }
-                | Event::ControllerTouchpadMotion { .. }
-                | Event::ControllerTouchpadUp { .. }
-                | Event::FingerDown { .. }
-                | Event::FingerUp { .. }
-                | Event::FingerMotion { .. }
-                | Event::DollarGesture { .. }
-                | Event::DollarRecord { .. }
-                | Event::MultiGesture { .. }
-                | Event::ClipboardUpdate { .. }
-                | Event::DropFile { .. }
-                | Event::DropText { .. }
-                | Event::DropBegin { .. }
-                | Event::DropComplete { .. }
-                | Event::AudioDeviceAdded { .. }
-                | Event::AudioDeviceRemoved { .. }
-                | Event::RenderTargetsReset { .. }
-                | Event::RenderDeviceReset { .. }
-                | Event::User { .. }
-                | Event::Unknown { .. } => {}
-            }
+            handle_menu_event(&event, model, &mut selected_action);
         }
 
         let mouse_state = event_pump.mouse_state();
@@ -249,10 +240,87 @@ fn run_sdl_event_loop(model: &MainMenuModel) -> Result<MainMenuAction, MainMenuE
             mouse_state.y(),
             font.as_ref(),
         )?;
+        rendered_frames = rendered_frames.saturating_add(1);
+        if options
+            .frame_limit
+            .is_some_and(|frame_limit| rendered_frames >= frame_limit)
+        {
+            break;
+        }
+
         thread::sleep(FRAME_DELAY);
     }
 
     selected_action.ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))
+}
+
+/// Applies one SDL event to the menu action state.
+fn handle_menu_event(
+    event: &Event,
+    model: &MainMenuModel,
+    selected_action: &mut Option<MainMenuAction>,
+) {
+    match event {
+        &Event::Quit { .. }
+        | &Event::KeyDown {
+            keycode: Some(Keycode::Escape),
+            repeat: false,
+            ..
+        } => *selected_action = Some(MainMenuAction::Quit),
+        &Event::MouseButtonDown { x, y, .. } => {
+            if let Some(action) = model.activate_at_point(x, y) {
+                *selected_action = Some(action);
+            }
+        }
+        &Event::KeyDown { .. }
+        | &Event::KeyUp { .. }
+        | &Event::MouseMotion { .. }
+        | &Event::MouseButtonUp { .. }
+        | &Event::MouseWheel { .. }
+        | &Event::ControllerButtonDown { .. }
+        | &Event::ControllerButtonUp { .. }
+        | &Event::ControllerAxisMotion { .. }
+        | &Event::Window { .. }
+        | &Event::AppTerminating { .. }
+        | &Event::AppLowMemory { .. }
+        | &Event::AppWillEnterBackground { .. }
+        | &Event::AppDidEnterBackground { .. }
+        | &Event::AppWillEnterForeground { .. }
+        | &Event::AppDidEnterForeground { .. }
+        | &Event::Display { .. }
+        | &Event::TextEditing { .. }
+        | &Event::TextInput { .. }
+        | &Event::JoyAxisMotion { .. }
+        | &Event::JoyBallMotion { .. }
+        | &Event::JoyHatMotion { .. }
+        | &Event::JoyButtonDown { .. }
+        | &Event::JoyButtonUp { .. }
+        | &Event::JoyDeviceAdded { .. }
+        | &Event::JoyDeviceRemoved { .. }
+        | &Event::ControllerDeviceAdded { .. }
+        | &Event::ControllerDeviceRemoved { .. }
+        | &Event::ControllerDeviceRemapped { .. }
+        | &Event::ControllerTouchpadDown { .. }
+        | &Event::ControllerTouchpadMotion { .. }
+        | &Event::ControllerTouchpadUp { .. }
+        | &Event::FingerDown { .. }
+        | &Event::FingerUp { .. }
+        | &Event::FingerMotion { .. }
+        | &Event::DollarGesture { .. }
+        | &Event::DollarRecord { .. }
+        | &Event::MultiGesture { .. }
+        | &Event::ClipboardUpdate { .. }
+        | &Event::DropFile { .. }
+        | &Event::DropText { .. }
+        | &Event::DropBegin { .. }
+        | &Event::DropComplete { .. }
+        | &Event::AudioDeviceAdded { .. }
+        | &Event::AudioDeviceRemoved { .. }
+        | &Event::RenderTargetsReset { .. }
+        | &Event::RenderDeviceReset { .. }
+        | &Event::User { .. }
+        | &Event::Unknown { .. } => {}
+    }
 }
 
 /// Draws one frame of the menu.

@@ -143,6 +143,32 @@ where
     }
 }
 
+/// Abstraction over the GTK Play Game button's game-launch service.
+pub trait GtkGameLaunch {
+    /// Launches the full game flow for a GTK Play Game activation.
+    fn launch_from_gtk(&mut self, installation: GameInstallation);
+}
+
+/// GTK-window-backed game-launch service used by production callbacks.
+struct GtkWindowGameLaunch<'window> {
+    /// Parent window that owns dialogs and is closed when the launch flow finishes.
+    parent: &'window ApplicationWindow,
+}
+
+impl GtkGameLaunch for GtkWindowGameLaunch<'_> {
+    fn launch_from_gtk(&mut self, installation: GameInstallation) {
+        GtkUI::launch_game(self.parent, installation);
+    }
+}
+
+/// Activates the GTK Play Game button through an injectable launch service.
+pub fn activate_gtk_play_game_button<L>(launcher: &mut L, installation: &GameInstallation)
+where
+    L: GtkGameLaunch,
+{
+    launcher.launch_from_gtk(installation.clone());
+}
+
 /// Main UI structure managing the GTK interface and application state.
 pub struct GtkUI {
     /// Application configuration including saved installations.
@@ -417,6 +443,7 @@ impl GtkUI {
         ctp1_box.append(&ctp1_status);
 
         let ctp1_play_button = Button::with_label("Play CTP1");
+        ctp1_play_button.set_widget_name("play-ctp1-button");
         ctp1_play_button.add_css_class("suggested-action");
         ctp1_play_button.set_sensitive(ctp1_installation.is_some());
 
@@ -427,7 +454,8 @@ impl GtkUI {
             ctp1_installation,
             move |_| {
                 if let Some(installation) = ctp1_installation.as_ref() {
-                    Self::launch_game(&window, installation.clone());
+                    let mut launcher = GtkWindowGameLaunch { parent: &window };
+                    activate_gtk_play_game_button(&mut launcher, installation);
                 }
             }
         });
@@ -510,6 +538,7 @@ impl GtkUI {
         ctp2_box.append(&ctp2_status);
 
         let ctp2_play_button = Button::with_label("Play CTP2");
+        ctp2_play_button.set_widget_name("play-ctp2-button");
         ctp2_play_button.add_css_class("suggested-action");
         ctp2_play_button.set_sensitive(ctp2_installation.is_some());
 
@@ -520,7 +549,8 @@ impl GtkUI {
             ctp2_installation,
             move |_| {
                 if let Some(installation) = ctp2_installation.as_ref() {
-                    Self::launch_game(&window, installation.clone());
+                    let mut launcher = GtkWindowGameLaunch { parent: &window };
+                    activate_gtk_play_game_button(&mut launcher, installation);
                 }
             }
         ));
@@ -1346,6 +1376,52 @@ mod tests {
         }
     }
 
+    /// Real headless SDL launcher used by the Play Game smoke test.
+    struct HeadlessSmokeMainMenuLauncher {
+        /// Installations submitted to the real SDL smoke runtime.
+        calls: RefCell<Vec<GameInstallation>>,
+    }
+
+    impl HeadlessSmokeMainMenuLauncher {
+        /// Creates an empty headless smoke launcher.
+        fn new() -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl MainMenuLaunch for HeadlessSmokeMainMenuLauncher {
+        fn launch_main_menu(
+            &mut self,
+            installation: &GameInstallation,
+        ) -> Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError> {
+            self.calls.borrow_mut().push(installation.clone());
+            crate::main_menu::run_headless_sdl_smoke_for_test(installation.path.clone())
+        }
+    }
+
+    /// Mock GTK launch service used to verify callback wiring without a display server.
+    struct RecordingGtkGameLauncher {
+        /// Installations submitted by GTK Play Game activation.
+        calls: RefCell<Vec<GameInstallation>>,
+    }
+
+    impl RecordingGtkGameLauncher {
+        /// Creates an empty GTK launch recorder.
+        fn new() -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl GtkGameLaunch for RecordingGtkGameLauncher {
+        fn launch_from_gtk(&mut self, installation: GameInstallation) {
+            self.calls.borrow_mut().push(installation);
+        }
+    }
+
     /// Creates a CTP2 installation used by Play Game flow tests.
     fn create_test_ctp2_installation() -> GameInstallation {
         GameInstallation::new(
@@ -1404,6 +1480,52 @@ mod tests {
             1,
             "main menu should still launch when video initialization fails"
         );
+    }
+
+    #[test]
+    fn play_game_transition_smoke_runs_real_headless_sdl_menu_after_fake_intro() {
+        let temp_dir = TempDir::new().expect("temp directory should be created");
+        let installation = GameInstallation::new(
+            temp_dir.path().to_path_buf(),
+            GameVersion::CTP2,
+            "Headless CTP2".to_owned(),
+            None,
+        );
+        let player = RecordingVideoPlayer::new(crate::video::VideoResult::Completed);
+        let mut launcher = HeadlessSmokeMainMenuLauncher::new();
+
+        let outcome = activate_play_game_flow(&installation, Some(&player), &mut launcher);
+
+        assert_eq!(
+            outcome.intro_result,
+            Some(crate::video::VideoResult::Completed)
+        );
+        assert_eq!(
+            outcome.main_menu_result,
+            Ok(crate::main_menu::MainMenuAction::Quit)
+        );
+        assert_eq!(
+            launcher.calls.borrow().len(),
+            1,
+            "real headless SDL menu should be invoked exactly once"
+        );
+    }
+
+    #[test]
+    fn gtk_play_game_activation_uses_injected_launch_service() {
+        let installation = create_test_ctp2_installation();
+        let mut launcher = RecordingGtkGameLauncher::new();
+
+        activate_gtk_play_game_button(&mut launcher, &installation);
+
+        let calls = launcher.calls.borrow();
+        assert_eq!(
+            calls.len(),
+            1,
+            "GTK Play Game must call launch service once"
+        );
+        assert_eq!(calls[0].display_name, installation.display_name);
+        assert_eq!(calls[0].version, GameVersion::CTP2);
     }
 
     #[test]

@@ -12,6 +12,18 @@
 
 ## Checklist
 
+### Follow-up: headless runtime smoke coverage
+
+- [x] Add a headless real SDL main-menu smoke test using dummy video/audio drivers and a queued quit event.
+- [x] Add a headless Play Game transition smoke test that uses a fake intro result and the real SDL main-menu runtime.
+- [x] Add a GTK Play Game callback seam test proving the GTK activation path invokes the game-launch service.
+- [x] Ensure runtime smoke tests are part of the default `cargo test` suite so UI/runtime changes cannot skip them.
+- [x] Run lint, tests, build, lint-fix, and commit the smoke-test process update atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
+
 ### Follow-up: post-video main menu launch bug
 
 - [x] Add tests proving the Play Game transition launches the main menu after completed, skipped, failed, or unavailable intro playback.
