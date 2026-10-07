@@ -1,0 +1,44 @@
+# Intro Video Test Coverage and CTP2 Main Menu Plan
+
+## Scope
+
+- Add automated tests proving the intro video path is discovered and delegated to a playback backend without launching real players.
+- Add automated tests proving the Play Game action always invokes intro video playback through an accessible, testable activation path.
+- After committing the intro-video tests, create branch `main-menu` for the main-menu work.
+- Recreate the 800x600 Call to Power II landing menu from the original `InitPlayWindow` LDL/source reference.
+- Provide accessible button lookup/click APIs for tests instead of coordinate-only input.
+- Verify button geometry, labels, and style asset names against the original LDL definitions.
+- Start menu music automatically through an injectable backend that can be asserted in tests.
+
+## Checklist
+
+### Intro video and Play Game tests
+
+- [x] Inspect current video playback and GTK launch flow.
+- [x] Add a mockable video playback backend so tests can assert intro-video delegation without starting `ffplay`/VLC.
+- [x] Add tests for intro video success/failure paths using a temporary installation containing `gm001.avi`.
+- [x] Add a testable Play Game activation helper and tests that verify it invokes intro playback for the selected installation.
+- [x] Run focused tests for the new red/green cycle.
+- [x] Run `cargo make lint`, `cargo make test`, and coverage/build commands as far as the environment allows.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
+- [x] Run `cargo make lint-fix` and commit the intro-video test work atomically.
+
+### `main-menu` branch
+
+- [ ] Create branch `main-menu` from the post-intro-test commit.
+- [ ] Capture original menu reference values from `ctp2_data/english/uidata/layouts/spnewgame.ldl` and `ui/interface/initialplaywindow.cpp`.
+- [ ] Build a `MainMenuModel` with accessible IDs/names and click-by-accessible-name support.
+- [ ] Add tests for all landing-page button labels, accessible lookup, actions, geometry, and original style asset names.
+- [ ] Add an injectable menu music policy/backend and tests proving autoplay starts the expected CTP2 music.
+- [ ] Add SDL rendering/runtime for the 800x600 menu with original background/button assets when available and safe procedural fallback.
+- [ ] Integrate the menu runtime after intro playback.
+- [ ] Run lint, tests, coverage/build commands, lint-fix, and commit main-menu work atomically.
+
+## Source References
+
+- Original landing menu C++: `ctp2_source/ctp2_code/ui/interface/initialplaywindow.cpp`
+- Original landing menu actions: `ctp2_source/ctp2_code/ui/interface/initialplayscreen.cpp`
+- Original landing menu LDL: `ctp2/ctp2_data/english/uidata/layouts/spnewgame.ldl`

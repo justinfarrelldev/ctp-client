@@ -2,14 +2,16 @@ extern crate alloc;
 
 use super::input::{HotplugAction, SkipEventListener};
 use super::overlay::SkipOverlayLayout;
-use super::player::find_intro_video;
+use super::player::{IntroVideoBackend, find_intro_video, play_intro_video_with_backend};
 use super::process::{PlaybackProcess, monitor_playback};
 use super::types::{ProcessExit, SkipTrigger};
 use super::{VideoPlayer, VideoResult};
 use crate::config::{GameInstallation, GameVersion};
 use alloc::collections::VecDeque;
 use core::convert::TryFrom;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tempfile::TempDir;
 
 #[test]
 fn video_result_debug_contains_details() {
@@ -74,6 +76,91 @@ fn video_path_construction_respects_game_version() {
 fn video_player_new_returns_ok() {
     let result = VideoPlayer::new();
     assert!(result.is_ok());
+}
+
+/// Mock backend that records resolved intro paths without launching external players.
+struct RecordingIntroBackend {
+    /// Paths submitted for playback.
+    played_paths: Vec<PathBuf>,
+    /// Result returned to the caller.
+    result: VideoResult,
+}
+
+impl RecordingIntroBackend {
+    /// Creates a backend that records paths and returns a fixed result.
+    fn new(result: VideoResult) -> Self {
+        Self {
+            played_paths: Vec::new(),
+            result,
+        }
+    }
+}
+
+impl IntroVideoBackend for RecordingIntroBackend {
+    fn play_video_file(&mut self, video_path: &Path) -> VideoResult {
+        self.played_paths.push(video_path.to_path_buf());
+        self.result.clone()
+    }
+}
+
+/// Creates a temporary CTP2 installation with a placeholder intro video file.
+fn create_installation_with_intro_video() -> (GameInstallation, TempDir) {
+    let temp_dir = TempDir::new().expect("temporary installation directory should be created");
+    let video_dir = temp_dir.path().join("ctp2_data/default/videos");
+    fs::create_dir_all(&video_dir).expect("video directory should be created");
+    fs::write(video_dir.join("gm001.avi"), b"test intro payload")
+        .expect("placeholder intro video should be written");
+
+    let installation = GameInstallation::new(
+        temp_dir.path().to_path_buf(),
+        GameVersion::CTP2,
+        "Temporary CTP2".to_owned(),
+        None,
+    );
+
+    (installation, temp_dir)
+}
+
+#[test]
+fn play_intro_video_delegates_existing_intro_to_backend() {
+    let (installation, _temp_dir) = create_installation_with_intro_video();
+    let mut backend = RecordingIntroBackend::new(VideoResult::Completed);
+
+    let result = play_intro_video_with_backend(&installation, &mut backend);
+
+    assert_eq!(result, VideoResult::Completed);
+    assert_eq!(
+        backend.played_paths.len(),
+        1,
+        "intro playback backend should be invoked exactly once"
+    );
+    assert!(
+        backend.played_paths[0].ends_with("gm001.avi"),
+        "resolved intro path should point at gm001.avi"
+    );
+}
+
+#[test]
+fn play_intro_video_does_not_invoke_backend_when_intro_is_missing() {
+    let temp_dir = TempDir::new().expect("temporary installation directory should be created");
+    let installation = GameInstallation::new(
+        temp_dir.path().to_path_buf(),
+        GameVersion::CTP2,
+        "Temporary CTP2".to_owned(),
+        None,
+    );
+    let mut backend = RecordingIntroBackend::new(VideoResult::Completed);
+
+    let result = play_intro_video_with_backend(&installation, &mut backend);
+
+    assert!(
+        matches!(result, VideoResult::Failed(message) if message == "Intro video not found"),
+        "missing intro video should fail before playback backend is called"
+    );
+    assert!(
+        backend.played_paths.is_empty(),
+        "backend must not run without an intro video file"
+    );
 }
 
 #[test]

@@ -2,11 +2,34 @@ extern crate alloc;
 
 use crate::config::GameInstallation;
 use log::{debug, error, info, warn};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::VideoResult;
 use super::input::SkipEventListener;
 use super::process::{run_process_with_skip, spawn_ffplay, spawn_vlc};
+
+/// Backend used to play an already-resolved intro video file.
+pub(super) trait IntroVideoBackend {
+    /// Plays the supplied video path and reports how playback ended.
+    fn play_video_file(&mut self, video_path: &Path) -> VideoResult;
+}
+
+/// Production backend that delegates playback to the configured external players.
+struct ExternalIntroVideoBackend;
+
+impl IntroVideoBackend for ExternalIntroVideoBackend {
+    fn play_video_file(&mut self, video_path: &Path) -> VideoResult {
+        let Some(path_str) = video_path.to_str() else {
+            error!("Invalid video path encoding");
+            return VideoResult::Failed("Invalid video path encoding".to_owned());
+        };
+
+        let video_uri = format!("file://{path_str}");
+        info!("Playing video: {video_uri}");
+
+        play_video_standalone(&video_uri)
+    }
+}
 
 /// Plays the intro video for the supplied installation by delegating to external players.
 ///
@@ -15,6 +38,22 @@ use super::process::{run_process_with_skip, spawn_ffplay, spawn_vlc};
 /// A [`VideoResult`] describing whether playback completed, was skipped, or failed because an
 /// appropriate video file or player executable could not be located.
 pub(super) fn play_intro_video(installation: &GameInstallation) -> VideoResult {
+    let mut backend = ExternalIntroVideoBackend;
+    play_intro_video_with_backend(installation, &mut backend)
+}
+
+/// Resolves and plays an installation's intro video with an injectable backend for tests.
+///
+/// # Returns
+///
+/// A [`VideoResult`] describing discovery and playback outcome.
+pub(super) fn play_intro_video_with_backend<B>(
+    installation: &GameInstallation,
+    backend: &mut B,
+) -> VideoResult
+where
+    B: IntroVideoBackend,
+{
     info!("Playing intro video for {}", installation.display_name);
 
     let Some(video_path) = find_intro_video(installation) else {
@@ -23,16 +62,7 @@ pub(super) fn play_intro_video(installation: &GameInstallation) -> VideoResult {
     };
 
     info!("Found intro video at: {}", video_path.display());
-
-    let Some(path_str) = video_path.to_str() else {
-        error!("Invalid video path encoding");
-        return VideoResult::Failed("Invalid video path encoding".to_owned());
-    };
-
-    let video_uri = format!("file://{path_str}");
-    info!("Playing video: {video_uri}");
-
-    play_video_standalone(&video_uri)
+    backend.play_video_file(&video_path)
 }
 
 /// Attempts to play the supplied video URI with ffplay or VLC, allowing the caller to handle

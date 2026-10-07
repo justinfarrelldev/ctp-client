@@ -51,6 +51,40 @@ pub enum UIResult {
     Exit,
 }
 
+/// Abstraction over intro video playback used by Play Game activation.
+pub trait IntroVideoPlayback {
+    /// Plays the intro video for the selected game installation.
+    fn play_intro_for_installation(
+        &self,
+        installation: &GameInstallation,
+    ) -> crate::video::VideoResult;
+}
+
+impl IntroVideoPlayback for crate::video::VideoPlayer {
+    fn play_intro_for_installation(
+        &self,
+        installation: &GameInstallation,
+    ) -> crate::video::VideoResult {
+        Self::play_intro_video(self, installation)
+    }
+}
+
+/// Handles the Play Game button's intro-video transition in a testable way.
+///
+/// # Returns
+///
+/// The result of the intro video playback request.
+#[must_use]
+pub fn activate_play_game_button<P>(
+    installation: &GameInstallation,
+    player: &P,
+) -> crate::video::VideoResult
+where
+    P: IntroVideoPlayback,
+{
+    player.play_intro_for_installation(installation)
+}
+
 /// Main UI structure managing the GTK interface and application state.
 pub struct GtkUI {
     /// Application configuration including saved installations.
@@ -940,7 +974,7 @@ impl GtkUI {
 
         // Play intro video directly
         match crate::video::VideoPlayer::new() {
-            Ok(video_player) => match video_player.play_intro_video(&installation) {
+            Ok(video_player) => match activate_play_game_button(&installation, &video_player) {
                 crate::video::VideoResult::Completed => {
                     log::info!("Intro video completed successfully");
                 }
@@ -1131,6 +1165,57 @@ mod tests {
         assert!(play_debug.contains("PlayGame"));
         assert!(play_debug.contains("Test Game"));
         assert!(exit_debug.contains("Exit"));
+    }
+
+    /// Mock video player used to verify Play Game activation wiring.
+    struct RecordingVideoPlayer {
+        /// Installations submitted for intro playback.
+        calls: RefCell<Vec<GameInstallation>>,
+        /// Result returned to the activation path.
+        result: crate::video::VideoResult,
+    }
+
+    impl RecordingVideoPlayer {
+        /// Creates a mock player with the supplied playback result.
+        fn new(result: crate::video::VideoResult) -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+                result,
+            }
+        }
+    }
+
+    impl IntroVideoPlayback for RecordingVideoPlayer {
+        fn play_intro_for_installation(
+            &self,
+            installation: &GameInstallation,
+        ) -> crate::video::VideoResult {
+            self.calls.borrow_mut().push(installation.clone());
+            self.result.clone()
+        }
+    }
+
+    #[test]
+    fn play_game_button_activation_invokes_intro_video() {
+        let installation = GameInstallation::new(
+            PathBuf::from("/test/ctp2"),
+            GameVersion::CTP2,
+            "Test CTP2".to_owned(),
+            None,
+        );
+        let player = RecordingVideoPlayer::new(crate::video::VideoResult::Skipped);
+
+        let result = activate_play_game_button(&installation, &player);
+
+        assert_eq!(result, crate::video::VideoResult::Skipped);
+        let calls = player.calls.borrow();
+        assert_eq!(
+            calls.len(),
+            1,
+            "Play Game activation must call intro video exactly once"
+        );
+        assert_eq!(calls[0].display_name, "Test CTP2");
+        assert_eq!(calls[0].version, GameVersion::CTP2);
     }
 
     #[test]
