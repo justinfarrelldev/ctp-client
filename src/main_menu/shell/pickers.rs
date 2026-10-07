@@ -133,7 +133,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             24,
             *nation == setup.selected(GameSetupField::Nation),
             ShellImageSet::popup_checkbox(),
-            ShellAction::SelectGameSetup(GameSetupField::Nation, index),
+            ShellAction::SelectGameSetupInPlace(GameSetupField::Nation, index),
             "spnewgamepopups.ldl:204",
         ));
     }

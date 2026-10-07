@@ -303,6 +303,30 @@ fn button_labels_use_original_dark_text_color() {
 }
 
 #[test]
+fn shell_runtime_effect_helpers_match_original_option_scales() {
+    assert_eq!(
+        runtime::parse_resolution_label_for_test("1024 x 768"),
+        Some((1024_u32, 768_u32)),
+        "resolution picker labels should be parsed into SDL window dimensions"
+    );
+    assert_eq!(
+        runtime::option_volume_to_mixer_volume_for_test(5_i32),
+        64_i32,
+        "midpoint shell volume should map to midpoint SDL_mixer volume"
+    );
+    assert_eq!(
+        runtime::option_volume_to_mixer_volume_for_test(99_i32),
+        128_i32,
+        "shell volume should clamp to SDL_mixer maximum"
+    );
+    assert!(
+        runtime::music_track_relative_path_for_test(3_usize)
+            .ends_with("ctp2_program/ctp/music/Track03.ogg"),
+        "music picker track 3 should map to original Track03.ogg"
+    );
+}
+
+#[test]
 fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
     let temp_dir = TempDir::new().expect("temp directory should be created");
 
@@ -349,6 +373,7 @@ fn headless_sdl_shell_nation_picker_selects_from_original_grid() {
             mouse_down(644_i32, 246_i32),
             mouse_down(400_i32, 100_i32),
             mouse_down(260_i32, 120_i32),
+            mouse_down(625_i32, 412_i32),
             mouse_down(400_i32, 574_i32),
         ],
     )

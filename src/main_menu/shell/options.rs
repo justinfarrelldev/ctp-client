@@ -1,7 +1,7 @@
 //! Options, graphics, sound, and music screen builders.
 
 use super::MenuRect;
-use super::builders::{asset, button, decoration, image_switch_control, label, slider};
+use super::builders::{asset, button, image_switch_control, label, slider};
 use super::{
     ShellAction, ShellImageSet, ShellOptionField, ShellOptionsState, ShellScreen, ShellScreenId,
 };
@@ -182,18 +182,6 @@ pub(super) fn options_screen() -> ShellScreen {
                 ShellAction::Disabled,
                 "options.ldl:205",
             ),
-            button(
-                "QuitButton",
-                "QUIT TO WINDOWS",
-                "Quit To Windows",
-                128,
-                210,
-                123,
-                21,
-                ButtonVisualStyle::stone_large(),
-                ShellAction::Quit,
-                "options.ldl:240",
-            ),
         ],
     }
 }
@@ -361,14 +349,16 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellAction::OpenOption(ShellOptionField::Resolution),
                 "graphics.ldl:134",
             ),
-            decoration(
+            button(
                 "AcceptButton",
+                "ACCEPT",
                 "Accept",
                 404,
                 217,
                 48,
                 19,
-                Some(ShellAction::Back),
+                ButtonVisualStyle::stone_large(),
+                ShellAction::Back,
                 "graphics.ldl:44",
             ),
         ],
@@ -470,14 +460,16 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellOptionField::MusicVolume,
                 "sound.ldl:149",
             ),
-            decoration(
+            button(
                 "AcceptButton",
+                "ACCEPT",
                 "Accept",
                 404,
                 217,
                 48,
                 19,
-                Some(ShellAction::Back),
+                ButtonVisualStyle::stone_large(),
+                ShellAction::Back,
                 "sound.ldl:72",
             ),
         ],
@@ -558,14 +550,16 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellAction::ToggleOption(ShellOptionField::MusicEnabled),
                 "musicscreen.ldl:73",
             ),
-            decoration(
+            button(
                 "AcceptButton",
+                "ACCEPT",
                 "Accept",
                 106,
                 210,
                 48,
                 19,
-                Some(ShellAction::Back),
+                ButtonVisualStyle::stone_large(),
+                ShellAction::Back,
                 "musicscreen.cpp:225",
             ),
         ],

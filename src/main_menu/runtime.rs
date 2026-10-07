@@ -27,13 +27,15 @@ use crate::config::GameInstallation;
 
 use super::{
     ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel,
-    MainMenuMusicBackend, MainMenuSession, MenuAssetReference, MenuRect,
+    MainMenuMusicBackend, MenuAssetReference, MenuRect,
 };
 
 /// Audio frequency requested from `SDL_mixer` for menu music.
 const MIXER_FREQUENCY: i32 = 44_100;
 /// Mixer chunk size balancing latency and compatibility.
 const MIXER_CHUNK_SIZE: i32 = 1_024;
+/// Maximum `SDL_mixer` volume value.
+const MIXER_MAX_VOLUME: i32 = 128;
 /// Delay between menu frames.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
 /// Texture format matching bytes emitted by the RIM RGBA conversion path.
@@ -159,6 +161,44 @@ impl SdlMenuMusicBackend {
             music: None,
         })
     }
+
+    /// Plays a numbered CTP2 music track from the installation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MainMenuError::Music`] when loading or playback fails.
+    fn play_track_number(
+        &mut self,
+        installation_root: &Path,
+        track_number: usize,
+    ) -> Result<(), MainMenuError> {
+        let relative_path = music_track_relative_path(track_number);
+        let policy = super::MenuMusicPolicy {
+            autoplay: true,
+            relative_path: relative_path.clone(),
+            loops: -1_i32,
+        };
+        self.play_music(&policy, installation_root.join(relative_path))
+    }
+
+    /// Pauses or resumes current music playback.
+    fn set_music_enabled(enabled: bool) {
+        if enabled {
+            Music::resume();
+        } else {
+            Music::pause();
+        }
+    }
+
+    /// Applies music volume using the original 0-10 option scale.
+    fn set_music_volume(value: i32) {
+        Music::set_volume(option_volume_to_mixer_volume(value));
+    }
+
+    /// Applies SFX/voice channel volume using the original 0-10 option scale.
+    fn set_channel_volume(value: i32) {
+        mixer::Channel::all().set_volume(option_volume_to_mixer_volume(value));
+    }
 }
 
 impl MainMenuMusicBackend for SdlMenuMusicBackend {
@@ -196,21 +236,21 @@ pub(super) fn run_sdl_main_menu(
 ) -> Result<MainMenuAction, MainMenuError> {
     let model = MainMenuModel::ctp2_landing(installation.path.clone());
 
-    let mut music_session = match SdlMenuMusicBackend::new() {
-        Ok(audio) => Some(MainMenuSession::new(model.clone(), audio)),
+    let mut music_backend = match SdlMenuMusicBackend::new() {
+        Ok(audio) => Some(audio),
         Err(error) => {
             log::warn!("Main menu music backend is unavailable: {error}");
             None
         }
     };
 
-    if let Some(session) = music_session.as_mut() {
-        if let Err(error) = session.start_music() {
+    if let Some(backend) = music_backend.as_mut() {
+        if let Err(error) = backend.play_music(&model.music, model.music_path()) {
             log::warn!("Main menu music could not be started: {error}");
         }
     }
 
-    run_sdl_event_loop(&model)
+    run_sdl_event_loop_with_audio(&model, music_backend.as_mut())
 }
 
 /// Runs a real SDL menu frame in headless mode for tests.
@@ -253,15 +293,32 @@ fn with_sdl_test_lock<T>(
     result
 }
 
-/// Runs the interactive SDL event loop until a menu action is selected.
-fn run_sdl_event_loop(model: &MainMenuModel) -> Result<MainMenuAction, MainMenuError> {
-    run_sdl_event_loop_with_options(model, RuntimeLoopOptions::interactive())
+/// Runs the SDL event loop with optional audio effects.
+fn run_sdl_event_loop_with_audio(
+    model: &MainMenuModel,
+    audio_backend: Option<&mut SdlMenuMusicBackend>,
+) -> Result<MainMenuAction, MainMenuError> {
+    run_sdl_event_loop_with_options_and_audio(
+        model,
+        RuntimeLoopOptions::interactive(),
+        audio_backend,
+    )
 }
 
 /// Runs the SDL event loop with configurable test hooks.
+#[cfg(test)]
 fn run_sdl_event_loop_with_options(
     model: &MainMenuModel,
     options: RuntimeLoopOptions,
+) -> Result<MainMenuAction, MainMenuError> {
+    run_sdl_event_loop_with_options_and_audio(model, options, None)
+}
+
+/// Runs the SDL event loop with configurable test hooks and optional audio backend.
+fn run_sdl_event_loop_with_options_and_audio(
+    model: &MainMenuModel,
+    options: RuntimeLoopOptions,
+    mut audio_backend: Option<&mut SdlMenuMusicBackend>,
 ) -> Result<MainMenuAction, MainMenuError> {
     let sdl = sdl2::init().map_err(runtime_error)?;
     let video = sdl.video().map_err(runtime_error)?;
@@ -300,6 +357,13 @@ fn run_sdl_event_loop_with_options(
             handle_menu_event(&event, model, &mut shell_state, &mut selected_action);
         }
 
+        apply_shell_runtime_effects(
+            &mut canvas,
+            model,
+            audio_backend.as_deref_mut(),
+            &shell_state.take_effects(),
+        )?;
+
         let mouse_state = event_pump.mouse_state();
         draw_current_menu(
             &mut canvas,
@@ -323,6 +387,61 @@ fn run_sdl_event_loop_with_options(
     }
 
     selected_action.ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))
+}
+
+/// Applies any queued shell runtime side effects.
+fn apply_shell_runtime_effects(
+    canvas: &mut Canvas<Window>,
+    model: &MainMenuModel,
+    audio_backend: Option<&mut SdlMenuMusicBackend>,
+    effects: &shell_runtime::ShellRuntimeEffects,
+) -> Result<(), MainMenuError> {
+    if let Some((width, height)) = effects.resolution {
+        apply_resolution(canvas, width, height)?;
+    }
+
+    if let Some(backend) = audio_backend {
+        apply_audio_effects(backend, model, effects);
+    }
+
+    Ok(())
+}
+
+/// Applies shell effects to the `SDL_mixer` backend.
+fn apply_audio_effects(
+    backend: &mut SdlMenuMusicBackend,
+    model: &MainMenuModel,
+    effects: &shell_runtime::ShellRuntimeEffects,
+) {
+    if let Some(volume) = effects.sfx_volume.or(effects.voice_volume) {
+        SdlMenuMusicBackend::set_channel_volume(volume);
+    }
+    if let Some(volume) = effects.music_volume {
+        SdlMenuMusicBackend::set_music_volume(volume);
+    }
+    if let Some(track) = effects.music_track {
+        if let Err(error) = backend.play_track_number(&model.installation_root, track) {
+            log::warn!("Music track {track} could not be played: {error}");
+        }
+    }
+    if let Some(enabled) = effects.music_enabled {
+        SdlMenuMusicBackend::set_music_enabled(enabled);
+    }
+}
+
+/// Applies a requested window resolution while preserving 800x600 logical coordinates.
+fn apply_resolution(
+    canvas: &mut Canvas<Window>,
+    width: u32,
+    height: u32,
+) -> Result<(), MainMenuError> {
+    canvas
+        .window_mut()
+        .set_size(width, height)
+        .map_err(|error| runtime_error(error.to_string()))?;
+    canvas
+        .set_logical_size(super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT)
+        .map_err(|error| runtime_error(error.to_string()))
 }
 
 /// Applies one SDL event to the menu action state.
@@ -579,6 +698,31 @@ const fn rgb_color((red, green, blue): (u8, u8, u8)) -> Color {
     Color::RGB(red, green, blue)
 }
 
+/// Converts a 0-10 shell option volume to `SDL_mixer`'s 0-128 scale.
+fn option_volume_to_mixer_volume(value: i32) -> i32 {
+    value
+        .clamp(0_i32, 10_i32)
+        .saturating_mul(MIXER_MAX_VOLUME)
+        .checked_div(10_i32)
+        .map_or(0_i32, |scaled| scaled)
+}
+
+/// Returns the relative path for a one-based CTP2 music track number.
+fn music_track_relative_path(track_number: usize) -> PathBuf {
+    let bounded_track = track_number.clamp(1_usize, 10_usize);
+    PathBuf::from(format!(
+        "ctp2_program/ctp/music/Track{bounded_track:02}.ogg"
+    ))
+}
+
+/// Parses an original resolution label such as `1024 x 768`.
+fn parse_resolution_label(label: &str) -> Option<(u32, u32)> {
+    let (width, height) = label.split_once('x')?;
+    let width = width.trim().parse::<u32>().ok()?;
+    let height = height.trim().parse::<u32>().ok()?;
+    Some((width, height))
+}
+
 /// Loads all original-art textures available for a menu render pass.
 fn load_menu_textures<'texture>(
     texture_creator: &'texture TextureCreator<WindowContext>,
@@ -737,7 +881,8 @@ pub(super) use testing::{
     button_asset_entry_name_for_test, button_label_text_color_for_test,
     button_layer_render_plan_for_test, button_style_asset_summaries_for_test,
     button_triplet_render_plan_for_test, menu_texture_format_for_test,
-    render_headless_average_color_for_test,
+    music_track_relative_path_for_test, option_volume_to_mixer_volume_for_test,
+    parse_resolution_label_for_test, render_headless_average_color_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

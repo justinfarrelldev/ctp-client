@@ -1,12 +1,8 @@
 //! New-game setup screen builder.
 
-use alloc::vec::Vec;
-
 use super::MenuRect;
-use super::builders::{asset, button, field, label, list_button};
-use super::{
-    GameSetupField, GameSetupState, ShellAction, ShellControl, ShellScreen, ShellScreenId,
-};
+use super::builders::{asset, button, field, label};
+use super::{GameSetupField, GameSetupState, ShellAction, ShellScreen, ShellScreenId};
 use crate::main_menu::ButtonVisualStyle;
 
 /// Builds the original new-game setup screen.
@@ -15,7 +11,7 @@ use crate::main_menu::ButtonVisualStyle;
     reason = "The new-game builder is a direct LDL control manifest for validation."
 )]
 pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
-    let mut controls = vec![
+    let controls = vec![
         label(
             "Title",
             "NEW GAME",
@@ -303,7 +299,6 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             "spnewgame.ldl:565",
         ),
     ];
-    append_new_game_panel_controls(&mut controls);
     ShellScreen {
         id: ShellScreenId::NewGame,
         ldl_name: "SPNewGameWindow",
@@ -312,209 +307,4 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
         pattern: None,
         controls,
     }
-}
-
-/// Appends lower panel controls from `SPNewGameWindow`.
-#[expect(
-    clippy::too_many_lines,
-    reason = "The panel list preserves original LDL positions as declarative data."
-)]
-fn append_new_game_panel_controls(controls: &mut Vec<ShellControl>) {
-    controls.extend([
-        label(
-            "PHEADER",
-            "PROFILE",
-            "Profile Header",
-            29,
-            166,
-            300,
-            20,
-            "spnewgame.ldl:662",
-        ),
-        label(
-            "WHEADER",
-            "WORLD",
-            "World Header",
-            361,
-            130,
-            300,
-            20,
-            "spnewgame.ldl:819",
-        ),
-        label(
-            "RHEADER",
-            "RULES",
-            "Rules Header",
-            696,
-            166,
-            300,
-            20,
-            "spnewgame.ldl:867",
-        ),
-        list_button(
-            "Clan",
-            "CLAN",
-            "Clan",
-            90,
-            230,
-            154,
-            28,
-            ShellAction::OpenPicker(GameSetupField::Nation),
-            "spnewgame.ldl:601",
-        ),
-        list_button(
-            "Gender",
-            "MALE",
-            "Gender",
-            90,
-            290,
-            154,
-            28,
-            ShellAction::Disabled,
-            "spnewgame.ldl:618",
-        ),
-        list_button(
-            "Preferences",
-            "LOAD PREFERENCES",
-            "Load Preferences",
-            90,
-            410,
-            174,
-            28,
-            ShellAction::Disabled,
-            "spnewgame.ldl:647",
-        ),
-        list_button(
-            "PCustom",
-            "CUSTOM",
-            "Profile Custom",
-            90,
-            470,
-            174,
-            28,
-            ShellAction::Disabled,
-            "spnewgame.ldl:651",
-        ),
-        list_button(
-            "MapSize",
-            "MAP SIZE",
-            "World Map Size",
-            123,
-            194,
-            153,
-            36,
-            ShellAction::OpenPicker(GameSetupField::MapSize),
-            "spnewgame.ldl:681",
-        ),
-        list_button(
-            "WorldType",
-            "WORLD TYPE",
-            "World Type List",
-            123,
-            254,
-            153,
-            36,
-            ShellAction::OpenPicker(GameSetupField::WorldType),
-            "spnewgame.ldl:701",
-        ),
-        list_button(
-            "WorldShape",
-            "WORLD SHAPE",
-            "World Shape List",
-            123,
-            314,
-            153,
-            36,
-            ShellAction::OpenPicker(GameSetupField::WorldShape),
-            "spnewgame.ldl:721",
-        ),
-        list_button(
-            "Difficulty",
-            "DIFFICULTY",
-            "Difficulty List",
-            123,
-            374,
-            153,
-            36,
-            ShellAction::OpenPicker(GameSetupField::Difficulty),
-            "spnewgame.ldl:741",
-        ),
-        list_button(
-            "RiskLevel",
-            "RISK LEVEL",
-            "Risk Level",
-            123,
-            434,
-            153,
-            36,
-            ShellAction::Disabled,
-            "spnewgame.ldl:761",
-        ),
-        list_button(
-            "Opponent",
-            "OPPONENTS",
-            "Opponents",
-            123,
-            494,
-            153,
-            36,
-            ShellAction::OpenPicker(GameSetupField::Players),
-            "spnewgame.ldl:781",
-        ),
-        list_button(
-            "WCustom",
-            "CUSTOM",
-            "World Custom",
-            433,
-            554,
-            153,
-            36,
-            ShellAction::Disabled,
-            "spnewgame.ldl:808",
-        ),
-        list_button(
-            "GenocideButton",
-            "GENOCIDE",
-            "Genocide Rule",
-            759,
-            230,
-            174,
-            28,
-            ShellAction::OpenPicker(GameSetupField::Rules),
-            "spnewgame.ldl:844",
-        ),
-        list_button(
-            "TradeButton",
-            "TRADE",
-            "Trade Rule",
-            759,
-            290,
-            174,
-            28,
-            ShellAction::OpenPicker(GameSetupField::Rules),
-            "spnewgame.ldl:848",
-        ),
-        list_button(
-            "CombatButton",
-            "SIMPLE COMBAT",
-            "Combat Rule",
-            759,
-            350,
-            174,
-            28,
-            ShellAction::OpenPicker(GameSetupField::Rules),
-            "spnewgame.ldl:852",
-        ),
-        list_button(
-            "PollutionButton",
-            "POLLUTION",
-            "Pollution Rule",
-            759,
-            410,
-            174,
-            28,
-            ShellAction::OpenPicker(GameSetupField::Rules),
-            "spnewgame.ldl:856",
-        ),
-    ]);
 }

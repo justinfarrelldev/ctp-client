@@ -96,12 +96,22 @@ fn new_game_flow_allows_nation_difficulty_and_launch_selection() {
         "nation picker should be the current screen"
     );
     assert_eq!(
-        model.apply_action(ShellAction::SelectGameSetup(
+        model.apply_action(ShellAction::SelectGameSetupInPlace(
             GameSetupField::Nation,
             1_usize
         )),
         ShellFlowOutcome::Continue,
-        "selecting a nation should close the picker without launching"
+        "selecting a nation should update without launching"
+    );
+    assert_eq!(
+        model.current(),
+        ShellScreenId::NationPicker,
+        "empire selection should stay in the original modal until Back is pressed"
+    );
+    assert_eq!(
+        model.apply_action(ShellAction::Back),
+        ShellFlowOutcome::Continue,
+        "Back should close the empire picker"
     );
     assert_ne!(
         model.setup().selected(GameSetupField::Nation),
@@ -277,6 +287,55 @@ fn graphics_and_music_switches_use_original_art_families() {
         switch_images(auto_repeat.kind()),
         Some(ShellImageSet::popup_checkbox()),
         "music switches should use the original popup checkbox art"
+    );
+}
+
+#[test]
+fn new_game_screen_omits_uninstantiated_profile_world_dropdown_panels() {
+    let screen = screen_for(
+        ShellScreenId::NewGame,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for bad_control in [
+        "Clan",
+        "Gender",
+        "World Map Size",
+        "World Type List",
+        "World Shape List",
+        "World Custom",
+    ] {
+        assert!(
+            screen.find_accessible(bad_control).is_none(),
+            "{bad_control} is an LDL leftover/dropdown panel control not instantiated by SPNewGameWindow"
+        );
+    }
+    assert!(
+        screen.find_accessible("Scenario Picker").is_some(),
+        "Scenario picker belongs on the New Game screen in the original source"
+    );
+    assert!(
+        screen.find_accessible("Editor").is_some(),
+        "scenario editor launcher belongs on the New Game screen in the original source"
+    );
+}
+
+#[test]
+fn options_screen_uses_only_controls_instantiated_by_original_source() {
+    let screen = screen_for(
+        ShellScreenId::Options,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    assert!(
+        screen.find_accessible("Quit To Windows").is_none(),
+        "OptionsWindow source never instantiates the LDL-only QuitButton"
+    );
+    assert!(
+        screen.find_accessible("Quit To Shell").is_some(),
+        "OptionsWindow source creates QuitToShellButton even though its helper names are inconsistent"
     );
 }
 

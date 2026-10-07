@@ -1,6 +1,6 @@
 //! Headless SDL runtime smoke-test helpers.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use sdl2::pixels::PixelFormatEnum;
 
@@ -211,6 +211,24 @@ fn button_piece_dimensions_for_test(
 #[cfg(test)]
 pub(in crate::main_menu) const fn menu_texture_format_for_test() -> PixelFormatEnum {
     MENU_TEXTURE_FORMAT
+}
+
+/// Converts an option volume to `SDL_mixer` scale in tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn option_volume_to_mixer_volume_for_test(value: i32) -> i32 {
+    option_volume_to_mixer_volume(value)
+}
+
+/// Parses a resolution label in tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn parse_resolution_label_for_test(label: &str) -> Option<(u32, u32)> {
+    parse_resolution_label(label)
+}
+
+/// Returns a track path for tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn music_track_relative_path_for_test(track_number: usize) -> PathBuf {
+    music_track_relative_path(track_number)
 }
 
 /// Computes average RGB from RGBA byte pixels.

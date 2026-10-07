@@ -119,8 +119,10 @@ pub(super) enum ShellAction {
     OpenPicker(GameSetupField),
     /// Open an option picker/control.
     OpenOption(ShellOptionField),
-    /// Select one option by index for the active picker.
+    /// Select one option by index for the active picker and close it.
     SelectGameSetup(GameSetupField, usize),
+    /// Select one option by index while keeping the active picker open.
+    SelectGameSetupInPlace(GameSetupField, usize),
     /// Select one option value by index.
     SelectOption(ShellOptionField, usize),
     /// Toggle one boolean option.
@@ -600,6 +602,11 @@ impl ShellOptionsState {
         true
     }
 
+    /// Returns selected resolution label.
+    pub(super) fn resolution(&self) -> &str {
+        self.resolution.as_str()
+    }
+
     /// Returns whether music is enabled.
     pub(super) const fn music_enabled(&self) -> bool {
         self.music_enabled
@@ -688,6 +695,13 @@ impl SinglePlayerShellModel {
                 if selected {
                     self.back();
                 }
+            }
+            ShellAction::SelectGameSetupInPlace(field, index) => {
+                let selected = self.setup.select(field, index);
+                debug_assert!(
+                    selected,
+                    "in-place setup selection should target a valid option"
+                );
             }
             ShellAction::SelectOption(field, index) => {
                 let selected = self.options.select(field, index);

@@ -16,13 +16,32 @@ use crate::main_menu::{
 use super::{
     BUTTON_CHROMA_KEY, MenuTextures, SHELL_ART_ARCHIVE, button_art, create_texture_from_rgba,
     draw_centered_text, draw_fallback_background, draw_fallback_button, load_rim_rgba,
-    load_rim_rgba_entry, runtime_error, textures_for_style, to_sdl_rect,
+    load_rim_rgba_entry, parse_resolution_label, runtime_error, textures_for_style, to_sdl_rect,
 };
 
 /// Runtime state for the navigable single-player shell.
 pub(super) struct ShellRuntimeState {
     /// Testable shell model.
     model: SinglePlayerShellModel,
+    /// Runtime effects queued by shell interactions.
+    pending_effects: ShellRuntimeEffects,
+}
+
+/// SDL/audio effects requested by shell controls.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(super) struct ShellRuntimeEffects {
+    /// Requested window resolution.
+    pub(super) resolution: Option<(u32, u32)>,
+    /// Requested one-based music track number.
+    pub(super) music_track: Option<usize>,
+    /// Requested music enabled state.
+    pub(super) music_enabled: Option<bool>,
+    /// Requested music volume on the original 0-10 scale.
+    pub(super) music_volume: Option<i32>,
+    /// Requested SFX volume on the original 0-10 scale.
+    pub(super) sfx_volume: Option<i32>,
+    /// Requested voice volume on the original 0-10 scale.
+    pub(super) voice_volume: Option<i32>,
 }
 
 impl ShellRuntimeState {
@@ -30,6 +49,7 @@ impl ShellRuntimeState {
     pub(super) fn new() -> Self {
         Self {
             model: SinglePlayerShellModel::default(),
+            pending_effects: ShellRuntimeEffects::default(),
         }
     }
 
@@ -59,12 +79,63 @@ impl ShellRuntimeState {
             let value = slider_value_at(&rect, control.kind(), point_x);
             let updated = self.model.options_mut().set_numeric(field, value);
             debug_assert!(updated, "slider controls must target numeric options");
+            self.record_numeric_effect(field, value);
             return None;
         }
         match self.model.apply_action(action) {
-            ShellFlowOutcome::Continue => None,
+            ShellFlowOutcome::Continue => {
+                self.record_action_effect(action);
+                None
+            }
             ShellFlowOutcome::LaunchGame => Some(MainMenuAction::LaunchSinglePlayer),
             ShellFlowOutcome::Quit => Some(MainMenuAction::Quit),
+        }
+    }
+
+    /// Takes and clears queued runtime effects.
+    pub(super) fn take_effects(&mut self) -> ShellRuntimeEffects {
+        core::mem::take(&mut self.pending_effects)
+    }
+
+    /// Records a numeric option effect.
+    const fn record_numeric_effect(&mut self, field: ShellOptionField, value: i32) {
+        match field {
+            ShellOptionField::SfxVolume => self.pending_effects.sfx_volume = Some(value),
+            ShellOptionField::VoiceVolume => self.pending_effects.voice_volume = Some(value),
+            ShellOptionField::MusicVolume => self.pending_effects.music_volume = Some(value),
+            ShellOptionField::UnitSpeed
+            | ShellOptionField::Resolution
+            | ShellOptionField::MusicEnabled
+            | ShellOptionField::AutoRepeat
+            | ShellOptionField::RandomOrder
+            | ShellOptionField::MusicTrack => {}
+        }
+    }
+
+    /// Records a non-numeric option effect after the model has been updated.
+    fn record_action_effect(&mut self, action: ShellAction) {
+        match action {
+            ShellAction::SelectOption(ShellOptionField::Resolution, _) => {
+                self.pending_effects.resolution =
+                    parse_resolution_label(self.model.options().resolution());
+            }
+            ShellAction::SelectOption(ShellOptionField::MusicTrack, _) => {
+                self.pending_effects.music_track = Some(self.model.options().music_track());
+            }
+            ShellAction::ToggleOption(ShellOptionField::MusicEnabled) => {
+                self.pending_effects.music_enabled = Some(self.model.options().music_enabled());
+            }
+            ShellAction::Navigate(_)
+            | ShellAction::OpenPicker(_)
+            | ShellAction::OpenOption(_)
+            | ShellAction::SelectGameSetup(_, _)
+            | ShellAction::SelectGameSetupInPlace(_, _)
+            | ShellAction::SelectOption(_, _)
+            | ShellAction::ToggleOption(_)
+            | ShellAction::LaunchGame
+            | ShellAction::Back
+            | ShellAction::Quit
+            | ShellAction::Disabled => {}
         }
     }
 
@@ -208,9 +279,17 @@ fn draw_shell_control(
         }
         ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
         ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
-        ShellControlKind::Slider { min, max, value } => {
-            draw_slider(canvas, font, &rect, control.label(), min, max, value)
-        }
+        ShellControlKind::Slider { min, max, value } => draw_slider(
+            canvas,
+            texture_creator,
+            model,
+            font,
+            &rect,
+            control.label(),
+            min,
+            max,
+            value,
+        ),
         ShellControlKind::Switch { enabled, images } => draw_switch(
             canvas,
             texture_creator,
@@ -254,6 +333,7 @@ const fn slider_field(action: ShellAction, kind: ShellControlKind) -> Option<She
             ShellAction::Navigate(_)
             | ShellAction::OpenPicker(_)
             | ShellAction::SelectGameSetup(_, _)
+            | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
             | ShellAction::ToggleOption(_)
             | ShellAction::LaunchGame
@@ -296,8 +376,14 @@ fn draw_text_field(
 }
 
 /// Draws a functional slider approximation with original bounds.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Slider rendering combines geometry, state, original art, and SDL resources."
+)]
 fn draw_slider(
     canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
+    model: &MainMenuModel,
     font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
     label: &str,
@@ -319,15 +405,17 @@ fn draw_slider(
         .saturating_mul(i32::try_from(rect.width).map_or(0_i32, |width| width))
         .checked_div(range)
         .map_or(0_i32, |value| value);
-    canvas.set_draw_color(Color::RGB(230, 215, 175));
-    canvas
-        .fill_rect(SdlRect::new(
-            rect.x.saturating_add(offset),
-            rect.y,
-            9,
-            rect.height,
-        ))
-        .map_err(runtime_error)?;
+    let thumb_rect = MenuRect::new(rect.x.saturating_add(offset), rect.y, 9, rect.height);
+    if let Ok(texture) = create_texture_for_ldl_asset(texture_creator, model, "upba2513.tga") {
+        canvas
+            .copy(&texture, None, to_sdl_rect(&thumb_rect))
+            .map_err(runtime_error)?;
+    } else {
+        canvas.set_draw_color(Color::RGB(230, 215, 175));
+        canvas
+            .fill_rect(to_sdl_rect(&thumb_rect))
+            .map_err(runtime_error)?;
+    }
     draw_centered_text(canvas, font, rect, label)
 }
 
@@ -505,4 +593,88 @@ fn tile_texture(
         y = y.saturating_add(i32::try_from(copy_height).map_or(0_i32, |value| value));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for shell runtime effect queuing.
+
+    use std::path::PathBuf;
+
+    use super::*;
+
+    /// Clicks a shell point and ignores non-terminal navigation results.
+    fn click(state: &mut ShellRuntimeState, _model: &MainMenuModel, x: i32, y: i32) {
+        assert!(
+            state.click_shell(x, y).is_none(),
+            "shell setup clicks should not exit the menu loop"
+        );
+    }
+
+    /// Creates a runtime shell test model.
+    fn test_model() -> MainMenuModel {
+        MainMenuModel::ctp2_landing(PathBuf::from("/tmp/ctp2-test"))
+    }
+
+    #[test]
+    fn resolution_picker_click_queues_window_resize_effect() {
+        let model = test_model();
+        let mut state = ShellRuntimeState::new();
+        state.open_single_player();
+
+        click(&mut state, &model, 156_i32, 276_i32);
+        click(&mut state, &model, 238_i32, 228_i32);
+        click(&mut state, &model, 325_i32, 380_i32);
+        click(&mut state, &model, 303_i32, 282_i32);
+
+        let effects = state.take_effects();
+        assert_eq!(
+            effects.resolution,
+            Some((1024_u32, 768_u32)),
+            "selecting the 1024x768 row should request an SDL window resize"
+        );
+    }
+
+    #[test]
+    fn music_controls_queue_track_and_toggle_effects() {
+        let model = test_model();
+        let mut state = ShellRuntimeState::new();
+        state.open_single_player();
+
+        click(&mut state, &model, 156_i32, 276_i32);
+        click(&mut state, &model, 238_i32, 318_i32);
+        click(&mut state, &model, 316_i32, 217_i32);
+        click(&mut state, &model, 303_i32, 282_i32);
+        click(&mut state, &model, 327_i32, 330_i32);
+
+        let effects = state.take_effects();
+        assert_eq!(
+            effects.music_track,
+            Some(3_usize),
+            "selecting the third music row should queue Track03 playback"
+        );
+        assert_eq!(
+            effects.music_enabled,
+            Some(false),
+            "clicking Music On should queue a pause when default music is enabled"
+        );
+    }
+
+    #[test]
+    fn sound_slider_click_queues_volume_effect() {
+        let model = test_model();
+        let mut state = ShellRuntimeState::new();
+        state.open_single_player();
+
+        click(&mut state, &model, 156_i32, 276_i32);
+        click(&mut state, &model, 238_i32, 273_i32);
+        click(&mut state, &model, 385_i32, 238_i32);
+
+        let effects = state.take_effects();
+        assert_eq!(
+            effects.sfx_volume,
+            Some(4_i32),
+            "clicking inside the SFX slider should queue the computed 0-10 volume"
+        );
+    }
 }
