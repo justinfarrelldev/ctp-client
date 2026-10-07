@@ -7,6 +7,8 @@ use alloc::vec::Vec;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
@@ -46,6 +48,10 @@ const BUTTON_LABEL_TEXT_COLOR: (u8, u8, u8) = (0, 0, 0);
 const VERSION_TEXT_COLOR: (u8, u8, u8) = (100, 100, 255);
 /// Font point size used by original CTP2 shell button templates.
 const BUTTON_FONT_POINT_SIZE: u16 = 10;
+/// Test-only guard serializing SDL initialization across parallel tests.
+#[cfg(test)]
+static SDL_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 /// Candidate fonts used only for drawing fallback text over original assets.
 const FONT_CANDIDATES: [&str; 8] = [
     "C:/Windows/Fonts/timesbd.ttf",
@@ -60,6 +66,8 @@ const FONT_CANDIDATES: [&str; 8] = [
 
 /// Original CTP2 button art loading and rendering.
 mod button_art;
+/// Single-player shell runtime rendering and navigation.
+mod shell_runtime;
 
 /// Event-loop settings used by production and headless smoke tests.
 struct RuntimeLoopOptions {
@@ -210,7 +218,39 @@ pub(super) fn run_sdl_main_menu(
 pub(super) fn run_headless_smoke_for_test(
     model: &MainMenuModel,
 ) -> Result<MainMenuAction, MainMenuError> {
-    run_sdl_event_loop_with_options(model, RuntimeLoopOptions::headless_smoke())
+    with_sdl_test_lock(|| {
+        run_sdl_event_loop_with_options(model, RuntimeLoopOptions::headless_smoke())
+    })
+}
+
+/// Runs a headless SDL menu with a deterministic event sequence for tests.
+#[cfg(test)]
+pub(super) fn run_headless_events_for_test(
+    model: &MainMenuModel,
+    initial_events: Vec<Event>,
+) -> Result<MainMenuAction, MainMenuError> {
+    with_sdl_test_lock(|| {
+        run_sdl_event_loop_with_options(
+            model,
+            RuntimeLoopOptions {
+                initial_events,
+                frame_limit: Some(30_u32),
+            },
+        )
+    })
+}
+
+/// Runs one SDL test action while holding the process-wide SDL test lock.
+#[cfg(test)]
+fn with_sdl_test_lock<T>(
+    action: impl FnOnce() -> Result<T, MainMenuError>,
+) -> Result<T, MainMenuError> {
+    let guard = SDL_TEST_LOCK
+        .lock()
+        .map_err(|error| runtime_error(format!("SDL test lock was poisoned: {error}")))?;
+    let result = action();
+    drop(guard);
+    result
 }
 
 /// Runs the interactive SDL event loop until a menu action is selected.
@@ -251,19 +291,22 @@ fn run_sdl_event_loop_with_options(
     }
 
     let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
+    let mut shell_state = shell_runtime::ShellRuntimeState::new();
     let mut selected_action = None;
     let mut rendered_frames = 0_u32;
 
     while selected_action.is_none() {
         for event in event_pump.poll_iter() {
-            handle_menu_event(&event, model, &mut selected_action);
+            handle_menu_event(&event, model, &mut shell_state, &mut selected_action);
         }
 
         let mouse_state = event_pump.mouse_state();
-        draw_menu(
+        draw_current_menu(
             &mut canvas,
+            &texture_creator,
             &textures,
             model,
+            &shell_state,
             mouse_state.x(),
             mouse_state.y(),
             font.as_ref(),
@@ -286,6 +329,7 @@ fn run_sdl_event_loop_with_options(
 fn handle_menu_event(
     event: &Event,
     model: &MainMenuModel,
+    shell_state: &mut shell_runtime::ShellRuntimeState,
     selected_action: &mut Option<MainMenuAction>,
 ) {
     match event {
@@ -296,7 +340,15 @@ fn handle_menu_event(
             ..
         } => *selected_action = Some(MainMenuAction::Quit),
         &Event::MouseButtonDown { x, y, .. } => {
-            if let Some(action) = model.activate_at_point(x, y) {
+            if shell_state.is_landing() {
+                if let Some(action) = model.activate_at_point(x, y) {
+                    if action == MainMenuAction::SinglePlayer {
+                        shell_state.open_single_player();
+                    } else {
+                        *selected_action = Some(action);
+                    }
+                }
+            } else if let Some(action) = shell_state.click_shell(x, y) {
                 *selected_action = Some(action);
             }
         }
@@ -351,7 +403,37 @@ fn handle_menu_event(
     }
 }
 
-/// Draws one frame of the menu.
+/// Draws the current landing or shell screen.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The menu frame renderer borrows SDL resources explicitly."
+)]
+fn draw_current_menu(
+    canvas: &mut Canvas<Window>,
+    texture_creator: &TextureCreator<WindowContext>,
+    textures: &MenuTextures<'_>,
+    model: &MainMenuModel,
+    shell_state: &shell_runtime::ShellRuntimeState,
+    mouse_x: i32,
+    mouse_y: i32,
+    font: Option<&Font<'_, '_>>,
+) -> Result<(), MainMenuError> {
+    if shell_state.is_landing() {
+        draw_menu(canvas, textures, model, mouse_x, mouse_y, font)
+    } else {
+        shell_state.draw(
+            canvas,
+            texture_creator,
+            textures,
+            model,
+            mouse_x,
+            mouse_y,
+            font,
+        )
+    }
+}
+
+/// Draws one frame of the landing menu.
 fn draw_menu(
     canvas: &mut Canvas<Window>,
     textures: &MenuTextures<'_>,

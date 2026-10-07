@@ -8,8 +8,10 @@
 
 extern crate alloc;
 
-/// SDL runtime for the landing menu.
+/// SDL runtime for the landing and single-player shell menus.
 mod runtime;
+/// Testable single-player shell screen models.
+mod shell;
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -175,6 +177,8 @@ pub enum MainMenuButtonId {
 pub enum MainMenuAction {
     /// Show the single-player shell flow.
     SinglePlayer,
+    /// Launch single-player gameplay from the completed setup screen.
+    LaunchSinglePlayer,
     /// Show the multiplayer shell flow.
     Multiplayer,
     /// Show the credits screen.
@@ -189,6 +193,7 @@ impl MainMenuAction {
     pub const fn label(self) -> &'static str {
         match self {
             Self::SinglePlayer => "single-player",
+            Self::LaunchSinglePlayer => "launch-single-player",
             Self::Multiplayer => "multiplayer",
             Self::Credits => "credits",
             Self::Quit => "quit",

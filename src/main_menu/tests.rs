@@ -2,6 +2,8 @@
 
 use super::*;
 use core::cell::RefCell;
+use sdl2::event::Event;
+use sdl2::mouse::MouseButton;
 use tempfile::TempDir;
 
 /// Recorded music autoplay request.
@@ -39,6 +41,19 @@ impl MainMenuMusicBackend for RecordingMusicBackend {
             absolute_path,
         });
         Ok(())
+    }
+}
+
+/// Creates a deterministic SDL mouse-down event for headless runtime tests.
+const fn mouse_down(x: i32, y: i32) -> Event {
+    Event::MouseButtonDown {
+        timestamp: 0,
+        window_id: 0,
+        which: 0,
+        mouse_btn: MouseButton::Left,
+        clicks: 1,
+        x,
+        y,
     }
 }
 
@@ -295,6 +310,53 @@ fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
         .expect("headless SDL menu smoke test should render and exit");
 
     assert_eq!(result, MainMenuAction::Quit);
+}
+
+#[test]
+fn headless_sdl_shell_options_back_and_quit_flow_exits_cleanly() {
+    let temp_dir = TempDir::new().expect("temp directory should be created");
+    let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());
+
+    let result = runtime::run_headless_events_for_test(
+        &model,
+        vec![
+            mouse_down(623_i32, 471_i32),
+            mouse_down(156_i32, 276_i32),
+            mouse_down(311_i32, 240_i32),
+            mouse_down(488_i32, 381_i32),
+            mouse_down(489_i32, 375_i32),
+            mouse_down(694_i32, 574_i32),
+        ],
+    )
+    .expect("headless SDL options/back/quit flow should exit");
+
+    assert_eq!(
+        result,
+        MainMenuAction::Quit,
+        "options back flow should return to the hub and quit cleanly"
+    );
+}
+
+#[test]
+fn headless_sdl_shell_flow_reaches_single_player_launch() {
+    let temp_dir = TempDir::new().expect("temp directory should be created");
+    let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());
+
+    let result = runtime::run_headless_events_for_test(
+        &model,
+        vec![
+            mouse_down(623_i32, 471_i32),
+            mouse_down(644_i32, 246_i32),
+            mouse_down(400_i32, 574_i32),
+        ],
+    )
+    .expect("headless SDL shell flow should reach launch");
+
+    assert_eq!(
+        result,
+        MainMenuAction::LaunchSinglePlayer,
+        "single-player shell launch should return a launch action"
+    );
 }
 
 #[test]

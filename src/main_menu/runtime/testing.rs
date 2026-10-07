@@ -16,27 +16,29 @@ type ButtonLayerRenderPlan = Vec<(String, String, u32, u32, bool)>;
 pub(in crate::main_menu) fn render_headless_average_color_for_test(
     model: &MainMenuModel,
 ) -> Result<(u8, u8, u8), MainMenuError> {
-    let sdl = sdl2::init().map_err(runtime_error)?;
-    let video = sdl.video().map_err(runtime_error)?;
-    let window = video
-        .window("Call to Power II", model.width, model.height)
-        .position_centered()
-        .build()
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let mut canvas = window
-        .into_canvas()
-        .software()
-        .build()
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let texture_creator = canvas.texture_creator();
-    let textures = load_menu_textures(&texture_creator, model);
+    with_sdl_test_lock(|| {
+        let sdl = sdl2::init().map_err(runtime_error)?;
+        let video = sdl.video().map_err(runtime_error)?;
+        let window = video
+            .window("Call to Power II", model.width, model.height)
+            .position_centered()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let mut canvas = window
+            .into_canvas()
+            .software()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let texture_creator = canvas.texture_creator();
+        let textures = load_menu_textures(&texture_creator, model);
 
-    draw_menu(&mut canvas, &textures, model, -1, -1, None)?;
+        draw_menu(&mut canvas, &textures, model, -1, -1, None)?;
 
-    let pixels = canvas
-        .read_pixels(None, MENU_TEXTURE_FORMAT)
-        .map_err(runtime_error)?;
-    average_rgba_pixels(&pixels)
+        let pixels = canvas
+            .read_pixels(None, MENU_TEXTURE_FORMAT)
+            .map_err(runtime_error)?;
+        average_rgba_pixels(&pixels)
+    })
 }
 
 /// Returns summaries for original button art entries used by a style.
