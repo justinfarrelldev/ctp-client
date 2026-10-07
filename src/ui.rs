@@ -85,6 +85,64 @@ where
     player.play_intro_for_installation(installation)
 }
 
+/// Abstraction over the main menu launch step after intro playback.
+pub trait MainMenuLaunch {
+    /// Opens the CTP2 main menu for the selected installation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::main_menu::MainMenuError`] when the menu runtime cannot start.
+    fn launch_main_menu(
+        &mut self,
+        installation: &GameInstallation,
+    ) -> Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError>;
+}
+
+/// SDL-backed launcher used by the production Play Game flow.
+pub struct SdlMainMenuLaunch;
+
+impl MainMenuLaunch for SdlMainMenuLaunch {
+    fn launch_main_menu(
+        &mut self,
+        installation: &GameInstallation,
+    ) -> Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError> {
+        crate::main_menu::run_sdl_main_menu(installation)
+    }
+}
+
+/// Combined result of the Play Game intro-video and main-menu transition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayGameFlowOutcome {
+    /// Intro video result, or `None` if the video player could not be initialized.
+    pub intro_result: Option<crate::video::VideoResult>,
+    /// Result of opening the CTP2 main menu after intro playback handling.
+    pub main_menu_result: Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError>,
+}
+
+/// Runs the tested Play Game transition: intro video first, then main menu.
+///
+/// # Returns
+///
+/// A [`PlayGameFlowOutcome`] describing both stages. The main menu is always
+/// requested even when intro playback fails or the video player is unavailable.
+pub fn activate_play_game_flow<P, L>(
+    installation: &GameInstallation,
+    video_player: Option<&P>,
+    main_menu_launcher: &mut L,
+) -> PlayGameFlowOutcome
+where
+    P: IntroVideoPlayback,
+    L: MainMenuLaunch,
+{
+    let intro_result = video_player.map(|player| activate_play_game_button(installation, player));
+    let main_menu_result = main_menu_launcher.launch_main_menu(installation);
+
+    PlayGameFlowOutcome {
+        intro_result,
+        main_menu_result,
+    }
+}
+
 /// Main UI structure managing the GTK interface and application state.
 pub struct GtkUI {
     /// Application configuration including saved installations.
@@ -904,20 +962,70 @@ impl GtkUI {
             installation.path.display()
         );
 
-        let destination = match default_destination_root(&installation) {
+        if !Self::prepare_launch_assets(parent, &installation) {
+            return;
+        }
+
+        let video_player = match crate::video::VideoPlayer::new() {
+            Ok(video_player) => Some(video_player),
+            Err(error) => {
+                log::warn!("Failed to initialize video player: {error}");
+                None
+            }
+        };
+        let mut main_menu_launcher = SdlMainMenuLaunch;
+        let PlayGameFlowOutcome {
+            intro_result,
+            main_menu_result,
+        } = activate_play_game_flow(
+            &installation,
+            video_player.as_ref(),
+            &mut main_menu_launcher,
+        );
+
+        if let Some(result) = intro_result {
+            match result {
+                crate::video::VideoResult::Completed => {
+                    log::info!("Intro video completed successfully");
+                }
+                crate::video::VideoResult::Skipped => {
+                    log::info!("Intro video skipped by user");
+                }
+                crate::video::VideoResult::Failed(error) => {
+                    log::warn!("Failed to play intro video: {error}");
+                }
+            }
+        }
+
+        match main_menu_result {
+            Ok(action) => {
+                log::info!("Main menu action selected: {}", action.label());
+            }
+            Err(error) => {
+                log::warn!("Main menu could not be displayed: {error}");
+            }
+        }
+
+        // Close the application window after the post-video menu flow finishes.
+        parent.close();
+    }
+
+    /// Prepares required archives for launching from the GTK Play Game button.
+    fn prepare_launch_assets(parent: &ApplicationWindow, installation: &GameInstallation) -> bool {
+        let destination = match default_destination_root(installation) {
             Ok(path) => path,
             Err(error) => {
                 log::error!("Failed to resolve extraction target: {error}");
                 Self::show_extraction_error_dialog(parent, &error);
-                return;
+                return false;
             }
         };
 
-        let extractor = ArchiveExtractor::new(&installation);
+        let extractor = ArchiveExtractor::new(installation);
         if let Err(error) = extractor.validate() {
             log::error!("Archive validation failed: {error}");
             Self::show_extraction_error_dialog(parent, &error);
-            return;
+            return false;
         }
 
         let archive_count = required_archives(installation.version).len();
@@ -928,7 +1036,7 @@ impl GtkUI {
             &installation.display_name,
         ) {
             log::info!("User canceled extraction for {}", installation.display_name);
-            return;
+            return false;
         }
 
         let mut progress = log_extraction_progress;
@@ -939,59 +1047,49 @@ impl GtkUI {
             Some(&mut progress),
         ) {
             Ok(outcome) => {
-                if outcome.already_up_to_date {
-                    log::info!(
-                        "Game data for {} is already up to date at {}",
-                        installation.display_name,
-                        destination.display()
-                    );
-                } else {
-                    let files_written: usize = outcome
-                        .archives
-                        .iter()
-                        .map(|summary| summary.files_written)
-                        .sum();
-                    let bytes_written: u64 = outcome
-                        .archives
-                        .iter()
-                        .map(|summary| summary.bytes_written)
-                        .sum();
-                    log::info!(
-                        "Extracted {} archives ({} files, {} bytes) to {}",
-                        outcome.archives.len(),
-                        files_written,
-                        bytes_written,
-                        destination.display()
-                    );
-                }
+                Self::log_extraction_outcome(installation, &destination, &outcome);
+                true
             }
             Err(error) => {
                 log::error!("Extraction failed: {error}");
                 Self::show_extraction_error_dialog(parent, &error);
-                return;
+                false
             }
         }
+    }
 
-        // Play intro video directly
-        match crate::video::VideoPlayer::new() {
-            Ok(video_player) => match activate_play_game_button(&installation, &video_player) {
-                crate::video::VideoResult::Completed => {
-                    log::info!("Intro video completed successfully");
-                }
-                crate::video::VideoResult::Skipped => {
-                    log::info!("Intro video skipped by user");
-                }
-                crate::video::VideoResult::Failed(error) => {
-                    log::warn!("Failed to play intro video: {error}");
-                }
-            },
-            Err(e) => {
-                log::warn!("Failed to initialize video player: {e}");
-            }
+    /// Logs the result of launch-time asset extraction.
+    fn log_extraction_outcome(
+        installation: &GameInstallation,
+        destination: &std::path::Path,
+        outcome: &crate::asset_extraction::ExtractionOutcome,
+    ) {
+        if outcome.already_up_to_date {
+            log::info!(
+                "Game data for {} is already up to date at {}",
+                installation.display_name,
+                destination.display()
+            );
+            return;
         }
 
-        // Close the application window after video playback
-        parent.close();
+        let files_written: usize = outcome
+            .archives
+            .iter()
+            .map(|summary| summary.files_written)
+            .sum();
+        let bytes_written: u64 = outcome
+            .archives
+            .iter()
+            .map(|summary| summary.bytes_written)
+            .sum();
+        log::info!(
+            "Extracted {} archives ({} files, {} bytes) to {}",
+            outcome.archives.len(),
+            files_written,
+            bytes_written,
+            destination.display()
+        );
     }
 
     /// Prompts the user before copying installation archives to managed storage.
@@ -1216,6 +1314,96 @@ mod tests {
         );
         assert_eq!(calls[0].display_name, "Test CTP2");
         assert_eq!(calls[0].version, GameVersion::CTP2);
+    }
+
+    /// Mock main-menu launcher used to verify post-video flow wiring.
+    struct RecordingMainMenuLauncher {
+        /// Installations submitted for main-menu launch.
+        calls: RefCell<Vec<GameInstallation>>,
+        /// Result returned to the launch path.
+        result: Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError>,
+    }
+
+    impl RecordingMainMenuLauncher {
+        /// Creates a mock launcher with the supplied result.
+        fn new(
+            result: Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError>,
+        ) -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+                result,
+            }
+        }
+    }
+
+    impl MainMenuLaunch for RecordingMainMenuLauncher {
+        fn launch_main_menu(
+            &mut self,
+            installation: &GameInstallation,
+        ) -> Result<crate::main_menu::MainMenuAction, crate::main_menu::MainMenuError> {
+            self.calls.borrow_mut().push(installation.clone());
+            self.result.clone()
+        }
+    }
+
+    /// Creates a CTP2 installation used by Play Game flow tests.
+    fn create_test_ctp2_installation() -> GameInstallation {
+        GameInstallation::new(
+            PathBuf::from("/test/ctp2"),
+            GameVersion::CTP2,
+            "Test CTP2".to_owned(),
+            None,
+        )
+    }
+
+    #[test]
+    fn play_game_flow_launches_main_menu_after_all_intro_results() {
+        let installation = create_test_ctp2_installation();
+        let intro_results = vec![
+            crate::video::VideoResult::Completed,
+            crate::video::VideoResult::Skipped,
+            crate::video::VideoResult::Failed("codec unavailable".to_owned()),
+        ];
+
+        for expected_intro in intro_results {
+            let player = RecordingVideoPlayer::new(expected_intro.clone());
+            let mut launcher =
+                RecordingMainMenuLauncher::new(Ok(crate::main_menu::MainMenuAction::SinglePlayer));
+
+            let outcome = activate_play_game_flow(&installation, Some(&player), &mut launcher);
+
+            assert_eq!(outcome.intro_result, Some(expected_intro));
+            assert_eq!(
+                outcome.main_menu_result,
+                Ok(crate::main_menu::MainMenuAction::SinglePlayer)
+            );
+            assert_eq!(
+                launcher.calls.borrow().len(),
+                1,
+                "main menu should launch once after intro playback"
+            );
+        }
+    }
+
+    #[test]
+    fn play_game_flow_launches_main_menu_when_video_player_is_unavailable() {
+        let installation = create_test_ctp2_installation();
+        let mut launcher =
+            RecordingMainMenuLauncher::new(Ok(crate::main_menu::MainMenuAction::Multiplayer));
+
+        let outcome =
+            activate_play_game_flow::<RecordingVideoPlayer, _>(&installation, None, &mut launcher);
+
+        assert_eq!(outcome.intro_result, None);
+        assert_eq!(
+            outcome.main_menu_result,
+            Ok(crate::main_menu::MainMenuAction::Multiplayer)
+        );
+        assert_eq!(
+            launcher.calls.borrow().len(),
+            1,
+            "main menu should still launch when video initialization fails"
+        );
     }
 
     #[test]

@@ -12,6 +12,17 @@
 
 ## Checklist
 
+### Follow-up: post-video main menu launch bug
+
+- [x] Add tests proving the Play Game transition launches the main menu after completed, skipped, failed, or unavailable intro playback.
+- [x] Wire the GTK Play Game callback to the tested transition so the SDL main menu opens after video playback.
+- [x] Make menu display resilient to audio initialization failures so music issues do not suppress the menu window.
+- [x] Run lint, tests, build, lint-fix, and commit the fix atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
+
 ### Intro video and Play Game tests
 
 - [x] Inspect current video playback and GTK launch flow.

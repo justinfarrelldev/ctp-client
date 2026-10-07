@@ -126,15 +126,26 @@ impl Drop for SdlMenuMusicBackend {
 ///
 /// # Errors
 ///
-/// Returns a [`MainMenuError`] when SDL, music, or rendering setup fails.
+/// Returns a [`MainMenuError`] when SDL rendering setup fails. Music errors are
+/// logged and do not prevent the menu window from opening.
 pub(super) fn run_sdl_main_menu(
     installation: &GameInstallation,
 ) -> Result<MainMenuAction, MainMenuError> {
     let model = MainMenuModel::ctp2_landing(installation.path.clone());
-    let audio = SdlMenuMusicBackend::new()?;
-    let mut session = MainMenuSession::new(model, audio);
-    session.start_music()?;
-    run_sdl_event_loop(session.model())
+
+    match SdlMenuMusicBackend::new() {
+        Ok(audio) => {
+            let mut session = MainMenuSession::new(model.clone(), audio);
+            if let Err(error) = session.start_music() {
+                log::warn!("Main menu music could not be started: {error}");
+            }
+        }
+        Err(error) => {
+            log::warn!("Main menu music backend is unavailable: {error}");
+        }
+    }
+
+    run_sdl_event_loop(&model)
 }
 
 /// Runs the interactive SDL event loop until a menu action is selected.
