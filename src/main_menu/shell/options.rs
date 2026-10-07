@@ -1,7 +1,9 @@
 //! Options, graphics, sound, and music screen builders.
 
 use super::MenuRect;
-use super::builders::{asset, button, image_switch_control, label, popup_close_button, slider};
+use super::builders::{
+    asset, button, disabled_button, image_switch_control, label, popup_close_button, slider,
+};
 use super::options_state::ShellOptionsState;
 use super::{ShellAction, ShellImageSet, ShellOptionField, ShellScreen, ShellScreenId};
 use crate::main_menu::ButtonVisualStyle;
@@ -109,7 +111,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 20,
                 "options.ldl:143",
             ),
-            button(
+            disabled_button(
                 "SaveGameButton",
                 "SAVE GAME",
                 "Save Game",
@@ -118,10 +120,9 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "options.ldl:162",
+                "options.ldl:162 + optionswindow.cpp:DisableButtons",
             ),
-            button(
+            disabled_button(
                 "LoadGameButton",
                 "LOAD GAME",
                 "Load Game",
@@ -130,10 +131,9 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "options.ldl:170",
+                "options.ldl:170 + optionswindow.cpp:DisableButtons",
             ),
-            button(
+            disabled_button(
                 "RestartButton",
                 "RESTART",
                 "Restart",
@@ -142,10 +142,9 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "options.ldl:179",
+                "options.ldl:179 + optionswindow.cpp:DisableButtons",
             ),
-            button(
+            disabled_button(
                 "NewGameButton",
                 "NEW GAME",
                 "New Game",
@@ -154,7 +153,6 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
                 "options.ldl:187 + optionswindow.cpp:DisableButtons",
             ),
             button(

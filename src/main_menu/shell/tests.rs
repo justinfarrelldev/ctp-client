@@ -719,13 +719,7 @@ fn options_screen_hides_quit_and_disables_game_management_controls() {
         "base-game options popup removes the quit-to-shell control from the active child list"
     );
 
-    for accessible_name in [
-        "Save Game",
-        "Load Game",
-        "Restart",
-        "New Game",
-        "Cheat Mode",
-    ] {
+    for accessible_name in ["Save Game", "Load Game", "Restart", "New Game"] {
         let control = screen
             .find_accessible(accessible_name)
             .expect("right-side game-management control should remain modeled");
@@ -737,6 +731,16 @@ fn options_screen_hides_quit_and_disables_game_management_controls() {
         assert!(
             !control.enabled(),
             "{accessible_name} should render with disabled visual state"
+        );
+    }
+
+    for accessible_name in ["Game Play", "Keyboard", "Cheat Mode"] {
+        let control = screen
+            .find_accessible(accessible_name)
+            .expect("non-right-side config/control should remain modeled");
+        assert!(
+            control.enabled(),
+            "{accessible_name} should not be visually disabled by unimplemented action state"
         );
     }
 }

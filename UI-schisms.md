@@ -68,7 +68,7 @@ Resolved in this pass: `MapButton` now opens a modeled `CustomMapWindow` based o
 
 ### Options root (`OptionsWindow`, `options.ldl`, `optionswindow.cpp`)
 
-Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, visibly disabled `SaveGameButton`, visibly disabled `LoadGameButton`, visibly disabled `RestartButton`, visibly disabled `NewGameButton`, visibly disabled `MapEditorButton` (`CHEAT MODE`), and generated `c3_PopupClose`. `QuitToShellButton` is not exposed in the active base-game options popup.
+Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, visibly disabled right-side `SaveGameButton`, `LoadGameButton`, `RestartButton`, and `NewGameButton`, plus `MapEditorButton` (`CHEAT MODE`) and generated `c3_PopupClose`. `QuitToShellButton` is not exposed in the active base-game options popup.
 
 Remaining schism: popup chrome is only the tiled `uptg20e` pattern plus generated Close button; the full `c3_PopupWindow` frame/title renderer is not cloned yet.
 

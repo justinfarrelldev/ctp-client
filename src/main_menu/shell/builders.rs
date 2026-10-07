@@ -39,11 +39,43 @@ pub(super) fn button(
         accessible_name: accessible_name.to_owned(),
         rect: MenuRect::new(x, y, width, height),
         kind: ShellControlKind::Button(style.id),
-        enabled: !matches!(action, ShellAction::Disabled),
+        enabled: true,
         action: Some(action),
         sound: Some(ShellSoundPolicy::original_button()),
         source,
     }
+}
+
+/// Creates a shell button that renders in the original disabled state.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+pub(super) fn disabled_button(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    style: ButtonVisualStyle,
+    source: &'static str,
+) -> ShellControl {
+    let mut control = button(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        style,
+        ShellAction::Disabled,
+        source,
+    );
+    control.enabled = false;
+    control
 }
 
 /// Creates a standard `c3_PopupWindow::AddClose` button.
