@@ -63,9 +63,10 @@ Mapped current controls: `Title`, `CivilizationLabel`, `TribeButton`, `LeaderNam
 Recent corrections made in this pass: label text/geometry restored for `# EMPIRES`, `MAP SIZE`, `CUSTOMIZE MAP`; button values now use original visible strings (`Medium`, `Regular`, `Earth World`, numeric player count, `Bloodlust - Off`); hidden scenario caption/name removed from default UI; `MapButton` no longer opens the non-original world-type picker.
 
 Remaining schisms:
-- `MapButton` is disabled until `CustomMapScreen` exists. Original action opens `custommapscreen_displayMyWindow()`.
 - `EditorButtonLabel` and `EditorButton` use unresolved base LDL tokens (`str_ldl_LaunchScenerioEditor`, `str_ldl_Editor`); the English string table does not contain translations.
 - Text field drawing is a beige rectangle/border approximation of `FIELD`/`c3_EditField` (`bevelwidth 1`, `beveltype 2`, `maxfieldlen 23`).
+
+Resolved in this pass: `MapButton` now opens a modeled `CustomMapWindow` based on `custommap.ldl` instead of being disabled or opening a non-original world-type picker.
 
 ### Options root (`OptionsWindow`, `options.ldl`, `optionswindow.cpp`)
 
@@ -87,16 +88,15 @@ Remaining schisms:
 
 Current mapped controls: title `Screen Size`, row items for `640 x 480`, `800 x 600`, `1024 x 768`, and generated Close.
 
-Remaining schisms:
-- Original has a `CTP2_LISTBOX` named `ResList` with bevel/pattern/header and a red warning label (`str_ldl_RES_REBOOT_WARNING`). Current UI uses individual row controls and does not render the warning label or listbox chrome.
+Resolved in this pass: `ScreenResScreen` now models `ResList` listbox chrome and the red restart warning label (`str_ldl_RES_REBOOT_WARNING`) while keeping selectable resolution rows inside the original list area.
 
 ### Sound options (`SoundWindow`, `sound.ldl`, `soundscreen.cpp`)
 
 Mapped current controls: title `SOUND`, labels `Sound Volume`, `Voice Volume`, `Music Volume`, sliders `SFXSlider`, `VoiceSlider`, `MusicSlider`, and generated Close. Sliders use original 0..10 ranges and thumb art.
 
-Remaining schisms:
-- Original min/max labels (`0`/`10` beside each slider) are not rendered.
-- Slider tracks/ticks are approximated rather than the full AUI slider/pattern renderer.
+Remaining schism: slider tracks/ticks are approximated rather than the full AUI slider/pattern renderer.
+
+Resolved in this pass: original min/max labels (`0`/`10`) are modeled beside each sound slider.
 
 ### Music options (`MusicScreen`, `musicscreen.ldl`, `musicscreen.cpp`)
 
@@ -108,9 +108,9 @@ Remaining schism: original switch state is read from `SoundManager`/profile at d
 
 Current rows map to original `TrackNames` strings: `A Fortiori`, `Pacari Tampu`, `Amaethon`, `A'tugewinu`, `Summum Bonum`, `Casus Belli`, `Ankh Djet`, `Shaolin San`, `Quiet Outback`, `Kali Dance`.
 
-Remaining schisms:
-- Original is a 177x100 list with vertical ranger/scroller; current UI uses individual row controls and no scroller/clip chrome.
-- Popup title uses current text rendering instead of original `CTP2_STANDARD_FONT` title styling.
+Resolved in this pass: `MusicTrackScreen` now models the original 177x100 `TrackList` listbox chrome and keeps the `TrackNames` rows inside it.
+
+Remaining schism: popup title uses current text rendering instead of original `CTP2_STANDARD_FONT` title styling.
 
 ### New-game picker popups (`spnewgamepopups.ldl`)
 
@@ -121,13 +121,13 @@ Remaining schisms:
 | Map size picker | `SPNewGameMapSizeScreen`; `Small`, `Regular`, `Huge`, `Gigantic`, generated Close | Geometry/art mapped; text metrics approximate. |
 | World shape picker | `SPNewGameMapShapeScreen`; `Earth World`, `Doughnut World`, `Flat World` plus description labels, generated Close | Geometry/art mapped; description wrapping/font approximate. |
 | Players picker | `SPNewGamePlayersScreen`; numeric rows `3`..`8`, generated Close | Geometry/art mapped. |
-| Rules picker | `SPNewGameRulesScreen`; `Bloodlust - Off`, `Pollution - Off`, generated Close | Controls map, but behavior is still simplified: original switches toggle in place and update profile state; current model still treats them as setup selections. |
+| Rules picker | `SPNewGameRulesScreen`; `Bloodlust - Off`, `Pollution - Off`, generated Close | Controls map; switches now update the setup state in place and keep the popup open like the original. |
 
 ## Current outstanding style mismatches to fix next
 
 1. Replace fallback/system text rendering with the original AUI font/color/shadow/text-blit behavior for `CTP2_STANDARD_FONT`, `CTP_GREY_TITLE_FONT`, and `CTP_GOLD_TITLE_FONT`.
 2. Implement full `c3_PopupWindow` frame/title chrome, not just pattern fill + Close.
 3. Implement AUI text fields and sliders precisely, including bevels, caret/selection, ticks, min/max labels, and pattern-backed tracks.
-4. Replace resolution/music-track row controls with real `CTP2_LISTBOX`-style rendering, including bevel/header/ranger/scroller/warning label.
-5. Implement `CustomMapScreen` and wire `MapButton`; do not restore the removed non-original world-type picker.
-6. Implement in-place rule switch behavior and profile/server-backed state.
+4. Promote the modeled resolution/music-track listbox chrome to a fuller renderer with header/ranger/scroller behavior and clipping.
+5. Persist custom-map slider values into profile/server-backed setup state.
+6. Connect in-place rule switch behavior to profile/server-backed state.

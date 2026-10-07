@@ -28,7 +28,8 @@ pub(super) fn screen_for(
         ShellScreenId::MapSizePicker => pickers::map_size_picker_screen(),
         ShellScreenId::WorldShapePicker => pickers::world_shape_picker_screen(),
         ShellScreenId::PlayersPicker => pickers::players_picker_screen(),
-        ShellScreenId::RulesPicker => pickers::rules_picker_screen(),
+        ShellScreenId::RulesPicker => pickers::rules_picker_screen(setup),
+        ShellScreenId::CustomMap => pickers::custom_map_screen(),
     }
 }
 

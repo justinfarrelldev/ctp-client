@@ -66,6 +66,8 @@ pub(super) enum ShellScreenId {
     PlayersPicker,
     /// Rules selection popup opened from `RulesButton`.
     RulesPicker,
+    /// `CustomMapWindow` opened from `SPNewGameWindow.MapButton`.
+    CustomMap,
 }
 
 /// Configurable game-setup field shown on the new-game screen.
@@ -275,6 +277,8 @@ pub(super) enum ShellControlKind {
         /// Optional original image family for the switch state.
         images: Option<ShellImageSet>,
     },
+    /// Listbox chrome preserving original CTP2 list frame metadata.
+    ListBoxChrome,
     /// List or dropdown item.
     ListItem {
         /// Optional original image family for selectable list items.

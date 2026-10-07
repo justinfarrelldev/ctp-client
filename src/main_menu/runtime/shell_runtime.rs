@@ -343,6 +343,7 @@ fn draw_shell_control(
         }
         ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
         ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
+        ShellControlKind::ListBoxChrome => draw_listbox_chrome(canvas, &rect),
         ShellControlKind::Slider { min, max, value } => draw_slider(
             canvas,
             texture_creator,
@@ -423,6 +424,14 @@ fn slider_value_at(rect: &MenuRect, kind: ShellControlKind, point_x: i32) -> i32
         .checked_div(width)
         .map_or(0_i32, |value| value);
     min.saturating_add(scaled).clamp(min, max)
+}
+
+/// Draws CTP2 listbox chrome with a patterned/beveled fallback.
+fn draw_listbox_chrome(canvas: &mut Canvas<Window>, rect: &MenuRect) -> Result<(), MainMenuError> {
+    canvas.set_draw_color(Color::RGB(150, 137, 103));
+    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
+    canvas.set_draw_color(Color::RGB(50, 42, 31));
+    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)
 }
 
 /// Draws a simple text-entry field.

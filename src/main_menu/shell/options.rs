@@ -409,6 +409,10 @@ const fn graphics_toggle_label(
 }
 
 /// Builds sound options popup.
+#[expect(
+    clippy::too_many_lines,
+    reason = "The sound builder is a direct LDL control manifest for validation."
+)]
 pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
     ShellScreen {
         id: ShellScreenId::Sound,
@@ -437,6 +441,26 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
                 20,
                 "sound.ldl:275",
             ),
+            label(
+                "SFXMin",
+                "0",
+                "SFX Volume Minimum",
+                75,
+                70,
+                15,
+                20,
+                "sound.ldl:91",
+            ),
+            label(
+                "SFXMax",
+                "10",
+                "SFX Volume Maximum",
+                260,
+                70,
+                20,
+                20,
+                "sound.ldl:91",
+            ),
             slider(
                 "SFXSlider",
                 "SFX Volume",
@@ -461,6 +485,26 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
                 20,
                 "sound.ldl:322",
             ),
+            label(
+                "VoiceMin",
+                "0",
+                "Voice Volume Minimum",
+                75,
+                130,
+                15,
+                20,
+                "sound.ldl:207",
+            ),
+            label(
+                "VoiceMax",
+                "10",
+                "Voice Volume Maximum",
+                260,
+                130,
+                20,
+                20,
+                "sound.ldl:207",
+            ),
             slider(
                 "VoiceSlider",
                 "Voice Volume",
@@ -484,6 +528,26 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
                 160,
                 20,
                 "sound.ldl:370",
+            ),
+            label(
+                "MusicMin",
+                "0",
+                "Music Volume Minimum",
+                75,
+                190,
+                15,
+                20,
+                "sound.ldl:149",
+            ),
+            label(
+                "MusicMax",
+                "10",
+                "Music Volume Maximum",
+                260,
+                190,
+                20,
+                20,
+                "sound.ldl:149",
             ),
             slider(
                 "MusicSlider",

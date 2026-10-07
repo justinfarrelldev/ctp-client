@@ -1,5 +1,7 @@
 //! Helpers for constructing original CTP2 shell controls.
 
+use alloc::string::String;
+
 use super::{
     MenuAssetReference, MenuRect, SHELL_PICTURES_ARCHIVE, ShellAction, ShellControl,
     ShellControlKind, ShellImageSet, ShellOptionField, ShellSoundPolicy,
@@ -94,6 +96,28 @@ pub(super) fn list_button(
         selected: false,
     };
     control
+}
+
+/// Creates original CTP2 listbox chrome.
+pub(super) fn listbox_chrome(
+    ldl_name: &'static str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    source: &'static str,
+) -> ShellControl {
+    ShellControl {
+        ldl_name,
+        label: String::new(),
+        accessible_name: accessible_name.to_owned(),
+        rect: MenuRect::new(x, y, width, height),
+        kind: ShellControlKind::ListBoxChrome,
+        action: None,
+        sound: None,
+        source,
+    }
 }
 
 /// Creates a picker list item.

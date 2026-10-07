@@ -2,7 +2,10 @@
 
 use alloc::vec::Vec;
 
-use super::builders::{asset, field, image_switch_control, label, list_item, popup_close_button};
+use super::builders::{
+    asset, button, field, image_switch_control, label, list_item, listbox_chrome,
+    popup_close_button, slider,
+};
 use super::{
     GameSetupField, GameSetupState, MenuRect, ShellAction, ShellImageSet, ShellOptionField,
     ShellScreen, ShellScreenId,
@@ -77,14 +80,121 @@ pub(super) fn resolution_screen() -> ShellScreen {
 
 /// Builds music-track picker popup.
 pub(super) fn music_track_screen() -> ShellScreen {
-    picker_from_values(
-        ShellScreenId::MusicTrack,
-        "MusicTrackScreen",
-        "SELECT TRACK",
-        MenuRect::new(282, 203, 235, 194),
-        45,
+    let rect = MenuRect::new(282, 203, 235, 194);
+    let mut controls = vec![
+        label(
+            "Name",
+            "SELECT TRACK",
+            "SELECT TRACK",
+            20,
+            20,
+            195,
+            20,
+            "musicscreen.ldl:93",
+        ),
+        listbox_chrome(
+            "TrackList",
+            "Track List",
+            21,
+            45,
+            177,
+            100,
+            "musicscreen.ldl:104",
+        ),
+    ];
+    append_list_rows(
+        &mut controls,
+        "MusicTrackListItem",
         MUSIC_TRACKS,
+        21,
+        45,
         |index| ShellAction::SelectOption(ShellOptionField::MusicTrack, index),
+        "musicscreen.ldl:173",
+    );
+    controls.push(popup_close_button(rect.width, rect.height));
+    ShellScreen {
+        id: ShellScreenId::MusicTrack,
+        ldl_name: "MusicTrackScreen",
+        rect,
+        background: None,
+        pattern: Some(asset("uptg20e.rim")),
+        controls,
+    }
+}
+
+/// Builds the original custom-map popup.
+pub(super) fn custom_map_screen() -> ShellScreen {
+    let mut controls = popup_base_controls(
+        ShellScreenId::CustomMap,
+        "CustomMapWindow",
+        "Map",
+        MenuRect::new(175, 145, 450, 310),
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "WetDrySlider",
+        "Wet",
+        "Dry",
+        40,
+        ShellOptionField::UnitSpeed,
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "WarmColdSlider",
+        "Warm",
+        "Cold",
+        80,
+        ShellOptionField::UnitSpeed,
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "OceanLandSlider",
+        "Ocean",
+        "Land",
+        120,
+        ShellOptionField::UnitSpeed,
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "IslandContinentSlider",
+        "Island",
+        "Continent",
+        160,
+        ShellOptionField::UnitSpeed,
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "HomoDiverseSlider",
+        "Uniform",
+        "Diverse",
+        200,
+        ShellOptionField::UnitSpeed,
+    );
+    append_custom_map_slider(
+        &mut controls,
+        "GoodCountSlider",
+        "Few Goods",
+        "Many Goods",
+        240,
+        ShellOptionField::UnitSpeed,
+    );
+    controls.push(button(
+        "BackButton",
+        "BACK",
+        "Back",
+        370,
+        275,
+        40,
+        20,
+        crate::main_menu::ButtonVisualStyle::blue_large(),
+        ShellAction::Back,
+        "custommap.ldl:52",
+    ));
+    screen_with_controls(
+        ShellScreenId::CustomMap,
+        "CustomMapWindow",
+        MenuRect::new(175, 145, 450, 310),
+        controls,
     )
 }
 
@@ -337,7 +447,7 @@ pub(super) fn players_picker_screen() -> ShellScreen {
 }
 
 /// Builds the original CTP2 rules popup.
-pub(super) fn rules_picker_screen() -> ShellScreen {
+pub(super) fn rules_picker_screen(setup: &GameSetupState) -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::RulesPicker,
         "SPNewGameRulesScreen",
@@ -352,9 +462,9 @@ pub(super) fn rules_picker_screen() -> ShellScreen {
         50,
         160,
         24,
-        false,
+        setup.selected(GameSetupField::Rules) == RULE_PRESETS[0],
         ShellImageSet::popup_checkbox(),
-        ShellAction::SelectGameSetup(GameSetupField::Rules, 0),
+        ShellAction::SelectGameSetupInPlace(GameSetupField::Rules, 0),
         "spnewgamepopups.ldl:899",
     ));
     controls.push(image_switch_control(
@@ -365,9 +475,9 @@ pub(super) fn rules_picker_screen() -> ShellScreen {
         80,
         160,
         24,
-        false,
+        setup.selected(GameSetupField::Rules) == RULE_PRESETS[1],
         ShellImageSet::popup_checkbox(),
-        ShellAction::SelectGameSetup(GameSetupField::Rules, 1),
+        ShellAction::SelectGameSetupInPlace(GameSetupField::Rules, 1),
         "spnewgamepopups.ldl:908",
     ));
     controls.push(popup_close_button(250, 160));
@@ -392,22 +502,37 @@ fn picker_from_values<ActionBuilder>(
 where
     ActionBuilder: Fn(usize) -> ShellAction,
 {
-    let mut controls = vec![label("Name", title, title, 20, 20, 195, 20, "picker")];
-    for (index, value) in values.iter().enumerate() {
-        let y = first_row_y
-            .saturating_add(i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(20_i32)));
-        controls.push(list_item(
-            "ListItem",
-            value,
-            value,
+    let mut controls = vec![
+        label("Name", title, title, 20, 20, 195, 20, "graphics.ldl:185"),
+        listbox_chrome(
+            "ResList",
+            "Resolution List",
             21,
-            y,
+            55,
             177,
+            89,
+            "graphics.ldl:192",
+        ),
+        label(
+            "Warning",
+            "This change will take effect when you restart Call to Power II.",
+            "Resolution Warning",
             20,
-            action_builder(index),
-            "picker-list",
-        ));
-    }
+            155,
+            200,
+            30,
+            "graphics.ldl:217",
+        ),
+    ];
+    append_list_rows(
+        &mut controls,
+        "ScreenResListItem",
+        values,
+        21,
+        first_row_y,
+        action_builder,
+        "graphics.ldl:223",
+    );
     controls.push(popup_close_button(rect.width, rect.height));
     ShellScreen {
         id,
@@ -417,6 +542,80 @@ where
         pattern: Some(asset("uptg20e.rim")),
         controls,
     }
+}
+
+/// Appends standard list rows using original list item templates.
+fn append_list_rows<ActionBuilder>(
+    controls: &mut Vec<super::ShellControl>,
+    ldl_name: &'static str,
+    values: &'static [&'static str],
+    x: i32,
+    first_row_y: i32,
+    action_builder: ActionBuilder,
+    source: &'static str,
+) where
+    ActionBuilder: Fn(usize) -> ShellAction,
+{
+    for (index, value) in values.iter().enumerate() {
+        let y = first_row_y
+            .saturating_add(i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(20_i32)));
+        controls.push(list_item(
+            ldl_name,
+            value,
+            value,
+            x,
+            y,
+            177,
+            20,
+            action_builder(index),
+            source,
+        ));
+    }
+}
+
+/// Appends one original custom-map slider and its left/right labels.
+fn append_custom_map_slider(
+    controls: &mut Vec<super::ShellControl>,
+    ldl_name: &'static str,
+    left_label: &'static str,
+    right_label: &'static str,
+    y: i32,
+    field: ShellOptionField,
+) {
+    controls.push(slider(
+        ldl_name,
+        ldl_name,
+        ldl_name,
+        100,
+        y,
+        250,
+        40,
+        0,
+        10,
+        5,
+        field,
+        "custommap.ldl:slider",
+    ));
+    controls.push(label(
+        left_label,
+        left_label,
+        left_label,
+        10,
+        y.saturating_add(10),
+        80,
+        20,
+        "custommap.ldl:label-left",
+    ));
+    controls.push(label(
+        right_label,
+        right_label,
+        right_label,
+        360,
+        y.saturating_add(10),
+        80,
+        20,
+        "custommap.ldl:label-right",
+    ));
 }
 
 /// Creates common title controls for popup screens.

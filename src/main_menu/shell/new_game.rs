@@ -193,7 +193,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             180,
             20,
             ButtonVisualStyle::blue_large(),
-            ShellAction::Disabled,
+            ShellAction::Navigate(ShellScreenId::CustomMap),
             "spnewgame.ldl:465 + spnewgamescreen.cpp:389 custommapscreen_displayMyWindow",
         ),
         label(

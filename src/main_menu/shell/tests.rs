@@ -3,6 +3,19 @@
 use super::options_state::ShellOptionsState;
 use super::*;
 
+/// Returns selected state from a switch-like control for assertions.
+fn switch_enabled(kind: ShellControlKind) -> Option<bool> {
+    match kind {
+        ShellControlKind::Switch { enabled, .. } => Some(enabled),
+        ShellControlKind::Button(_)
+        | ShellControlKind::Label
+        | ShellControlKind::TextField
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::ListBoxChrome
+        | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
 /// Returns image metadata from a switch-like control for assertions.
 fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
     match kind {
@@ -11,6 +24,7 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         | ShellControlKind::Label
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
+        | ShellControlKind::ListBoxChrome
         | ShellControlKind::ListItem { .. } => None,
     }
 }
@@ -422,7 +436,7 @@ fn new_game_labels_use_original_ldl_text_and_geometry() {
 }
 
 #[test]
-fn unimplemented_custom_map_button_does_not_open_a_non_original_world_type_picker() {
+fn custom_map_button_opens_original_custom_map_screen() {
     let screen = screen_for(
         ShellScreenId::NewGame,
         &GameSetupState::default(),
@@ -439,8 +453,27 @@ fn unimplemented_custom_map_button_does_not_open_a_non_original_world_type_picke
     );
     assert_eq!(
         map_button.action(),
-        Some(ShellAction::Disabled),
-        "the previous RANDOM MAP/CONTINENTS picker is not part of the original CTP2 flow"
+        Some(ShellAction::Navigate(ShellScreenId::CustomMap)),
+        "MapButton should open the original CustomMapWindow"
+    );
+
+    let custom_map = screen_for(
+        ShellScreenId::CustomMap,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        custom_map.ldl_name(),
+        "CustomMapWindow",
+        "custom-map popup should use the original LDL block"
+    );
+    assert!(
+        custom_map.find_accessible("WetDrySlider").is_some(),
+        "custom-map screen should include the original wet/dry slider"
+    );
+    assert!(
+        custom_map.find_accessible("Many Goods").is_some(),
+        "custom-map screen should include the original resource-density label"
     );
 }
 
@@ -661,6 +694,97 @@ fn options_screen_uses_only_controls_instantiated_by_original_source() {
     assert!(
         screen.find_accessible("Quit To Shell").is_some(),
         "OptionsWindow source creates QuitToShellButton even though its helper names are inconsistent"
+    );
+}
+
+#[test]
+fn sound_sliders_include_original_min_max_labels() {
+    let sound = screen_for(
+        ShellScreenId::Sound,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for accessible_name in [
+        "SFX Volume Minimum",
+        "SFX Volume Maximum",
+        "Voice Volume Minimum",
+        "Voice Volume Maximum",
+        "Music Volume Minimum",
+        "Music Volume Maximum",
+    ] {
+        assert!(
+            sound.find_accessible(accessible_name).is_some(),
+            "{accessible_name} should preserve the original slider endpoint label"
+        );
+    }
+}
+
+#[test]
+fn rules_picker_toggles_in_place_and_reflects_selected_state() {
+    let mut model = SinglePlayerShellModel::default();
+    assert_eq!(
+        model.apply_action(ShellAction::OpenPicker(GameSetupField::Rules)),
+        ShellFlowOutcome::Continue,
+        "opening rules picker should keep the shell active"
+    );
+    assert_eq!(
+        model.apply_action(ShellAction::SelectGameSetupInPlace(
+            GameSetupField::Rules,
+            1_usize,
+        )),
+        ShellFlowOutcome::Continue,
+        "rules switches should update in place like the original popup"
+    );
+    assert_eq!(
+        model.current(),
+        ShellScreenId::RulesPicker,
+        "rules popup should remain open after switching a rule"
+    );
+
+    let rules = screen_for(ShellScreenId::RulesPicker, model.setup(), model.options());
+    let pollution = rules
+        .find_accessible("Pollution - Off")
+        .expect("pollution switch should exist");
+    assert_eq!(
+        switch_enabled(pollution.kind()),
+        Some(true),
+        "selected rule switch should render selected state"
+    );
+}
+
+#[test]
+fn listbox_pickers_use_original_chrome_and_warning_labels() {
+    let resolution = screen_for(
+        ShellScreenId::Resolution,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        resolution
+            .find_accessible("Resolution List")
+            .expect("resolution picker should model ResList chrome")
+            .kind(),
+        ShellControlKind::ListBoxChrome,
+        "ScreenResScreen should use original CTP2_LISTBOX chrome metadata"
+    );
+    assert!(
+        resolution.find_accessible("Resolution Warning").is_some(),
+        "ScreenResScreen should render the original restart warning label"
+    );
+
+    let music_tracks = screen_for(
+        ShellScreenId::MusicTrack,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        music_tracks
+            .find_accessible("Track List")
+            .expect("music picker should model TrackList chrome")
+            .kind(),
+        ShellControlKind::ListBoxChrome,
+        "MusicTrackScreen should use original TrackList listbox chrome metadata"
     );
 }
 
