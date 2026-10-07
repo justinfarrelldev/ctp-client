@@ -478,6 +478,33 @@ pub fn run_sdl_main_menu(installation: &GameInstallation) -> Result<MainMenuActi
 pub fn run_headless_sdl_smoke_for_test(
     installation_root: PathBuf,
 ) -> Result<MainMenuAction, MainMenuError> {
+    run_with_headless_sdl_environment(installation_root, runtime::run_headless_smoke_for_test)
+}
+
+/// Renders one real headless SDL menu frame and returns its average RGB color.
+///
+/// # Errors
+///
+/// Returns a [`MainMenuError`] when the SDL runtime cannot render or read back the menu frame.
+#[cfg(test)]
+pub fn render_headless_menu_average_color_for_test(
+    installation_root: PathBuf,
+) -> Result<(u8, u8, u8), MainMenuError> {
+    run_with_headless_sdl_environment(
+        installation_root,
+        runtime::render_headless_average_color_for_test,
+    )
+}
+
+/// Runs a callback with dummy SDL drivers applied and restored.
+#[cfg(test)]
+fn run_with_headless_sdl_environment<ResultValue, Callback>(
+    installation_root: PathBuf,
+    callback: Callback,
+) -> Result<ResultValue, MainMenuError>
+where
+    Callback: FnOnce(&MainMenuModel) -> Result<ResultValue, MainMenuError>,
+{
     let _guard = headless_sdl_env_lock()
         .lock()
         .map_err(|error| MainMenuError::Runtime {
@@ -485,7 +512,7 @@ pub fn run_headless_sdl_smoke_for_test(
         })?;
     let environment = HeadlessSdlEnvironment::apply();
     let model = MainMenuModel::ctp2_landing(installation_root);
-    let result = runtime::run_headless_smoke_for_test(&model);
+    let result = callback(&model);
     environment.restore();
     result
 }
@@ -588,176 +615,4 @@ fn original_landing_buttons() -> Vec<MainMenuButton> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use core::cell::RefCell;
-    use tempfile::TempDir;
-
-    /// Recorded music autoplay request.
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct MusicCall {
-        /// Policy supplied by the session.
-        policy: MenuMusicPolicy,
-        /// Absolute path supplied by the session.
-        absolute_path: PathBuf,
-    }
-
-    /// Test audio backend that records calls.
-    struct RecordingMusicBackend {
-        /// Recorded play requests.
-        calls: RefCell<Vec<MusicCall>>,
-    }
-
-    impl RecordingMusicBackend {
-        /// Creates an empty recording backend.
-        fn new() -> Self {
-            Self {
-                calls: RefCell::new(Vec::new()),
-            }
-        }
-    }
-
-    impl MainMenuMusicBackend for RecordingMusicBackend {
-        fn play_music(
-            &mut self,
-            policy: &MenuMusicPolicy,
-            absolute_path: PathBuf,
-        ) -> Result<(), MainMenuError> {
-            self.calls.borrow_mut().push(MusicCall {
-                policy: policy.clone(),
-                absolute_path,
-            });
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn landing_page_exposes_accessible_buttons() {
-        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
-
-        assert_eq!(
-            model.activate_accessible("Single Player"),
-            Ok(MainMenuAction::SinglePlayer)
-        );
-        assert_eq!(
-            model.activate_accessible("multiplayer"),
-            Ok(MainMenuAction::Multiplayer),
-            "accessible lookup should be case-insensitive"
-        );
-        assert_eq!(
-            model.activate_accessible("Credits"),
-            Ok(MainMenuAction::Credits)
-        );
-        assert_eq!(model.activate_accessible("Quit"), Ok(MainMenuAction::Quit));
-    }
-
-    #[test]
-    fn landing_page_button_layout_matches_original_ldl() {
-        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
-
-        let multiplayer = model
-            .button_by_id(MainMenuButtonId::Multiplayer)
-            .expect("multiplayer button should exist");
-        let single_player = model
-            .button_by_id(MainMenuButtonId::SinglePlayer)
-            .expect("single-player button should exist");
-        let credits = model
-            .button_by_id(MainMenuButtonId::Credits)
-            .expect("credits button should exist");
-        let quit = model
-            .button_by_id(MainMenuButtonId::Quit)
-            .expect("quit button should exist");
-
-        assert_eq!(multiplayer.rect, MenuRect::new(36, 455, 290, 32));
-        assert_eq!(single_player.rect, MenuRect::new(478, 455, 290, 32));
-        assert_eq!(credits.rect, MenuRect::new(36, 558, 140, 32));
-        assert_eq!(quit.rect, MenuRect::new(624, 558, 140, 32));
-    }
-
-    #[test]
-    fn landing_page_button_styles_match_original_assets() {
-        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
-
-        let multiplayer = model
-            .button_by_id(MainMenuButtonId::Multiplayer)
-            .expect("multiplayer button should exist");
-        let quit = model
-            .button_by_id(MainMenuButtonId::Quit)
-            .expect("quit button should exist");
-
-        assert_eq!(multiplayer.style.id, ButtonStyleId::BlueLarge);
-        assert_eq!(multiplayer.style.assets.up.left, "upbt07aU.tga");
-        assert_eq!(multiplayer.style.assets.hover.middle, "upbt07bH.tga");
-        assert_eq!(quit.style.id, ButtonStyleId::StoneLarge);
-        assert_eq!(quit.style.assets.up.left, "upbt06aU.tga");
-        assert_eq!(quit.style.assets.down.right, "upbt06cD.tga");
-        assert!(
-            model.original_style_mismatches().is_empty(),
-            "landing page style should validate against original LDL values"
-        );
-    }
-
-    #[test]
-    fn landing_page_uses_original_background_and_version_metadata() {
-        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
-
-        assert_eq!(model.width, MAIN_MENU_WIDTH);
-        assert_eq!(model.height, MAIN_MENU_HEIGHT);
-        assert_eq!(
-            model.background,
-            MenuAssetReference {
-                archive_relative_path: "ctp2_data/default/graphics/pictures/pic565.zfs",
-                entry_name: "upsg001.rim",
-            }
-        );
-        assert_eq!(model.version_text, "1.1");
-        assert_eq!(model.version_rect, MenuRect::new(720, 515, 60, 24));
-    }
-
-    #[test]
-    fn menu_music_autoplays_expected_ctp2_track_once() {
-        let temp_dir = TempDir::new().expect("temp directory should be created");
-        let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());
-        let backend = RecordingMusicBackend::new();
-        let mut session = MainMenuSession::new(model, backend);
-
-        session.start_music().expect("music should start");
-        session
-            .start_music()
-            .expect("second start should be ignored");
-
-        assert!(session.music_started());
-        let calls = session.audio_backend.calls.borrow();
-        assert_eq!(calls.len(), 1, "autoplay should happen exactly once");
-        assert!(calls[0].policy.autoplay);
-        assert_eq!(calls[0].policy.loops, -1_i32);
-        assert!(
-            calls[0]
-                .absolute_path
-                .ends_with("ctp2_program/ctp/music/Track02.ogg"),
-            "main menu should use the expected CTP2 music track"
-        );
-    }
-
-    #[test]
-    fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
-        let temp_dir = TempDir::new().expect("temp directory should be created");
-
-        let result = run_headless_sdl_smoke_for_test(temp_dir.path().to_path_buf())
-            .expect("headless SDL menu smoke test should render and exit");
-
-        assert_eq!(result, MainMenuAction::Quit);
-    }
-
-    #[test]
-    fn accessible_activation_reports_missing_buttons() {
-        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
-
-        assert_eq!(
-            model.activate_accessible("Load Game"),
-            Err(MainMenuError::ButtonNotFound {
-                accessible_name: "Load Game".to_owned(),
-            })
-        );
-    }
-}
+mod tests;

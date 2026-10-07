@@ -16,7 +16,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mixer::{self, DEFAULT_CHANNELS, DEFAULT_FORMAT, InitFlag, Music, Sdl2MixerContext};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect as SdlRect;
-use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 use unciv::ZfsFile;
@@ -24,8 +24,8 @@ use unciv::ZfsFile;
 use crate::config::GameInstallation;
 
 use super::{
-    ButtonStyleId, MainMenuAction, MainMenuError, MainMenuModel, MainMenuMusicBackend,
-    MainMenuSession, MenuAssetReference, MenuRect,
+    ButtonAssetTriplet, ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError,
+    MainMenuModel, MainMenuMusicBackend, MainMenuSession, MenuAssetReference, MenuRect,
 };
 
 /// Audio frequency requested from `SDL_mixer` for menu music.
@@ -34,6 +34,12 @@ const MIXER_FREQUENCY: i32 = 44_100;
 const MIXER_CHUNK_SIZE: i32 = 1_024;
 /// Delay between menu frames.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
+/// Texture format matching bytes emitted by the RIM RGBA conversion path.
+const MENU_TEXTURE_FORMAT: PixelFormatEnum = PixelFormatEnum::RGBA32;
+/// Magenta color used by original CTP2 shell button art as a chroma key.
+const BUTTON_CHROMA_KEY: (u8, u8, u8) = (248, 0, 248);
+/// Archive holding the original CTP2 shell screen art.
+const SHELL_ART_ARCHIVE: &str = "ctp2_data/default/graphics/pictures/pic565.zfs";
 /// Candidate fonts used only for drawing fallback text over original assets.
 const FONT_CANDIDATES: [&str; 5] = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -80,6 +86,34 @@ struct RgbaImage {
     pitch: usize,
     /// Pixel data in RGBA order.
     data: Vec<u8>,
+}
+
+/// Texture cache for all original-art menu resources used in one frame.
+struct MenuTextures<'texture> {
+    /// Optional original landing-page background.
+    background: Option<Texture<'texture>>,
+    /// Optional blue/gold button textures.
+    blue_large: Option<ButtonStateTextures<'texture>>,
+    /// Optional stone button textures.
+    stone_large: Option<ButtonStateTextures<'texture>>,
+}
+
+/// Texture triplets for available button interaction states.
+struct ButtonStateTextures<'texture> {
+    /// Textures for default/up state.
+    up: ButtonTextureTriplet<'texture>,
+    /// Textures for hover state.
+    hover: ButtonTextureTriplet<'texture>,
+}
+
+/// Three-piece button textures matching the original CTP2 shell assets.
+struct ButtonTextureTriplet<'texture> {
+    /// Left cap texture.
+    left: Texture<'texture>,
+    /// Stretchable center texture.
+    middle: Texture<'texture>,
+    /// Right cap texture.
+    right: Texture<'texture>,
 }
 
 /// SDL_mixer-backed menu music player.
@@ -208,7 +242,7 @@ fn run_sdl_event_loop_with_options(
         .build()
         .map_err(|error| runtime_error(error.to_string()))?;
     let texture_creator = canvas.texture_creator();
-    let background_texture = load_background_texture(&texture_creator, model).ok();
+    let textures = load_menu_textures(&texture_creator, model);
     let ttf_context = sdl2::ttf::init().ok();
     let font_path = find_existing_font();
     let font = ttf_context.as_ref().and_then(|context| {
@@ -234,7 +268,7 @@ fn run_sdl_event_loop_with_options(
         let mouse_state = event_pump.mouse_state();
         draw_menu(
             &mut canvas,
-            background_texture.as_ref(),
+            &textures,
             model,
             mouse_state.x(),
             mouse_state.y(),
@@ -326,20 +360,24 @@ fn handle_menu_event(
 /// Draws one frame of the menu.
 fn draw_menu(
     canvas: &mut Canvas<Window>,
-    background_texture: Option<&Texture<'_>>,
+    textures: &MenuTextures<'_>,
     model: &MainMenuModel,
     mouse_x: i32,
     mouse_y: i32,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), MainMenuError> {
-    match background_texture {
+    match textures.background.as_ref() {
         Some(texture) => canvas.copy(texture, None, None).map_err(runtime_error)?,
         None => draw_fallback_background(canvas)?,
     }
 
     for button in &model.buttons {
         let hovered = button.rect.contains_point(mouse_x, mouse_y);
-        draw_button(canvas, &button.rect, button.style.id, hovered)?;
+        if let Some(button_textures) = textures_for_style(textures, button.style.id) {
+            draw_styled_button(canvas, &button.rect, button_textures, hovered)?;
+        } else {
+            draw_fallback_button(canvas, &button.rect, button.style.id, hovered)?;
+        }
         draw_centered_text(canvas, font, &button.rect, button.label)?;
     }
 
@@ -358,8 +396,80 @@ fn draw_fallback_background(canvas: &mut Canvas<Window>) -> Result<(), MainMenuE
         .map_err(runtime_error)
 }
 
+/// Draws a button with original three-piece art.
+fn draw_styled_button(
+    canvas: &mut Canvas<Window>,
+    rect: &MenuRect,
+    textures: &ButtonStateTextures<'_>,
+    hovered: bool,
+) -> Result<(), MainMenuError> {
+    let triplet = if hovered {
+        &textures.hover
+    } else {
+        &textures.up
+    };
+    draw_texture_triplet(canvas, rect, triplet)
+}
+
+/// Draws a three-piece CTP2 shell button scaled into the target rectangle.
+fn draw_texture_triplet(
+    canvas: &mut Canvas<Window>,
+    rect: &MenuRect,
+    triplet: &ButtonTextureTriplet<'_>,
+) -> Result<(), MainMenuError> {
+    let left_width = scaled_cap_width(&triplet.left, rect.height, rect.width);
+    let right_width = scaled_cap_width(&triplet.right, rect.height, rect.width);
+    let middle_width = rect
+        .width
+        .saturating_sub(left_width.saturating_add(right_width));
+    let right_x = rect.x.saturating_add(
+        i32::try_from(rect.width.saturating_sub(right_width)).map_or(0_i32, |value| value),
+    );
+    let middle_x = rect
+        .x
+        .saturating_add(i32::try_from(left_width).map_or(0_i32, |value| value));
+
+    canvas
+        .copy(
+            &triplet.left,
+            None,
+            SdlRect::new(rect.x, rect.y, left_width, rect.height),
+        )
+        .map_err(runtime_error)?;
+    if middle_width > 0 {
+        canvas
+            .copy(
+                &triplet.middle,
+                None,
+                SdlRect::new(middle_x, rect.y, middle_width, rect.height),
+            )
+            .map_err(runtime_error)?;
+    }
+    canvas
+        .copy(
+            &triplet.right,
+            None,
+            SdlRect::new(right_x, rect.y, right_width, rect.height),
+        )
+        .map_err(runtime_error)
+}
+
+/// Computes the target width for a button cap while preserving source aspect ratio.
+fn scaled_cap_width(texture: &Texture<'_>, target_height: u32, target_width: u32) -> u32 {
+    let query = texture.query();
+    let scaled_width = query
+        .width
+        .saturating_mul(target_height)
+        .checked_div(query.height.max(1))
+        .map_or(query.width, |value| value);
+    let max_cap_width = target_width
+        .checked_div(2)
+        .map_or(target_width, |value| value);
+    scaled_width.min(max_cap_width).max(1)
+}
+
 /// Draws a button using colors chosen to approximate the original asset family.
-fn draw_button(
+fn draw_fallback_button(
     canvas: &mut Canvas<Window>,
     rect: &MenuRect,
     style: ButtonStyleId,
@@ -457,18 +567,101 @@ fn to_sdl_rect(rect: &MenuRect) -> SdlRect {
     SdlRect::new(rect.x, rect.y, rect.width, rect.height)
 }
 
+/// Loads all original-art textures available for a menu render pass.
+fn load_menu_textures<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+) -> MenuTextures<'texture> {
+    MenuTextures {
+        background: load_background_texture(texture_creator, model).ok(),
+        blue_large: load_button_state_textures(
+            texture_creator,
+            model,
+            ButtonVisualStyle::blue_large(),
+        )
+        .ok(),
+        stone_large: load_button_state_textures(
+            texture_creator,
+            model,
+            ButtonVisualStyle::stone_large(),
+        )
+        .ok(),
+    }
+}
+
+/// Selects cached textures for a button style.
+const fn textures_for_style<'texture>(
+    textures: &'texture MenuTextures<'texture>,
+    style: ButtonStyleId,
+) -> Option<&'texture ButtonStateTextures<'texture>> {
+    match style {
+        ButtonStyleId::BlueLarge => textures.blue_large.as_ref(),
+        ButtonStyleId::StoneLarge => textures.stone_large.as_ref(),
+    }
+}
+
+/// Loads original button textures for the style states used by the landing menu.
+fn load_button_state_textures<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+    style: ButtonVisualStyle,
+) -> Result<ButtonStateTextures<'texture>, MainMenuError> {
+    Ok(ButtonStateTextures {
+        up: load_button_triplet(texture_creator, model, style.assets.up)?,
+        hover: load_button_triplet(texture_creator, model, style.assets.hover)?,
+    })
+}
+
+/// Loads one three-piece button texture triplet from immutable original assets.
+fn load_button_triplet<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+    triplet: ButtonAssetTriplet,
+) -> Result<ButtonTextureTriplet<'texture>, MainMenuError> {
+    Ok(ButtonTextureTriplet {
+        left: load_button_texture(texture_creator, model, triplet.left)?,
+        middle: load_button_texture(texture_creator, model, triplet.middle)?,
+        right: load_button_texture(texture_creator, model, triplet.right)?,
+    })
+}
+
+/// Loads one button image, applying the original chroma key as alpha.
+fn load_button_texture<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    model: &MainMenuModel,
+    ldl_asset_name: &str,
+) -> Result<Texture<'texture>, MainMenuError> {
+    let entry_name = button_asset_entry_name(ldl_asset_name);
+    let image = load_rim_rgba_entry(
+        &model.installation_root,
+        SHELL_ART_ARCHIVE,
+        &entry_name,
+        Some(BUTTON_CHROMA_KEY),
+    )?;
+    create_texture_from_rgba(texture_creator, &image)
+}
+
 /// Loads the original background texture from the CTP2 ZFS archive.
 fn load_background_texture<'texture>(
     texture_creator: &'texture TextureCreator<WindowContext>,
     model: &MainMenuModel,
 ) -> Result<Texture<'texture>, MainMenuError> {
     let image = load_rim_rgba(&model.installation_root, &model.background)?;
+    create_texture_from_rgba(texture_creator, &image)
+}
+
+/// Creates an SDL texture from RGBA bytes.
+fn create_texture_from_rgba<'texture>(
+    texture_creator: &'texture TextureCreator<WindowContext>,
+    image: &RgbaImage,
+) -> Result<Texture<'texture>, MainMenuError> {
     let mut texture = texture_creator
-        .create_texture_streaming(PixelFormatEnum::RGBA8888, image.width, image.height)
+        .create_texture_streaming(MENU_TEXTURE_FORMAT, image.width, image.height)
         .map_err(|error| runtime_error(error.to_string()))?;
     texture
         .update(None, &image.data, image.pitch)
         .map_err(|error| runtime_error(error.to_string()))?;
+    texture.set_blend_mode(BlendMode::Blend);
     Ok(texture)
 }
 
@@ -477,7 +670,22 @@ fn load_rim_rgba(
     installation_root: &Path,
     asset: &MenuAssetReference,
 ) -> Result<RgbaImage, MainMenuError> {
-    let archive_path = installation_root.join(asset.archive_relative_path);
+    load_rim_rgba_entry(
+        installation_root,
+        asset.archive_relative_path,
+        asset.entry_name,
+        None,
+    )
+}
+
+/// Loads one RIM entry as RGBA bytes, optionally applying a chroma key.
+fn load_rim_rgba_entry(
+    installation_root: &Path,
+    archive_relative_path: &str,
+    entry_name: &str,
+    chroma_key: Option<(u8, u8, u8)>,
+) -> Result<RgbaImage, MainMenuError> {
+    let archive_path = installation_root.join(archive_relative_path);
     let file = File::open(&archive_path).map_err(|error| {
         runtime_error(format!(
             "failed to open {}: {error}",
@@ -494,19 +702,19 @@ fn load_rim_rgba(
     let entry = zfs
         .files
         .iter()
-        .find(|candidate| candidate.name.eq_ignore_ascii_case(asset.entry_name))
+        .find(|candidate| candidate.name.eq_ignore_ascii_case(entry_name))
         .cloned()
         .ok_or_else(|| {
             runtime_error(format!(
                 "{} was not found in {}",
-                asset.entry_name,
+                entry_name,
                 archive_path.display()
             ))
         })?;
     let rim = entry.read_rim_image(&mut reader).map_err(|error| {
         runtime_error(format!(
             "failed to decode {} from {}: {error}",
-            asset.entry_name,
+            entry_name,
             archive_path.display()
         ))
     })?;
@@ -520,9 +728,55 @@ fn load_rim_rgba(
         width,
         height,
         pitch,
-        data: rim.to_rgba_bytes(),
+        data: rim_rgba_bytes_with_chroma_key(&rim, chroma_key),
     })
 }
+
+/// Converts RIM image pixels to RGBA and applies optional chroma transparency.
+fn rim_rgba_bytes_with_chroma_key(
+    rim: &unciv::RimImage,
+    chroma_key: Option<(u8, u8, u8)>,
+) -> Vec<u8> {
+    let mut data = rim.to_rgba_bytes();
+    if let Some((key_red, key_green, key_blue)) = chroma_key {
+        apply_chroma_key_alpha(&mut data, key_red, key_green, key_blue);
+    }
+    data
+}
+
+/// Applies transparent alpha to pixels matching the supplied RGB chroma key.
+fn apply_chroma_key_alpha(data: &mut [u8], key_red: u8, key_green: u8, key_blue: u8) {
+    for pixel in data.chunks_exact_mut(4) {
+        if pixel.first() == Some(&key_red)
+            && pixel.get(1) == Some(&key_green)
+            && pixel.get(2) == Some(&key_blue)
+        {
+            if let Some(alpha) = pixel.get_mut(3) {
+                *alpha = 0;
+            }
+        }
+    }
+}
+
+/// Converts an LDL/TGA asset reference to its packed RIM entry name.
+fn button_asset_entry_name(ldl_asset_name: &str) -> String {
+    ldl_asset_name
+        .to_ascii_lowercase()
+        .strip_suffix(".tga")
+        .map_or_else(
+            || format!("{}.rim", ldl_asset_name.to_ascii_lowercase()),
+            |stem| format!("{stem}.rim"),
+        )
+}
+
+/// Headless SDL runtime smoke-test helpers.
+#[cfg(test)]
+pub(super) mod testing;
+#[cfg(test)]
+pub(super) use testing::{
+    button_asset_entry_name_for_test, button_style_asset_summaries_for_test,
+    menu_texture_format_for_test, render_headless_average_color_for_test,
+};
 
 /// Finds an installed font suitable for button labels.
 fn find_existing_font() -> Option<PathBuf> {

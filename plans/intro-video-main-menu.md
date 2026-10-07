@@ -12,6 +12,18 @@
 
 ## Checklist
 
+### Follow-up: original asset button styling and color fidelity
+
+- [x] Correct SDL texture upload format so original background colors are not interpreted as red.
+- [x] Render CTP2 shell buttons from original immutable RIM assets with chroma-key transparency instead of fallback rectangles.
+- [x] Add tests proving button asset names resolve to packed RIM entries and both button styles load from the original game copy without modification.
+- [x] Add a headless render color test to catch alpha-upload-as-red regressions.
+- [x] Run lint, tests, build, lint-fix, and commit the styling fix atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
+
 ### Follow-up: headless runtime smoke coverage
 
 - [x] Add a headless real SDL main-menu smoke test using dummy video/audio drivers and a queued quit event.
