@@ -60,17 +60,15 @@ All current hub controls map to original LDL/source positions: `NewGameButton`, 
 
 Mapped current controls: `Title`, `CivilizationLabel`, `TribeButton`, `LeaderNameLabel`, editable `Name`, `DifficultyLabel/Button`, `PlayersLabel/Button`, `RulesLabel/Button`, `WorldShapeLabel/Button`, `MapSizeLabel/Button`, `MapButtonLabel/MapButton`, `EditorButtonLabel/EditorButton`, `ScenarioButton`, `StartButton`, `ReturnButton`, `QuitButton`, `InstaStartButton`, and background `upsg003.tga`.
 
-Recent corrections made in this pass: label text/geometry restored for `# EMPIRES`, `MAP SIZE`, `CUSTOMIZE MAP`; button values now use original visible strings (`Medium`, `Regular`, `Earth World`, numeric player count, `Bloodlust - Off`); hidden scenario caption/name removed from default UI; `MapButton` no longer opens the non-original world-type picker.
+Recent corrections made in this pass: label text/geometry restored for `# EMPIRES`, `MAP SIZE`, `CUSTOMIZE MAP`; button values now use original visible strings (`Medium`, `Regular`, `Earth World`, numeric player count, `Bloodlust - Off`); hidden scenario caption/name removed from default UI; `MapButton` no longer opens the non-original world-type picker; editor-launch controls now display user-facing text (`SCENARIO EDITOR`, `Launch Editor`) instead of raw LDL tokens.
 
-Remaining schisms:
-- `EditorButtonLabel` and `EditorButton` use unresolved base LDL tokens (`str_ldl_LaunchScenerioEditor`, `str_ldl_Editor`); the English string table does not contain translations.
-- Text field drawing is a beige rectangle/border approximation of `FIELD`/`c3_EditField` (`bevelwidth 1`, `beveltype 2`, `maxfieldlen 23`).
+Remaining schism: text field drawing is a beige rectangle/border approximation of `FIELD`/`c3_EditField` (`bevelwidth 1`, `beveltype 2`, `maxfieldlen 23`).
 
 Resolved in this pass: `MapButton` now opens a modeled `CustomMapWindow` based on `custommap.ldl` instead of being disabled or opening a non-original world-type picker.
 
 ### Options root (`OptionsWindow`, `options.ldl`, `optionswindow.cpp`)
 
-Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, `SaveGameButton`, `LoadGameButton`, `RestartButton`, `NewGameButton`, `QuitToShellButton` (`QUIT`), `MapEditorButton` (`CHEAT MODE`), and generated `c3_PopupClose`.
+Mapped current controls: title `Name`, `ConfigHeader`, `GamePlayButton`, `GraphicsButton`, `SoundButton` (`str_ldl_SFX` renders as `SOUND`), `MusicButton`, `KeyboardButton`, `GameHeader`, disabled `SaveGameButton`, disabled `LoadGameButton`, disabled `RestartButton`, disabled `NewGameButton`, disabled `MapEditorButton` (`CHEAT MODE`), and generated `c3_PopupClose`. `QuitToShellButton` is not exposed in the active base-game options popup.
 
 Remaining schism: popup chrome is only the tiled `uptg20e` pattern plus generated Close button; the full `c3_PopupWindow` frame/title renderer is not cloned yet.
 

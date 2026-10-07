@@ -198,7 +198,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
         ),
         label(
             "EditorButtonLabel",
-            "str_ldl_LaunchScenerioEditor",
+            "SCENARIO EDITOR",
             "Editor Label",
             455,
             388,
@@ -208,7 +208,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
         ),
         button(
             "EditorButton",
-            "str_ldl_Editor",
+            "Launch Editor",
             "Editor",
             455,
             400,

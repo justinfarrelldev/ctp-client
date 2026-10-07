@@ -415,7 +415,7 @@ fn new_game_labels_use_original_ldl_text_and_geometry() {
         ),
         (
             "Editor Label",
-            "str_ldl_LaunchScenerioEditor",
+            "SCENARIO EDITOR",
             MenuRect::new(455, 388, 180, 18),
         ),
     ] {
@@ -433,6 +433,15 @@ fn new_game_labels_use_original_ldl_text_and_geometry() {
             "{accessible_name} should keep the original LDL geometry"
         );
     }
+
+    let editor = screen
+        .find_accessible("Editor")
+        .expect("editor launcher should exist");
+    assert_eq!(
+        editor.label(),
+        "Launch Editor",
+        "EditorButton should resolve str_ldl_Editor from cht_str.txt"
+    );
 }
 
 #[test]
@@ -510,13 +519,9 @@ fn option_screen_labels_use_original_visible_strings() {
         "SOUND",
         "OptionsWindow.SoundButton uses str_ldl_SFX, whose English text is SOUND"
     );
-    assert_eq!(
-        options_screen
-            .find_accessible("Quit To Shell")
-            .expect("quit-to-shell button should exist")
-            .label(),
-        "QUIT",
-        "QuitToShellButton uses str_ldl_QUITTOSHELL"
+    assert!(
+        options_screen.find_accessible("Quit To Shell").is_none(),
+        "base-game options popup should not expose a quit button"
     );
 
     let graphics = screen_for(
@@ -680,7 +685,7 @@ fn new_game_screen_omits_uninstantiated_profile_world_dropdown_panels() {
 }
 
 #[test]
-fn options_screen_uses_only_controls_instantiated_by_original_source() {
+fn options_screen_hides_quit_and_disables_game_management_controls() {
     let screen = screen_for(
         ShellScreenId::Options,
         &GameSetupState::default(),
@@ -692,9 +697,26 @@ fn options_screen_uses_only_controls_instantiated_by_original_source() {
         "OptionsWindow source never instantiates the LDL-only QuitButton"
     );
     assert!(
-        screen.find_accessible("Quit To Shell").is_some(),
-        "OptionsWindow source creates QuitToShellButton even though its helper names are inconsistent"
+        screen.find_accessible("Quit To Shell").is_none(),
+        "base-game options popup removes the quit-to-shell control from the active child list"
     );
+
+    for accessible_name in [
+        "Save Game",
+        "Load Game",
+        "Restart",
+        "New Game",
+        "Cheat Mode",
+    ] {
+        let control = screen
+            .find_accessible(accessible_name)
+            .expect("right-side game-management control should remain modeled");
+        assert_eq!(
+            control.action(),
+            Some(ShellAction::Disabled),
+            "{accessible_name} should remain disabled in the base-game options popup"
+        );
+    }
 }
 
 #[test]
