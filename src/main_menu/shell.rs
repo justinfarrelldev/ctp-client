@@ -26,6 +26,8 @@ mod hub;
 mod new_game;
 /// Options screen builders.
 mod options;
+/// Functional shell option state.
+mod options_state;
 /// Picker and option-list builders.
 mod pickers;
 /// Original shell screen dispatcher.
@@ -98,6 +100,22 @@ pub(super) enum ShellOptionField {
     MusicVolume,
     /// Unit animation speed slider.
     UnitSpeed,
+    /// Unit animation toggle.
+    UnitAnimation,
+    /// Animated trade-route toggle.
+    AnimatedTradeRoutes,
+    /// Wonder movie toggle.
+    WonderMovies,
+    /// City-name toggle.
+    CityNames,
+    /// Political-border toggle.
+    PoliticalBorders,
+    /// Trade-route visibility toggle.
+    TradeRoutes,
+    /// City-influence visibility toggle.
+    CityInfluence,
+    /// Grid visibility toggle.
+    Grid,
     /// Resolution picker.
     Resolution,
     /// Music enabled switch.
@@ -127,6 +145,8 @@ pub(super) enum ShellAction {
     SelectOption(ShellOptionField, usize),
     /// Toggle one boolean option.
     ToggleOption(ShellOptionField),
+    /// Focus the editable leader-name field.
+    FocusLeaderName,
     /// Start the single-player game using the selected setup.
     LaunchGame,
     /// Return to the previous shell screen.
@@ -259,8 +279,6 @@ pub(super) enum ShellControlKind {
         /// Optional original image family for the switch state.
         images: Option<ShellImageSet>,
     },
-    /// Pattern/image decoration or popup frame piece.
-    Decoration,
     /// List or dropdown item.
     ListItem {
         /// Optional original image family for selectable list items.
@@ -335,11 +353,6 @@ impl ShellControl {
     pub(super) const fn source(&self) -> &'static str {
         self.source
     }
-
-    /// Returns whether this control has actionable button semantics.
-    pub(super) const fn is_actionable(&self) -> bool {
-        self.action.is_some()
-    }
 }
 
 /// One original shell screen with controls and optional background.
@@ -404,7 +417,7 @@ impl ShellScreen {
 
     /// Finds a control by point.
     pub(super) fn find_at_point(&self, point_x: i32, point_y: i32) -> Option<&ShellControl> {
-        self.controls.iter().find(|control| {
+        self.controls.iter().rev().find(|control| {
             let global_rect = MenuRect::new(
                 self.rect.x.saturating_add(control.rect.x),
                 self.rect.y.saturating_add(control.rect.y),
@@ -435,19 +448,25 @@ pub(super) struct GameSetupState {
     players: String,
     /// Selected rules preset.
     rules: String,
+    /// Whether the leader-name field is focused for text input.
+    leader_name_focused: bool,
+    /// Whether the next leader-name text input replaces the current contents.
+    leader_name_replace_on_input: bool,
 }
 
 impl Default for GameSetupState {
     fn default() -> Self {
         Self {
             nation: "ROMANS".to_owned(),
-            leader_name: "Caesar".to_owned(),
+            leader_name: "Julius Caesar".to_owned(),
             difficulty: "PRINCE".to_owned(),
             map_size: "MEDIUM 48x96".to_owned(),
             world_shape: "EARTH WORLD".to_owned(),
             world_type: "RANDOM MAP".to_owned(),
             players: "4 PLAYERS".to_owned(),
             rules: "BLOODLUST OFF".to_owned(),
+            leader_name_focused: false,
+            leader_name_replace_on_input: false,
         }
     }
 }
@@ -472,7 +491,12 @@ impl GameSetupState {
             return false;
         };
         match field {
-            GameSetupField::Nation => (*value).clone_into(&mut self.nation),
+            GameSetupField::Nation => {
+                (*value).clone_into(&mut self.nation);
+                if let Some(leader_name) = pickers::leader_name_for_nation_index(index) {
+                    leader_name.clone_into(&mut self.leader_name);
+                }
+            }
             GameSetupField::Difficulty => (*value).clone_into(&mut self.difficulty),
             GameSetupField::MapSize => (*value).clone_into(&mut self.map_size),
             GameSetupField::WorldShape => (*value).clone_into(&mut self.world_shape),
@@ -487,144 +511,42 @@ impl GameSetupState {
     pub(super) fn leader_name(&self) -> &str {
         self.leader_name.as_str()
     }
-}
 
-/// Functional pre-game option state.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ShellOptionsState {
-    /// SFX volume from 0 to 10.
-    sfx_volume: i32,
-    /// Voice volume from 0 to 10.
-    voice_volume: i32,
-    /// Music volume from 0 to 10.
-    music_volume: i32,
-    /// Unit speed from 0 to 9.
-    unit_speed: i32,
-    /// Selected resolution label.
-    resolution: String,
-    /// Music on/off.
-    music_enabled: bool,
-    /// Auto-repeat music.
-    auto_repeat: bool,
-    /// Randomize music order.
-    random_order: bool,
-    /// Selected music track index.
-    music_track: usize,
-}
+    /// Focuses or unfocuses the leader-name field.
+    pub(super) const fn set_leader_name_focused(&mut self, focused: bool) {
+        self.leader_name_focused = focused;
+        self.leader_name_replace_on_input = focused;
+    }
 
-impl Default for ShellOptionsState {
-    fn default() -> Self {
-        Self {
-            sfx_volume: 5,
-            voice_volume: 5,
-            music_volume: 5,
-            unit_speed: 5,
-            resolution: "800 x 600".to_owned(),
-            music_enabled: true,
-            auto_repeat: true,
-            random_order: false,
-            music_track: 1,
+    /// Returns whether leader-name text input is focused.
+    pub(super) const fn leader_name_focused(&self) -> bool {
+        self.leader_name_focused
+    }
+
+    /// Appends editable leader-name text, enforcing original `FIELD.maxfieldlen`.
+    pub(super) fn input_leader_name(&mut self, text: &str) {
+        const MAX_LEADER_NAME_LEN: usize = 23;
+        if self.leader_name_replace_on_input {
+            self.leader_name.clear();
+            self.leader_name_replace_on_input = false;
         }
+        let current_length = self.leader_name.chars().count();
+        let remaining = MAX_LEADER_NAME_LEN.saturating_sub(current_length);
+        self.leader_name.extend(text.chars().take(remaining));
     }
-}
 
-impl ShellOptionsState {
-    /// Returns slider value for a functional option.
-    pub(super) const fn numeric(&self, field: ShellOptionField) -> Option<i32> {
-        match field {
-            ShellOptionField::SfxVolume => Some(self.sfx_volume),
-            ShellOptionField::VoiceVolume => Some(self.voice_volume),
-            ShellOptionField::MusicVolume => Some(self.music_volume),
-            ShellOptionField::UnitSpeed => Some(self.unit_speed),
-            ShellOptionField::Resolution
-            | ShellOptionField::MusicEnabled
-            | ShellOptionField::AutoRepeat
-            | ShellOptionField::RandomOrder
-            | ShellOptionField::MusicTrack => None,
+    /// Removes one character from the editable leader-name field.
+    pub(super) fn backspace_leader_name(&mut self) {
+        if self.leader_name_replace_on_input {
+            self.leader_name.clear();
+            self.leader_name_replace_on_input = false;
+            return;
         }
-    }
-
-    /// Sets a numeric option, clamping to original bounds.
-    pub(super) fn set_numeric(&mut self, field: ShellOptionField, value: i32) -> bool {
-        match field {
-            ShellOptionField::SfxVolume => self.sfx_volume = value.clamp(0_i32, 10_i32),
-            ShellOptionField::VoiceVolume => self.voice_volume = value.clamp(0_i32, 10_i32),
-            ShellOptionField::MusicVolume => self.music_volume = value.clamp(0_i32, 10_i32),
-            ShellOptionField::UnitSpeed => self.unit_speed = value.clamp(0_i32, 9_i32),
-            ShellOptionField::Resolution
-            | ShellOptionField::MusicEnabled
-            | ShellOptionField::AutoRepeat
-            | ShellOptionField::RandomOrder
-            | ShellOptionField::MusicTrack => return false,
-        }
-        true
-    }
-
-    /// Toggles a boolean option.
-    pub(super) const fn toggle(&mut self, field: ShellOptionField) -> bool {
-        match field {
-            ShellOptionField::MusicEnabled => self.music_enabled = !self.music_enabled,
-            ShellOptionField::AutoRepeat => self.auto_repeat = !self.auto_repeat,
-            ShellOptionField::RandomOrder => self.random_order = !self.random_order,
-            ShellOptionField::SfxVolume
-            | ShellOptionField::VoiceVolume
-            | ShellOptionField::MusicVolume
-            | ShellOptionField::UnitSpeed
-            | ShellOptionField::Resolution
-            | ShellOptionField::MusicTrack => return false,
-        }
-        true
-    }
-
-    /// Selects a list/switch option.
-    pub(super) fn select(&mut self, field: ShellOptionField, index: usize) -> bool {
-        match field {
-            ShellOptionField::Resolution => {
-                let Some(value) = pickers::RESOLUTIONS.get(index) else {
-                    return false;
-                };
-                (*value).clone_into(&mut self.resolution);
-            }
-            ShellOptionField::MusicEnabled => self.music_enabled = index != 0,
-            ShellOptionField::AutoRepeat => self.auto_repeat = index != 0,
-            ShellOptionField::RandomOrder => self.random_order = index != 0,
-            ShellOptionField::MusicTrack => {
-                if index >= pickers::MUSIC_TRACKS.len() {
-                    return false;
-                }
-                self.music_track = index.saturating_add(1);
-            }
-            ShellOptionField::SfxVolume
-            | ShellOptionField::VoiceVolume
-            | ShellOptionField::MusicVolume
-            | ShellOptionField::UnitSpeed => return false,
-        }
-        true
-    }
-
-    /// Returns selected resolution label.
-    pub(super) fn resolution(&self) -> &str {
-        self.resolution.as_str()
-    }
-
-    /// Returns whether music is enabled.
-    pub(super) const fn music_enabled(&self) -> bool {
-        self.music_enabled
-    }
-
-    /// Returns whether auto-repeat is enabled.
-    pub(super) const fn auto_repeat(&self) -> bool {
-        self.auto_repeat
-    }
-
-    /// Returns whether random order is enabled.
-    pub(super) const fn random_order(&self) -> bool {
-        self.random_order
-    }
-
-    /// Returns selected music track number.
-    pub(super) const fn music_track(&self) -> usize {
-        self.music_track
+        let removed = self.leader_name.pop();
+        debug_assert!(
+            removed.is_some() || self.leader_name.is_empty(),
+            "backspace should either remove a character or leave an empty leader name"
+        );
     }
 }
 
@@ -638,7 +560,7 @@ pub(super) struct SinglePlayerShellModel {
     /// Game setup selections.
     setup: GameSetupState,
     /// Functional option selections.
-    options: ShellOptionsState,
+    options: options_state::ShellOptionsState,
 }
 
 impl Default for SinglePlayerShellModel {
@@ -647,7 +569,7 @@ impl Default for SinglePlayerShellModel {
             current: ShellScreenId::Landing,
             history: Vec::new(),
             setup: GameSetupState::default(),
-            options: ShellOptionsState::default(),
+            options: options_state::ShellOptionsState::default(),
         }
     }
 }
@@ -664,12 +586,12 @@ impl SinglePlayerShellModel {
     }
 
     /// Returns options state.
-    pub(super) const fn options(&self) -> &ShellOptionsState {
+    pub(super) const fn options(&self) -> &options_state::ShellOptionsState {
         &self.options
     }
 
     /// Returns mutable option state.
-    pub(super) const fn options_mut(&mut self) -> &mut ShellOptionsState {
+    pub(super) const fn options_mut(&mut self) -> &mut options_state::ShellOptionsState {
         &mut self.options
     }
 
@@ -715,7 +637,11 @@ impl SinglePlayerShellModel {
                     self.navigate(pickers::option_screen_for(field));
                 }
             }
-            ShellAction::Back => self.back(),
+            ShellAction::FocusLeaderName => self.setup.set_leader_name_focused(true),
+            ShellAction::Back => {
+                self.setup.set_leader_name_focused(false);
+                self.back();
+            }
             ShellAction::LaunchGame => return ShellFlowOutcome::LaunchGame,
             ShellAction::Quit => return ShellFlowOutcome::Quit,
             ShellAction::Disabled => {}
@@ -723,8 +649,35 @@ impl SinglePlayerShellModel {
         ShellFlowOutcome::Continue
     }
 
+    /// Applies text input to focused fields at runtime.
+    pub(super) fn handle_text_input(&mut self, text: &str) {
+        if self.setup.leader_name_focused() {
+            self.setup.input_leader_name(text);
+        }
+    }
+
+    /// Applies backspace to focused fields at runtime.
+    pub(super) fn handle_backspace(&mut self) {
+        if self.setup.leader_name_focused() {
+            self.setup.backspace_leader_name();
+        }
+    }
+
+    /// Applies text input to focused fields in tests.
+    #[cfg(test)]
+    pub(super) fn input_text(&mut self, text: &str) {
+        self.handle_text_input(text);
+    }
+
+    /// Applies backspace to focused fields in tests.
+    #[cfg(test)]
+    pub(super) fn backspace_text(&mut self) {
+        self.handle_backspace();
+    }
+
     /// Navigates to a screen while retaining back history.
     fn navigate(&mut self, screen: ShellScreenId) {
+        self.setup.set_leader_name_focused(false);
         if self.current != screen {
             self.history.push(self.current);
             self.current = screen;
@@ -752,7 +705,7 @@ pub(super) enum ShellFlowOutcome {
 pub(super) fn screen_for(
     id: ShellScreenId,
     setup: &GameSetupState,
-    options: &ShellOptionsState,
+    options: &options_state::ShellOptionsState,
 ) -> ShellScreen {
     screens::screen_for(id, setup, options)
 }

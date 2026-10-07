@@ -180,6 +180,7 @@ fn original_button_art_assets_are_resolved_from_immutable_game_copy() {
     for (style, style_name) in [
         (ButtonVisualStyle::blue_large(), "blue"),
         (ButtonVisualStyle::stone_large(), "stone"),
+        (ButtonVisualStyle::ctp2_small(), "small popup"),
     ] {
         let summaries =
             runtime::button_style_asset_summaries_for_test(std::path::Path::new("ctp2"), style)
@@ -347,8 +348,8 @@ fn headless_sdl_shell_options_back_and_quit_flow_exits_cleanly() {
             mouse_down(623_i32, 471_i32),
             mouse_down(156_i32, 276_i32),
             mouse_down(311_i32, 240_i32),
-            mouse_down(488_i32, 381_i32),
-            mouse_down(489_i32, 375_i32),
+            mouse_down(688_i32, 416_i32),
+            mouse_down(538_i32, 454_i32),
             mouse_down(694_i32, 574_i32),
         ],
     )
@@ -373,7 +374,7 @@ fn headless_sdl_shell_nation_picker_selects_from_original_grid() {
             mouse_down(644_i32, 246_i32),
             mouse_down(400_i32, 100_i32),
             mouse_down(260_i32, 120_i32),
-            mouse_down(625_i32, 412_i32),
+            mouse_down(660_i32, 503_i32),
             mouse_down(400_i32, 574_i32),
         ],
     )

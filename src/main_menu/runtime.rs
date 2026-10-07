@@ -4,38 +4,28 @@ extern crate alloc;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use std::fs::{self, File};
-use std::io::BufReader;
+use std::fs;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
-use sdl2::AudioSubsystem;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::mixer::{self, DEFAULT_CHANNELS, DEFAULT_FORMAT, InitFlag, Music, Sdl2MixerContext};
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect as SdlRect;
-use sdl2::render::{BlendMode, Canvas, Texture, TextureCreator};
+use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
-use unciv::ZfsFile;
 
 use crate::config::GameInstallation;
 
 use super::{
     ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel,
-    MainMenuMusicBackend, MenuAssetReference, MenuRect,
+    MainMenuMusicBackend, MenuRect,
 };
 
-/// Audio frequency requested from `SDL_mixer` for menu music.
-const MIXER_FREQUENCY: i32 = 44_100;
-/// Mixer chunk size balancing latency and compatibility.
-const MIXER_CHUNK_SIZE: i32 = 1_024;
-/// Maximum `SDL_mixer` volume value.
-const MIXER_MAX_VOLUME: i32 = 128;
 /// Delay between menu frames.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
 /// Texture format matching bytes emitted by the RIM RGBA conversion path.
@@ -66,10 +56,22 @@ const FONT_CANDIDATES: [&str; 8] = [
     "C:/Windows/Fonts/arialbd.ttf",
 ];
 
+/// Original CTP2 RIM/ZFS asset loading.
+mod assets;
+/// SDL_mixer-backed menu audio helpers.
+mod audio;
 /// Original CTP2 button art loading and rendering.
 mod button_art;
 /// Single-player shell runtime rendering and navigation.
 mod shell_runtime;
+/// Resolution-independent viewport mapping helpers.
+mod viewport;
+
+use assets::{create_texture_from_rgba, load_rim_rgba, load_rim_rgba_entry};
+use audio::SdlMenuMusicBackend;
+#[cfg(test)]
+use audio::{music_track_relative_path, option_volume_to_mixer_volume};
+use viewport::{output_point_to_menu_point, prepare_menu_canvas};
 
 /// Event-loop settings used by production and headless smoke tests.
 struct RuntimeLoopOptions {
@@ -98,18 +100,6 @@ impl RuntimeLoopOptions {
     }
 }
 
-/// Image decoded from a RIM entry into RGBA bytes.
-struct RgbaImage {
-    /// Width in pixels.
-    width: u32,
-    /// Height in pixels.
-    height: u32,
-    /// Bytes per image row.
-    pitch: usize,
-    /// Pixel data in RGBA order.
-    data: Vec<u8>,
-}
-
 /// Texture cache for all original-art menu resources used in one frame.
 struct MenuTextures<'texture> {
     /// Optional original landing-page background.
@@ -118,111 +108,8 @@ struct MenuTextures<'texture> {
     blue_large: Option<button_art::ButtonStateTextures<'texture>>,
     /// Optional stone button textures.
     stone_large: Option<button_art::ButtonStateTextures<'texture>>,
-}
-
-/// SDL_mixer-backed menu music player.
-pub struct SdlMenuMusicBackend {
-    /// SDL context kept alive for the audio subsystem.
-    _sdl: sdl2::Sdl,
-    /// Audio subsystem lifetime guard.
-    _audio: AudioSubsystem,
-    /// Mixer context lifetime guard.
-    _mixer_context: Sdl2MixerContext,
-    /// Currently loaded music, kept alive while playback continues.
-    music: Option<Music<'static>>,
-}
-
-impl SdlMenuMusicBackend {
-    /// Creates and initializes the `SDL_mixer` backend.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MainMenuError::Music`] when SDL audio or mixer setup fails.
-    fn new() -> Result<Self, MainMenuError> {
-        let sdl = sdl2::init().map_err(|message| MainMenuError::Music { message })?;
-        let audio = sdl
-            .audio()
-            .map_err(|message| MainMenuError::Music { message })?;
-        let mixer_context =
-            mixer::init(InitFlag::OGG).map_err(|message| MainMenuError::Music { message })?;
-        mixer::open_audio(
-            MIXER_FREQUENCY,
-            DEFAULT_FORMAT,
-            DEFAULT_CHANNELS,
-            MIXER_CHUNK_SIZE,
-        )
-        .map_err(|message| MainMenuError::Music { message })?;
-        mixer::allocate_channels(4);
-
-        Ok(Self {
-            _sdl: sdl,
-            _audio: audio,
-            _mixer_context: mixer_context,
-            music: None,
-        })
-    }
-
-    /// Plays a numbered CTP2 music track from the installation.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MainMenuError::Music`] when loading or playback fails.
-    fn play_track_number(
-        &mut self,
-        installation_root: &Path,
-        track_number: usize,
-    ) -> Result<(), MainMenuError> {
-        let relative_path = music_track_relative_path(track_number);
-        let policy = super::MenuMusicPolicy {
-            autoplay: true,
-            relative_path: relative_path.clone(),
-            loops: -1_i32,
-        };
-        self.play_music(&policy, installation_root.join(relative_path))
-    }
-
-    /// Pauses or resumes current music playback.
-    fn set_music_enabled(enabled: bool) {
-        if enabled {
-            Music::resume();
-        } else {
-            Music::pause();
-        }
-    }
-
-    /// Applies music volume using the original 0-10 option scale.
-    fn set_music_volume(value: i32) {
-        Music::set_volume(option_volume_to_mixer_volume(value));
-    }
-
-    /// Applies SFX/voice channel volume using the original 0-10 option scale.
-    fn set_channel_volume(value: i32) {
-        mixer::Channel::all().set_volume(option_volume_to_mixer_volume(value));
-    }
-}
-
-impl MainMenuMusicBackend for SdlMenuMusicBackend {
-    fn play_music(
-        &mut self,
-        policy: &super::MenuMusicPolicy,
-        absolute_path: PathBuf,
-    ) -> Result<(), MainMenuError> {
-        let music = Music::from_file(&absolute_path).map_err(|message| MainMenuError::Music {
-            message: format!("failed to load {}: {message}", absolute_path.display()),
-        })?;
-        music
-            .play(policy.loops)
-            .map_err(|message| MainMenuError::Music { message })?;
-        self.music = Some(music);
-        Ok(())
-    }
-}
-
-impl Drop for SdlMenuMusicBackend {
-    fn drop(&mut self) {
-        Music::halt();
-        mixer::close_audio();
-    }
+    /// Optional default small popup button textures.
+    ctp2_small: Option<button_art::ButtonStateTextures<'texture>>,
 }
 
 /// Runs the SDL main-menu runtime for the supplied installation.
@@ -322,6 +209,7 @@ fn run_sdl_event_loop_with_options_and_audio(
 ) -> Result<MainMenuAction, MainMenuError> {
     let sdl = sdl2::init().map_err(runtime_error)?;
     let video = sdl.video().map_err(runtime_error)?;
+    video.text_input().start();
     let window = video
         .window("Call to Power II", model.width, model.height)
         .position_centered()
@@ -353,8 +241,19 @@ fn run_sdl_event_loop_with_options_and_audio(
     let mut rendered_frames = 0_u32;
 
     while selected_action.is_none() {
+        let event_output_size = canvas
+            .output_size()
+            .map_or((super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT), |size| {
+                size
+            });
         for event in event_pump.poll_iter() {
-            handle_menu_event(&event, model, &mut shell_state, &mut selected_action);
+            handle_menu_event(
+                &event,
+                model,
+                &mut shell_state,
+                &mut selected_action,
+                event_output_size,
+            );
         }
 
         apply_shell_runtime_effects(
@@ -365,14 +264,26 @@ fn run_sdl_event_loop_with_options_and_audio(
         )?;
 
         let mouse_state = event_pump.mouse_state();
+        let draw_output_size = canvas
+            .output_size()
+            .map_or((super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT), |size| {
+                size
+            });
+        let (mouse_x, mouse_y) = output_point_to_menu_point(
+            draw_output_size.0,
+            draw_output_size.1,
+            mouse_state.x(),
+            mouse_state.y(),
+        )
+        .map_or((-1_i32, -1_i32), |point| point);
         draw_current_menu(
             &mut canvas,
             &texture_creator,
             &textures,
             model,
             &shell_state,
-            mouse_state.x(),
-            mouse_state.y(),
+            mouse_x,
+            mouse_y,
             font.as_ref(),
         )?;
         rendered_frames = rendered_frames.saturating_add(1);
@@ -429,7 +340,7 @@ fn apply_audio_effects(
     }
 }
 
-/// Applies a requested window resolution while preserving 800x600 logical coordinates.
+/// Applies a requested window resolution without scaling original 800x600 shell art.
 fn apply_resolution(
     canvas: &mut Canvas<Window>,
     width: u32,
@@ -440,8 +351,11 @@ fn apply_resolution(
         .set_size(width, height)
         .map_err(|error| runtime_error(error.to_string()))?;
     canvas
-        .set_logical_size(super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT)
-        .map_err(|error| runtime_error(error.to_string()))
+        .set_logical_size(0, 0)
+        .map_err(|error| runtime_error(error.to_string()))?;
+    canvas.set_scale(1.0, 1.0).map_err(runtime_error)?;
+    canvas.set_viewport(None);
+    Ok(())
 }
 
 /// Applies one SDL event to the menu action state.
@@ -450,75 +364,91 @@ fn handle_menu_event(
     model: &MainMenuModel,
     shell_state: &mut shell_runtime::ShellRuntimeState,
     selected_action: &mut Option<MainMenuAction>,
+    output_size: (u32, u32),
 ) {
-    match event {
-        &Event::Quit { .. }
-        | &Event::KeyDown {
+    match event.clone() {
+        Event::Quit { .. }
+        | Event::KeyDown {
             keycode: Some(Keycode::Escape),
             repeat: false,
             ..
         } => *selected_action = Some(MainMenuAction::Quit),
-        &Event::MouseButtonDown { x, y, .. } => {
-            if shell_state.is_landing() {
-                if let Some(action) = model.activate_at_point(x, y) {
-                    if action == MainMenuAction::SinglePlayer {
-                        shell_state.open_single_player();
-                    } else {
-                        *selected_action = Some(action);
+        Event::MouseButtonDown { x, y, .. } => {
+            if let Some((menu_x, menu_y)) =
+                output_point_to_menu_point(output_size.0, output_size.1, x, y)
+            {
+                if shell_state.is_landing() {
+                    if let Some(action) = model.activate_at_point(menu_x, menu_y) {
+                        if action == MainMenuAction::SinglePlayer {
+                            shell_state.open_single_player();
+                        } else {
+                            *selected_action = Some(action);
+                        }
                     }
+                } else if let Some(action) = shell_state.click_shell(menu_x, menu_y) {
+                    *selected_action = Some(action);
                 }
-            } else if let Some(action) = shell_state.click_shell(x, y) {
-                *selected_action = Some(action);
             }
         }
-        &Event::KeyDown { .. }
-        | &Event::KeyUp { .. }
-        | &Event::MouseMotion { .. }
-        | &Event::MouseButtonUp { .. }
-        | &Event::MouseWheel { .. }
-        | &Event::ControllerButtonDown { .. }
-        | &Event::ControllerButtonUp { .. }
-        | &Event::ControllerAxisMotion { .. }
-        | &Event::Window { .. }
-        | &Event::AppTerminating { .. }
-        | &Event::AppLowMemory { .. }
-        | &Event::AppWillEnterBackground { .. }
-        | &Event::AppDidEnterBackground { .. }
-        | &Event::AppWillEnterForeground { .. }
-        | &Event::AppDidEnterForeground { .. }
-        | &Event::Display { .. }
-        | &Event::TextEditing { .. }
-        | &Event::TextInput { .. }
-        | &Event::JoyAxisMotion { .. }
-        | &Event::JoyBallMotion { .. }
-        | &Event::JoyHatMotion { .. }
-        | &Event::JoyButtonDown { .. }
-        | &Event::JoyButtonUp { .. }
-        | &Event::JoyDeviceAdded { .. }
-        | &Event::JoyDeviceRemoved { .. }
-        | &Event::ControllerDeviceAdded { .. }
-        | &Event::ControllerDeviceRemoved { .. }
-        | &Event::ControllerDeviceRemapped { .. }
-        | &Event::ControllerTouchpadDown { .. }
-        | &Event::ControllerTouchpadMotion { .. }
-        | &Event::ControllerTouchpadUp { .. }
-        | &Event::FingerDown { .. }
-        | &Event::FingerUp { .. }
-        | &Event::FingerMotion { .. }
-        | &Event::DollarGesture { .. }
-        | &Event::DollarRecord { .. }
-        | &Event::MultiGesture { .. }
-        | &Event::ClipboardUpdate { .. }
-        | &Event::DropFile { .. }
-        | &Event::DropText { .. }
-        | &Event::DropBegin { .. }
-        | &Event::DropComplete { .. }
-        | &Event::AudioDeviceAdded { .. }
-        | &Event::AudioDeviceRemoved { .. }
-        | &Event::RenderTargetsReset { .. }
-        | &Event::RenderDeviceReset { .. }
-        | &Event::User { .. }
-        | &Event::Unknown { .. } => {}
+        Event::MouseMotion { x, y, .. } => {
+            if let Some((menu_x, menu_y)) =
+                output_point_to_menu_point(output_size.0, output_size.1, x, y)
+            {
+                shell_state.drag_shell(menu_x, menu_y);
+            }
+        }
+        Event::MouseButtonUp { .. } => shell_state.release_pointer(),
+        Event::TextInput { text, .. } => shell_state.handle_text_input(&text),
+        Event::KeyDown {
+            keycode: Some(Keycode::Backspace),
+            repeat: false,
+            ..
+        } => shell_state.handle_backspace(),
+        Event::KeyDown { .. }
+        | Event::KeyUp { .. }
+        | Event::MouseWheel { .. }
+        | Event::ControllerButtonDown { .. }
+        | Event::ControllerButtonUp { .. }
+        | Event::ControllerAxisMotion { .. }
+        | Event::Window { .. }
+        | Event::AppTerminating { .. }
+        | Event::AppLowMemory { .. }
+        | Event::AppWillEnterBackground { .. }
+        | Event::AppDidEnterBackground { .. }
+        | Event::AppWillEnterForeground { .. }
+        | Event::AppDidEnterForeground { .. }
+        | Event::Display { .. }
+        | Event::TextEditing { .. }
+        | Event::JoyAxisMotion { .. }
+        | Event::JoyBallMotion { .. }
+        | Event::JoyHatMotion { .. }
+        | Event::JoyButtonDown { .. }
+        | Event::JoyButtonUp { .. }
+        | Event::JoyDeviceAdded { .. }
+        | Event::JoyDeviceRemoved { .. }
+        | Event::ControllerDeviceAdded { .. }
+        | Event::ControllerDeviceRemoved { .. }
+        | Event::ControllerDeviceRemapped { .. }
+        | Event::ControllerTouchpadDown { .. }
+        | Event::ControllerTouchpadMotion { .. }
+        | Event::ControllerTouchpadUp { .. }
+        | Event::FingerDown { .. }
+        | Event::FingerUp { .. }
+        | Event::FingerMotion { .. }
+        | Event::DollarGesture { .. }
+        | Event::DollarRecord { .. }
+        | Event::MultiGesture { .. }
+        | Event::ClipboardUpdate { .. }
+        | Event::DropFile { .. }
+        | Event::DropText { .. }
+        | Event::DropBegin { .. }
+        | Event::DropComplete { .. }
+        | Event::AudioDeviceAdded { .. }
+        | Event::AudioDeviceRemoved { .. }
+        | Event::RenderTargetsReset { .. }
+        | Event::RenderDeviceReset { .. }
+        | Event::User { .. }
+        | Event::Unknown { .. } => {}
     }
 }
 
@@ -537,6 +467,7 @@ fn draw_current_menu(
     mouse_y: i32,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), MainMenuError> {
+    prepare_menu_canvas(canvas)?;
     if shell_state.is_landing() {
         draw_menu(canvas, textures, model, mouse_x, mouse_y, font)
     } else {
@@ -606,9 +537,11 @@ fn draw_fallback_button(
         (ButtonStyleId::BlueLarge, true) => Color::RGB(63, 105, 158),
         (ButtonStyleId::StoneLarge, false) => Color::RGB(89, 82, 70),
         (ButtonStyleId::StoneLarge, true) => Color::RGB(123, 112, 93),
+        (ButtonStyleId::Ctp2Small, false) => Color::RGB(42, 78, 116),
+        (ButtonStyleId::Ctp2Small, true) => Color::RGB(70, 112, 160),
     };
     let border = match style {
-        ButtonStyleId::BlueLarge => Color::RGB(211, 181, 85),
+        ButtonStyleId::BlueLarge | ButtonStyleId::Ctp2Small => Color::RGB(211, 181, 85),
         ButtonStyleId::StoneLarge => Color::RGB(188, 174, 138),
     };
     let sdl_rect = to_sdl_rect(rect);
@@ -698,23 +631,6 @@ const fn rgb_color((red, green, blue): (u8, u8, u8)) -> Color {
     Color::RGB(red, green, blue)
 }
 
-/// Converts a 0-10 shell option volume to `SDL_mixer`'s 0-128 scale.
-fn option_volume_to_mixer_volume(value: i32) -> i32 {
-    value
-        .clamp(0_i32, 10_i32)
-        .saturating_mul(MIXER_MAX_VOLUME)
-        .checked_div(10_i32)
-        .map_or(0_i32, |scaled| scaled)
-}
-
-/// Returns the relative path for a one-based CTP2 music track number.
-fn music_track_relative_path(track_number: usize) -> PathBuf {
-    let bounded_track = track_number.clamp(1_usize, 10_usize);
-    PathBuf::from(format!(
-        "ctp2_program/ctp/music/Track{bounded_track:02}.ogg"
-    ))
-}
-
 /// Parses an original resolution label such as `1024 x 768`.
 fn parse_resolution_label(label: &str) -> Option<(u32, u32)> {
     let (width, height) = label.split_once('x')?;
@@ -742,6 +658,12 @@ fn load_menu_textures<'texture>(
             ButtonVisualStyle::stone_large(),
         )
         .ok(),
+        ctp2_small: button_art::load_button_state_textures(
+            texture_creator,
+            model,
+            ButtonVisualStyle::ctp2_small(),
+        )
+        .ok(),
     }
 }
 
@@ -753,6 +675,7 @@ const fn textures_for_style<'texture>(
     match style {
         ButtonStyleId::BlueLarge => textures.blue_large.as_ref(),
         ButtonStyleId::StoneLarge => textures.stone_large.as_ref(),
+        ButtonStyleId::Ctp2Small => textures.ctp2_small.as_ref(),
     }
 }
 
@@ -763,114 +686,6 @@ fn load_background_texture<'texture>(
 ) -> Result<Texture<'texture>, MainMenuError> {
     let image = load_rim_rgba(&model.installation_root, &model.background)?;
     create_texture_from_rgba(texture_creator, &image)
-}
-
-/// Creates an SDL texture from RGBA bytes.
-fn create_texture_from_rgba<'texture>(
-    texture_creator: &'texture TextureCreator<WindowContext>,
-    image: &RgbaImage,
-) -> Result<Texture<'texture>, MainMenuError> {
-    let mut texture = texture_creator
-        .create_texture_streaming(MENU_TEXTURE_FORMAT, image.width, image.height)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    texture
-        .update(None, &image.data, image.pitch)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    texture.set_blend_mode(BlendMode::Blend);
-    Ok(texture)
-}
-
-/// Loads and converts a RIM image from a ZFS archive without copying assets to the repository.
-fn load_rim_rgba(
-    installation_root: &Path,
-    asset: &MenuAssetReference,
-) -> Result<RgbaImage, MainMenuError> {
-    load_rim_rgba_entry(
-        installation_root,
-        asset.archive_relative_path,
-        asset.entry_name,
-        None,
-    )
-}
-
-/// Loads one RIM entry as RGBA bytes, optionally applying a chroma key.
-fn load_rim_rgba_entry(
-    installation_root: &Path,
-    archive_relative_path: &str,
-    entry_name: &str,
-    chroma_key: Option<(u8, u8, u8)>,
-) -> Result<RgbaImage, MainMenuError> {
-    let archive_path = installation_root.join(archive_relative_path);
-    let file = File::open(&archive_path).map_err(|error| {
-        runtime_error(format!(
-            "failed to open {}: {error}",
-            archive_path.display()
-        ))
-    })?;
-    let mut reader = BufReader::new(file);
-    let zfs = ZfsFile::from_stream(&mut reader).map_err(|error| {
-        runtime_error(format!(
-            "failed to parse {}: {error}",
-            archive_path.display()
-        ))
-    })?;
-    let entry = zfs
-        .files
-        .iter()
-        .find(|candidate| candidate.name.eq_ignore_ascii_case(entry_name))
-        .cloned()
-        .ok_or_else(|| {
-            runtime_error(format!(
-                "{} was not found in {}",
-                entry_name,
-                archive_path.display()
-            ))
-        })?;
-    let rim = entry.read_rim_image(&mut reader).map_err(|error| {
-        runtime_error(format!(
-            "failed to decode {} from {}: {error}",
-            entry_name,
-            archive_path.display()
-        ))
-    })?;
-    let width = u32::from(rim.width);
-    let height = u32::from(rim.height);
-    let pitch = usize::from(rim.width)
-        .checked_mul(4)
-        .ok_or_else(|| runtime_error("RIM pitch overflow".to_owned()))?;
-
-    Ok(RgbaImage {
-        width,
-        height,
-        pitch,
-        data: rim_rgba_bytes_with_chroma_key(&rim, chroma_key),
-    })
-}
-
-/// Converts RIM image pixels to RGBA and applies optional chroma transparency.
-fn rim_rgba_bytes_with_chroma_key(
-    rim: &unciv::RimImage,
-    chroma_key: Option<(u8, u8, u8)>,
-) -> Vec<u8> {
-    let mut data = rim.to_rgba_bytes();
-    if let Some((key_red, key_green, key_blue)) = chroma_key {
-        apply_chroma_key_alpha(&mut data, key_red, key_green, key_blue);
-    }
-    data
-}
-
-/// Applies transparent alpha to pixels matching the supplied RGB chroma key.
-fn apply_chroma_key_alpha(data: &mut [u8], key_red: u8, key_green: u8, key_blue: u8) {
-    for pixel in data.chunks_exact_mut(4) {
-        if pixel.first() == Some(&key_red)
-            && pixel.get(1) == Some(&key_green)
-            && pixel.get(2) == Some(&key_blue)
-        {
-            if let Some(alpha) = pixel.get_mut(3) {
-                *alpha = 0;
-            }
-        }
-    }
 }
 
 /// Headless SDL runtime smoke-test helpers.

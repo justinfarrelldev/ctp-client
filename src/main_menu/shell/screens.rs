@@ -3,8 +3,9 @@
 use alloc::vec::Vec;
 
 use super::builders::asset;
+use super::options_state::ShellOptionsState;
 use super::pickers;
-use super::{GameSetupState, MenuRect, ShellOptionsState, ShellScreen, ShellScreenId};
+use super::{GameSetupState, MenuRect, ShellScreen, ShellScreenId};
 
 /// Builds a screen using current setup/option state.
 pub(super) fn screen_for(

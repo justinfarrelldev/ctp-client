@@ -1,10 +1,9 @@
 //! Options, graphics, sound, and music screen builders.
 
 use super::MenuRect;
-use super::builders::{asset, button, image_switch_control, label, slider};
-use super::{
-    ShellAction, ShellImageSet, ShellOptionField, ShellOptionsState, ShellScreen, ShellScreenId,
-};
+use super::builders::{asset, button, image_switch_control, label, popup_close_button, slider};
+use super::options_state::ShellOptionsState;
+use super::{ShellAction, ShellImageSet, ShellOptionField, ShellScreen, ShellScreenId};
 use crate::main_menu::ButtonVisualStyle;
 
 /// Builds the root options popup.
@@ -182,6 +181,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 ShellAction::Disabled,
                 "options.ldl:205",
             ),
+            popup_close_button(380, 365),
         ],
     }
 }
@@ -235,106 +235,141 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             image_switch_control(
                 "WalkButton",
-                "UNIT ANIMATION",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::UnitAnimation,
+                    "UNIT ANIMATION ON",
+                    "UNIT ANIMATION OFF",
+                ),
                 "Unit Animation",
                 30,
                 90,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::UnitAnimation),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::UnitAnimation),
                 "graphics.ldl:57",
             ),
             image_switch_control(
                 "TradeButton",
-                "ANIMATED TRADE ROUTES",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::AnimatedTradeRoutes,
+                    "ANIMATED TRADE ROUTES ON",
+                    "ANIMATED TRADE ROUTES OFF",
+                ),
                 "Animated Trade Routes",
                 30,
                 120,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::AnimatedTradeRoutes),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::AnimatedTradeRoutes),
                 "graphics.ldl:66",
             ),
             image_switch_control(
                 "WonderButton",
-                "WONDER MOVIES",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::WonderMovies,
+                    "WONDER MOVIES ON",
+                    "WONDER MOVIES OFF",
+                ),
                 "Wonder Movies",
                 30,
                 150,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::WonderMovies),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::WonderMovies),
                 "graphics.ldl:75",
             ),
             image_switch_control(
                 "CityNamesButton",
-                "CITY NAMES",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::CityNames,
+                    "CITY NAMES ON",
+                    "CITY NAMES OFF",
+                ),
                 "City Names",
                 30,
                 180,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::CityNames),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::CityNames),
                 "graphics.ldl:84",
             ),
             image_switch_control(
                 "PoliticalBordersButton",
-                "POLITICAL BORDERS",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::PoliticalBorders,
+                    "POLITICAL BORDERS ON",
+                    "POLITICAL BORDERS OFF",
+                ),
                 "Political Borders",
                 350,
                 90,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::PoliticalBorders),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::PoliticalBorders),
                 "graphics.ldl:96",
             ),
             image_switch_control(
                 "TradeRoutesButton",
-                "TRADE ROUTES",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::TradeRoutes,
+                    "TRADE ROUTES ON",
+                    "TRADE ROUTES OFF",
+                ),
                 "Trade Routes",
                 350,
                 120,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::TradeRoutes),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::TradeRoutes),
                 "graphics.ldl:105",
             ),
             image_switch_control(
                 "CityInflenceButton",
-                "CITY INFLUENCE",
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::CityInfluence,
+                    "CITY INFLUENCE ON",
+                    "CITY INFLUENCE OFF",
+                ),
                 "City Influence",
                 350,
                 150,
                 300,
                 24,
-                true,
+                options.bool_option(ShellOptionField::CityInfluence),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::CityInfluence),
                 "graphics.ldl:114",
             ),
             image_switch_control(
                 "GridButton",
-                "GRID",
+                graphics_toggle_label(options, ShellOptionField::Grid, "GRID ON", "GRID OFF"),
                 "Grid",
                 350,
                 180,
                 300,
                 24,
-                false,
+                options.bool_option(ShellOptionField::Grid),
                 ShellImageSet::graphics_checkbox(),
-                ShellAction::Disabled,
+                ShellAction::ToggleOption(ShellOptionField::Grid),
                 "graphics.ldl:123",
             ),
             button(
@@ -349,27 +384,26 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellAction::OpenOption(ShellOptionField::Resolution),
                 "graphics.ldl:134",
             ),
-            button(
-                "AcceptButton",
-                "ACCEPT",
-                "Accept",
-                404,
-                217,
-                48,
-                19,
-                ButtonVisualStyle::stone_large(),
-                ShellAction::Back,
-                "graphics.ldl:44",
-            ),
+            popup_close_button(680, 290),
         ],
     }
 }
 
+/// Returns the visible stringtable-like label for one graphics toggle.
+const fn graphics_toggle_label(
+    options: &ShellOptionsState,
+    field: ShellOptionField,
+    on_label: &'static str,
+    off_label: &'static str,
+) -> &'static str {
+    if options.bool_option(field) {
+        on_label
+    } else {
+        off_label
+    }
+}
+
 /// Builds sound options popup.
-#[expect(
-    clippy::too_many_lines,
-    reason = "The sound builder is a direct LDL control manifest for validation."
-)]
 pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
     ShellScreen {
         id: ShellScreenId::Sound,
@@ -460,18 +494,7 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellOptionField::MusicVolume,
                 "sound.ldl:149",
             ),
-            button(
-                "AcceptButton",
-                "ACCEPT",
-                "Accept",
-                404,
-                217,
-                48,
-                19,
-                ButtonVisualStyle::stone_large(),
-                ShellAction::Back,
-                "sound.ldl:72",
-            ),
+            popup_close_button(350, 260),
         ],
     }
 }
@@ -550,18 +573,7 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
                 ShellAction::ToggleOption(ShellOptionField::MusicEnabled),
                 "musicscreen.ldl:73",
             ),
-            button(
-                "AcceptButton",
-                "ACCEPT",
-                "Accept",
-                106,
-                210,
-                48,
-                19,
-                ButtonVisualStyle::stone_large(),
-                ShellAction::Back,
-                "musicscreen.cpp:225",
-            ),
+            popup_close_button(260, 260),
         ],
     }
 }

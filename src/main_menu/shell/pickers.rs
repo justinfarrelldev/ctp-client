@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use super::builders::{asset, decoration, field, image_switch_control, label, list_item};
+use super::builders::{asset, field, image_switch_control, label, list_item, popup_close_button};
 use super::{
     GameSetupField, GameSetupState, MenuRect, ShellAction, ShellImageSet, ShellOptionField,
     ShellScreen, ShellScreenId,
@@ -18,7 +18,7 @@ const POPUP_RADIO_ROW_STEP: i32 = 30;
 /// Returns setup options for a field.
 pub(super) const fn setup_options(field: GameSetupField) -> &'static [&'static str] {
     match field {
-        GameSetupField::Nation => NATIONS,
+        GameSetupField::Nation => NATION_VALUES,
         GameSetupField::Difficulty => DIFFICULTIES,
         GameSetupField::MapSize => MAP_SIZES,
         GameSetupField::WorldShape => WORLD_SHAPES,
@@ -50,6 +50,14 @@ pub(super) const fn option_screen_for(field: ShellOptionField) -> ShellScreenId 
         | ShellOptionField::VoiceVolume
         | ShellOptionField::MusicVolume
         | ShellOptionField::UnitSpeed
+        | ShellOptionField::UnitAnimation
+        | ShellOptionField::AnimatedTradeRoutes
+        | ShellOptionField::WonderMovies
+        | ShellOptionField::CityNames
+        | ShellOptionField::PoliticalBorders
+        | ShellOptionField::TradeRoutes
+        | ShellOptionField::CityInfluence
+        | ShellOptionField::Grid
         | ShellOptionField::MusicEnabled
         | ShellOptionField::AutoRepeat
         | ShellOptionField::RandomOrder => ShellScreenId::Options,
@@ -81,35 +89,19 @@ pub(super) fn music_track_screen() -> ShellScreen {
 }
 
 /// Builds the original CTP2 tribe popup.
-#[expect(
-    clippy::too_many_lines,
-    reason = "The tribe popup is an LDL-faithful manifest with 44 radio slots plus bottom controls."
-)]
 pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
-    let mut controls = vec![
-        label(
-            "Name",
-            "TRIBE",
-            "Tribe Title",
-            162,
-            20,
-            325,
-            20,
-            "spnewgamepopups.ldl:168",
-        ),
-        decoration(
-            "BackButton",
-            "BACK",
-            550,
-            345,
-            40,
-            20,
-            Some(ShellAction::Back),
-            "spnewgamepopups.ldl:181",
-        ),
-    ];
+    let mut controls = vec![label(
+        "Name",
+        "TRIBE",
+        "Tribe Title",
+        162,
+        20,
+        325,
+        20,
+        "spnewgamepopups.ldl:168",
+    )];
 
-    for (index, nation) in NATIONS.iter().enumerate() {
+    for (index, nation) in NATION_PICKER_LABELS.iter().enumerate() {
         let column = index
             .checked_div(TRIBE_ROWS_PER_COLUMN)
             .map_or(0_usize, |value| value);
@@ -131,7 +123,9 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             y,
             146,
             24,
-            *nation == setup.selected(GameSetupField::Nation),
+            NATION_VALUES
+                .get(index)
+                .is_some_and(|selected| *selected == setup.selected(GameSetupField::Nation)),
             ShellImageSet::popup_checkbox(),
             ShellAction::SelectGameSetupInPlace(GameSetupField::Nation, index),
             "spnewgamepopups.ldl:204",
@@ -186,6 +180,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             "spnewgamepopups.ldl:279",
         ),
     ]);
+    controls.push(popup_close_button(650, 465));
 
     ShellScreen {
         id: ShellScreenId::NationPicker,
@@ -226,16 +221,6 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
             20,
             "spnewgamepopups.ldl:347",
         ),
-        decoration(
-            "BackButton",
-            "BACK",
-            320,
-            135,
-            40,
-            20,
-            Some(ShellAction::Back),
-            "spnewgamepopups.ldl:363",
-        ),
     ]);
     append_radio_column(
         &mut controls,
@@ -254,6 +239,7 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
         60,
         "spnewgamepopups.ldl:428",
     );
+    controls.push(popup_close_button(400, 270));
     screen_with_controls(
         ShellScreenId::DifficultyPicker,
         "SPNewGameDiffScreen",
@@ -269,8 +255,6 @@ pub(super) fn world_type_picker_screen() -> ShellScreen {
         "SPNewGameMapScreen",
         "MAP",
         MenuRect::new(200, 215, 400, 170),
-        "BackButton",
-        MenuRect::new(325, 135, 40, 20),
         WORLD_TYPES,
         125,
         45,
@@ -286,8 +270,6 @@ pub(super) fn map_size_picker_screen() -> ShellScreen {
         "SPNewGameMapSizeScreen",
         "MAP SIZE",
         MenuRect::new(200, 205, 400, 190),
-        "BackButton",
-        MenuRect::new(325, 135, 40, 20),
         MAP_SIZES,
         125,
         45,
@@ -345,6 +327,7 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
         GameSetupField::WorldShape,
         "spnewgamepopups.ldl:708",
     );
+    controls.push(popup_close_button(500, 150));
     screen_with_controls(
         ShellScreenId::WorldShapePicker,
         "SPNewGameMapShapeScreen",
@@ -360,8 +343,6 @@ pub(super) fn players_picker_screen() -> ShellScreen {
         "SPNewGamePlayersScreen",
         "PLAYERS",
         MenuRect::new(200, 175, 400, 250),
-        "BackButton",
-        MenuRect::new(325, 195, 40, 20),
         PLAYER_COUNTS,
         125,
         45,
@@ -378,16 +359,6 @@ pub(super) fn rules_picker_screen() -> ShellScreen {
         "RULES",
         MenuRect::new(275, 220, 250, 160),
     );
-    controls.push(decoration(
-        "BackButton",
-        "BACK",
-        205,
-        125,
-        40,
-        20,
-        Some(ShellAction::Back),
-        "spnewgamepopups.ldl:885",
-    ));
     controls.push(image_switch_control(
         "RuleOne",
         RULE_PRESETS[0],
@@ -414,6 +385,7 @@ pub(super) fn rules_picker_screen() -> ShellScreen {
         ShellAction::SelectGameSetup(GameSetupField::Rules, 1),
         "spnewgamepopups.ldl:908",
     ));
+    controls.push(popup_close_button(250, 160));
     screen_with_controls(
         ShellScreenId::RulesPicker,
         "SPNewGameRulesScreen",
@@ -450,16 +422,7 @@ where
             "picker-list",
         ));
     }
-    controls.push(decoration(
-        "BackButton",
-        "Back",
-        80,
-        200,
-        75,
-        20,
-        Some(ShellAction::Back),
-        "picker-back",
-    ));
+    controls.push(popup_close_button(rect.width, rect.height));
     ShellScreen {
         id,
         ldl_name,
@@ -512,8 +475,6 @@ fn radio_popup_screen(
     ldl_name: &'static str,
     title: &'static str,
     rect: MenuRect,
-    back_name: &'static str,
-    back_rect: MenuRect,
     values: &'static [&'static str],
     option_x: i32,
     option_y: i32,
@@ -521,16 +482,6 @@ fn radio_popup_screen(
     source: &'static str,
 ) -> ShellScreen {
     let mut controls = popup_base_controls(id, ldl_name, title, rect);
-    controls.push(decoration(
-        back_name,
-        "BACK",
-        back_rect.x,
-        back_rect.y,
-        back_rect.width,
-        back_rect.height,
-        Some(ShellAction::Back),
-        source,
-    ));
     append_radio_column(
         &mut controls,
         ldl_name,
@@ -540,6 +491,7 @@ fn radio_popup_screen(
         field,
         source,
     );
+    controls.push(popup_close_button(rect.width, rect.height));
     screen_with_controls(id, ldl_name, rect, controls)
 }
 
@@ -630,49 +582,144 @@ const fn tribe_ldl_name(column: usize) -> &'static str {
     }
 }
 
-/// Original nation list from `civilisation.txt`, excluding barbarians for player choice.
-pub(super) const NATIONS: &[&str] = &[
+/// Returns the default male leader name for a nation index.
+pub(super) fn leader_name_for_nation_index(index: usize) -> Option<&'static str> {
+    NATION_LEADER_NAMES.get(index).copied()
+}
+
+/// Original nation values from `civilisation.txt`, excluding barbarians.
+pub(super) const NATION_VALUES: &[&str] = &[
     "GREEKS",
     "AMERICANS",
-    "SCOTTISH",
+    "SCOTS",
     "IRISH",
     "ENGLISH",
+    "NATIVE AMERICANS",
     "GERMANS",
     "FRENCH",
-    "RUSSIANS",
-    "MEXICANS",
-    "SPANISH",
-    "INCAS",
-    "INDIANS",
     "JAPANESE",
     "CHINESE",
-    "KOREANS",
-    "MONGOLS",
-    "VIETNAMESE",
-    "ARABS",
-    "PERSIANS",
-    "ISRAELIS",
-    "EGYPTIANS",
-    "NUBIANS",
-    "ZULUS",
-    "ETHIOPIANS",
-    "ROMANS",
-    "VIKINGS",
-    "AZTECS",
-    "MAYANS",
-    "CARTHAGINIANS",
-    "BYZANTINES",
-    "TURKS",
-    "DUTCH",
+    "RUSSIANS",
+    "SPANIARDS",
     "PORTUGUESE",
+    "DUTCH",
+    "VIKINGS",
+    "ROMANS",
+    "EGYPTIANS",
+    "PERSIANS",
+    "TURKS",
+    "PHOENICIANS",
+    "WELSH",
+    "CUBANS",
+    "ZULUS",
+    "HEBREWS",
+    "ASSYRIANS",
+    "INDIANS",
+    "THAI",
+    "POLYNESIANS",
+    "INDONESIANS",
+    "POLISH",
+    "INCANS",
+    "MAYANS",
+    "CANADIANS",
+    "NIGERIANS",
+    "KOREANS",
     "BRAZILIANS",
     "AUSTRALIANS",
-    "CANADIANS",
-    "THAI",
-    "INDONESIANS",
-    "POLYNESIANS",
-    "BABYLONIANS",
-    "SUMERIANS",
+    "MEXICANS",
+    "ETHIOPIANS",
+    "MONGOLS",
+    "NICARAGUANS",
+];
+
+/// Original singular tribe labels shown by `SPNewGameTribeScreen`.
+const NATION_PICKER_LABELS: &[&str] = &[
+    "Greek",
+    "American",
+    "Scottish",
+    "Irish",
+    "English",
+    "Native American",
+    "German",
+    "French",
+    "Japanese",
+    "Chinese",
+    "Russian",
+    "Spaniard",
+    "Portuguese",
+    "Dutch",
+    "Viking",
+    "Roman",
+    "Egyptian",
+    "Persian",
+    "Turk",
+    "Phoenician",
+    "Welsh",
+    "Cuban",
+    "Zulu",
+    "Hebrew",
+    "Assyrian",
+    "Indian",
+    "Thai",
+    "Polynesian",
+    "Indonesian",
+    "Polish",
+    "Incan",
+    "Mayan",
+    "Canadian",
+    "Nigerian",
+    "Korean",
+    "Brazilian",
+    "Australian",
+    "Mexican",
+    "Ethiopian",
+    "Mongol",
+    "Nicaraguan",
+];
+
+/// Default male leader names from `civilisation.txt` + `civ_str.txt`.
+const NATION_LEADER_NAMES: &[&str] = &[
+    "Alexander the Great",
+    "George Washington",
+    "William Wallace",
+    "Brian Boru",
+    "Winston Churchill",
+    "Sitting Bull",
+    "Frederick",
+    "Napoleon Bonaparte",
+    "Minamoto",
+    "Sun Tzu",
+    "Ivan The Terrible",
+    "Ferdinand",
+    "Vasco da Gama",
+    "Willem I",
+    "Sweyn Forkbeard",
+    "Julius Caesar",
+    "Ramses",
+    "Cyrus the Great",
+    "Osman I",
+    "Hiram",
+    "Owain Glyndwr",
+    "Jose Marti",
+    "Shaka Zulu",
+    "David",
+    "Tiglath-pileser III",
+    "Mohandas Gandhi",
+    "Yot Fa",
+    "Kamehameha",
+    "Airlangga",
+    "Lech Walesa",
+    "Viracocha",
+    "Hunahpu",
+    "Pierre Trudeau",
+    "Azikiwe",
+    "Yi Songgye",
+    "Manuel Deodoro da Fonseca",
+    "Gough Whitlam",
+    "Santa Anna",
+    "Haile Selassie I",
+    "Genghis Khan",
+    "Moctezuma II",
 ];
 /// Original difficulty picker values.
 const DIFFICULTIES: &[&str] = &["CHIEFTAIN", "WARLORD", "PRINCE", "KING", "EMPEROR", "DEITY"];

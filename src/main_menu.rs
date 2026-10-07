@@ -106,6 +106,8 @@ pub enum ButtonStyleId {
     BlueLarge,
     /// Stone large shell button, `SP_BUTTON_BIG_STONE` in `spnewgame.ldl`.
     StoneLarge,
+    /// Default small popup button, `CTP2_BUTTON_SMALL` / `c3_PopupClose`.
+    Ctp2Small,
 }
 
 /// Complete visual style metadata for one menu button style.
@@ -155,6 +157,23 @@ impl ButtonVisualStyle {
             },
             template_width: 99,
             template_height: 20,
+        }
+    }
+
+    /// Returns the original default small popup button style.
+    #[must_use]
+    pub const fn ctp2_small() -> Self {
+        Self {
+            id: ButtonStyleId::Ctp2Small,
+            ldl_template: "CTP2_BUTTON_SMALL",
+            assets: ButtonStateAssets {
+                inactive: ButtonAssetTriplet::new("upbt01aX.tga", "upbt01bX.tga", "upbt01cX.tga"),
+                up: ButtonAssetTriplet::new("upbt01aU.tga", "upbt01bU.tga", "upbt01cU.tga"),
+                down: ButtonAssetTriplet::new("upbt01aD.tga", "upbt01bD.tga", "upbt01cD.tga"),
+                hover: ButtonAssetTriplet::new("upbt01aH.tga", "upbt01bH.tga", "upbt01cH.tga"),
+            },
+            template_width: 70,
+            template_height: 24,
         }
     }
 }

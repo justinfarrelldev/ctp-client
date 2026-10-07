@@ -25,6 +25,8 @@ pub(super) struct ShellRuntimeState {
     model: SinglePlayerShellModel,
     /// Runtime effects queued by shell interactions.
     pending_effects: ShellRuntimeEffects,
+    /// Numeric slider currently captured by pointer dragging.
+    active_slider: Option<ShellOptionField>,
 }
 
 /// SDL/audio effects requested by shell controls.
@@ -50,6 +52,7 @@ impl ShellRuntimeState {
         Self {
             model: SinglePlayerShellModel::default(),
             pending_effects: ShellRuntimeEffects::default(),
+            active_slider: None,
         }
     }
 
@@ -75,13 +78,12 @@ impl ShellRuntimeState {
         let control = screen.find_at_point(point_x, point_y)?;
         let action = control.action()?;
         if let Some(field) = slider_field(action, control.kind()) {
+            self.active_slider = Some(field);
             let rect = screen_rect(&screen, control.rect());
-            let value = slider_value_at(&rect, control.kind(), point_x);
-            let updated = self.model.options_mut().set_numeric(field, value);
-            debug_assert!(updated, "slider controls must target numeric options");
-            self.record_numeric_effect(field, value);
+            self.update_slider_value(field, &rect, control.kind(), point_x);
             return None;
         }
+        self.active_slider = None;
         match self.model.apply_action(action) {
             ShellFlowOutcome::Continue => {
                 self.record_action_effect(action);
@@ -90,6 +92,59 @@ impl ShellRuntimeState {
             ShellFlowOutcome::LaunchGame => Some(MainMenuAction::LaunchSinglePlayer),
             ShellFlowOutcome::Quit => Some(MainMenuAction::Quit),
         }
+    }
+
+    /// Handles pointer dragging for a captured slider.
+    pub(super) fn drag_shell(&mut self, point_x: i32, _point_y: i32) {
+        let Some(field) = self.active_slider else {
+            return;
+        };
+        let screen = current_screen(&self.model);
+        let Some(control) = screen.controls().iter().find(|control| {
+            control
+                .action()
+                .is_some_and(|action| slider_field(action, control.kind()) == Some(field))
+        }) else {
+            self.active_slider = None;
+            return;
+        };
+        let rect = screen_rect(&screen, control.rect());
+        self.update_slider_value(field, &rect, control.kind(), point_x);
+    }
+
+    /// Releases any captured pointer control.
+    pub(super) const fn release_pointer(&mut self) {
+        self.active_slider = None;
+    }
+
+    /// Applies text input to the shell model.
+    pub(super) fn handle_text_input(&mut self, text: &str) {
+        self.model.handle_text_input(text);
+    }
+
+    /// Applies a text backspace to the shell model.
+    pub(super) fn handle_backspace(&mut self) {
+        self.model.handle_backspace();
+    }
+
+    /// Returns a numeric option for runtime tests.
+    #[cfg(test)]
+    pub(super) const fn numeric_option_for_test(&self, field: ShellOptionField) -> Option<i32> {
+        self.model.options().numeric(field)
+    }
+
+    /// Updates a slider value from a pointer X coordinate.
+    fn update_slider_value(
+        &mut self,
+        field: ShellOptionField,
+        rect: &MenuRect,
+        kind: ShellControlKind,
+        point_x: i32,
+    ) {
+        let value = slider_value_at(rect, kind, point_x);
+        let updated = self.model.options_mut().set_numeric(field, value);
+        debug_assert!(updated, "slider controls must target numeric options");
+        self.record_numeric_effect(field, value);
     }
 
     /// Takes and clears queued runtime effects.
@@ -104,6 +159,14 @@ impl ShellRuntimeState {
             ShellOptionField::VoiceVolume => self.pending_effects.voice_volume = Some(value),
             ShellOptionField::MusicVolume => self.pending_effects.music_volume = Some(value),
             ShellOptionField::UnitSpeed
+            | ShellOptionField::UnitAnimation
+            | ShellOptionField::AnimatedTradeRoutes
+            | ShellOptionField::WonderMovies
+            | ShellOptionField::CityNames
+            | ShellOptionField::PoliticalBorders
+            | ShellOptionField::TradeRoutes
+            | ShellOptionField::CityInfluence
+            | ShellOptionField::Grid
             | ShellOptionField::Resolution
             | ShellOptionField::MusicEnabled
             | ShellOptionField::AutoRepeat
@@ -132,6 +195,7 @@ impl ShellRuntimeState {
             | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
             | ShellAction::ToggleOption(_)
+            | ShellAction::FocusLeaderName
             | ShellAction::LaunchGame
             | ShellAction::Back
             | ShellAction::Quit
@@ -300,7 +364,6 @@ fn draw_shell_control(
             enabled,
             images,
         ),
-        ShellControlKind::Decoration => draw_decoration(canvas, font, &rect, control),
         ShellControlKind::ListItem { images, selected } => draw_list_item(
             canvas,
             texture_creator,
@@ -336,6 +399,7 @@ const fn slider_field(action: ShellAction, kind: ShellControlKind) -> Option<She
             | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
             | ShellAction::ToggleOption(_)
+            | ShellAction::FocusLeaderName
             | ShellAction::LaunchGame
             | ShellAction::Back
             | ShellAction::Quit
@@ -384,9 +448,9 @@ fn draw_slider(
     canvas: &mut Canvas<Window>,
     texture_creator: &TextureCreator<WindowContext>,
     model: &MainMenuModel,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
+    _font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
-    label: &str,
+    _label: &str,
     min: i32,
     max: i32,
     value: i32,
@@ -416,7 +480,7 @@ fn draw_slider(
             .fill_rect(to_sdl_rect(&thumb_rect))
             .map_err(runtime_error)?;
     }
-    draw_centered_text(canvas, font, rect, label)
+    Ok(())
 }
 
 /// Draws a switch with its label.
@@ -448,23 +512,6 @@ fn draw_switch(
     canvas.set_draw_color(Color::RGB(45, 38, 28));
     canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
     draw_centered_text(canvas, font, rect, label)
-}
-
-/// Draws a non-button decoration, promoting actionable decorations to framed controls.
-fn draw_decoration(
-    canvas: &mut Canvas<Window>,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    control: &ShellControl,
-) -> Result<(), MainMenuError> {
-    if control.is_actionable() {
-        canvas.set_draw_color(Color::RGB(180, 165, 125));
-        canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-        canvas.set_draw_color(Color::RGB(55, 45, 35));
-        canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-        return draw_centered_text(canvas, font, rect, control.label());
-    }
-    Ok(())
 }
 
 /// Draws a patterned dropdown/list item.
@@ -657,6 +704,25 @@ mod tests {
             effects.music_enabled,
             Some(false),
             "clicking Music On should queue a pause when default music is enabled"
+        );
+    }
+
+    #[test]
+    fn graphics_unit_speed_slider_drags_after_pointer_capture() {
+        let model = test_model();
+        let mut state = ShellRuntimeState::new();
+        state.open_single_player();
+
+        click(&mut state, &model, 156_i32, 276_i32);
+        click(&mut state, &model, 238_i32, 228_i32);
+        click(&mut state, &model, 250_i32, 205_i32);
+        state.drag_shell(550_i32, 205_i32);
+        state.release_pointer();
+
+        assert_eq!(
+            state.numeric_option_for_test(ShellOptionField::UnitSpeed),
+            Some(9_i32),
+            "captured slider drags should update unit speed after the initial click"
         );
     }
 

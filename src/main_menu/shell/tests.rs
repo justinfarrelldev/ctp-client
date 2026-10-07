@@ -1,5 +1,6 @@
 //! Tests for the single-player shell model.
 
+use super::options_state::ShellOptionsState;
 use super::*;
 
 /// Returns image metadata from a switch-like control for assertions.
@@ -10,9 +11,26 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         | ShellControlKind::Label
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
-        | ShellControlKind::Decoration
         | ShellControlKind::ListItem { .. } => None,
     }
+}
+
+/// Returns whether two modeled rectangles overlap.
+fn overlaps(left: MenuRect, right: MenuRect) -> bool {
+    let left_right = left
+        .x
+        .saturating_add(i32::try_from(left.width).map_or(0_i32, |value| value));
+    let left_bottom = left
+        .y
+        .saturating_add(i32::try_from(left.height).map_or(0_i32, |value| value));
+    let right_right = right
+        .x
+        .saturating_add(i32::try_from(right.width).map_or(0_i32, |value| value));
+    let right_bottom = right
+        .y
+        .saturating_add(i32::try_from(right.height).map_or(0_i32, |value| value));
+
+    left.x < right_right && left_right > right.x && left.y < right_bottom && left_bottom > right.y
 }
 
 #[test]
@@ -119,6 +137,11 @@ fn new_game_flow_allows_nation_difficulty_and_launch_selection() {
         "selecting the second original nation should update the setup"
     );
     assert_eq!(
+        model.setup().leader_name(),
+        "George Washington",
+        "selecting a new empire should immediately update the leader field like SPNewGameTribeScreen"
+    );
+    assert_eq!(
         model.apply_action(ShellAction::OpenPicker(GameSetupField::Difficulty)),
         ShellFlowOutcome::Continue,
         "opening difficulty should keep the shell active"
@@ -157,7 +180,7 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
         "nation picker should be the original large centered 650x465 popup"
     );
     let first = screen
-        .find_accessible("GREEKS")
+        .find_accessible("Greek")
         .expect("first tribe radio should exist");
     assert_eq!(
         first.rect(),
@@ -170,12 +193,25 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
         "tribe radios should use original upba2317/upba2318 checkbox art"
     );
     let twelfth = screen
-        .find_accessible("INDIANS")
+        .find_accessible("Spaniard")
         .expect("twelfth tribe radio should be in the second column");
     assert_eq!(
         twelfth.rect(),
         MenuRect::new(176, 45, 146, 24),
         "tribe list should wrap to the second original radio column after eleven rows"
+    );
+    let leader_field = screen
+        .find_accessible("Leader Name Field")
+        .expect("original tribe popup should include the editable leader name field");
+    assert_eq!(
+        leader_field.kind(),
+        ShellControlKind::TextField,
+        "leader-name field should be modeled as an editable text field"
+    );
+    assert_eq!(
+        leader_field.action(),
+        Some(ShellAction::FocusLeaderName),
+        "clicking the leader-name field should focus it for text input"
     );
     assert!(
         screen.find_accessible("Leader Name").is_some(),
@@ -188,6 +224,48 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
     assert!(
         screen.find_accessible("Female").is_some(),
         "original tribe popup should include the female gender radio"
+    );
+}
+
+#[test]
+fn selecting_empire_updates_default_leader_and_leader_field_is_editable() {
+    let mut model = SinglePlayerShellModel::default();
+
+    assert_eq!(
+        model.apply_action(ShellAction::SelectGameSetupInPlace(
+            GameSetupField::Nation,
+            8_usize
+        )),
+        ShellFlowOutcome::Continue,
+        "selecting an empire should remain in the picker"
+    );
+    assert_eq!(
+        model.setup().selected(GameSetupField::Nation),
+        "JAPANESE",
+        "the ninth base-game civilisation in current order should be Japanese"
+    );
+    assert_eq!(
+        model.setup().leader_name(),
+        "Minamoto",
+        "default leader should come from civilisation.txt/civ_str.txt"
+    );
+
+    assert_eq!(
+        model.apply_action(ShellAction::FocusLeaderName),
+        ShellFlowOutcome::Continue,
+        "leader field focus should keep the current shell open"
+    );
+    model.input_text("Maximilian Alexander Caesar");
+    assert_eq!(
+        model.setup().leader_name(),
+        "Maximilian Alexander Ca",
+        "leader name editing should enforce FIELD maxfieldlen 23"
+    );
+    model.backspace_text();
+    assert_eq!(
+        model.setup().leader_name(),
+        "Maximilian Alexander C",
+        "Backspace should edit the focused leader-name field"
     );
 }
 
@@ -260,6 +338,86 @@ fn setup_picker_popups_match_original_ldl_dimensions_and_checkbox_art() {
 }
 
 #[test]
+fn popup_close_buttons_use_original_c3_popup_close_style_and_top_layer() {
+    for (screen_id, expected_rect) in [
+        (ShellScreenId::Options, MenuRect::new(293, 324, 70, 24)),
+        (ShellScreenId::Graphics, MenuRect::new(593, 249, 70, 24)),
+        (ShellScreenId::Sound, MenuRect::new(263, 219, 70, 24)),
+        (ShellScreenId::Music, MenuRect::new(173, 219, 70, 24)),
+        (ShellScreenId::NationPicker, MenuRect::new(563, 424, 70, 24)),
+        (
+            ShellScreenId::DifficultyPicker,
+            MenuRect::new(313, 229, 70, 24),
+        ),
+    ] {
+        let screen = screen_for(
+            screen_id,
+            &GameSetupState::default(),
+            &ShellOptionsState::default(),
+        );
+        let close = screen
+            .find_accessible("Close")
+            .expect("popup should expose the AddClose-generated close button");
+        assert_eq!(
+            close.rect(),
+            expected_rect,
+            "{screen_id:?} close button should match c3_PopupWindow::AddClose placement"
+        );
+        assert_eq!(
+            close.kind(),
+            ShellControlKind::Button(ButtonStyleId::Ctp2Small),
+            "{screen_id:?} close button should use c3_PopupClose/CTP2_BUTTON_SMALL art"
+        );
+        let global = MenuRect::new(
+            screen.rect().x.saturating_add(expected_rect.x),
+            screen.rect().y.saturating_add(expected_rect.y),
+            expected_rect.width,
+            expected_rect.height,
+        );
+        let hit = screen
+            .find_at_point(
+                global.x.saturating_add(5_i32),
+                global.y.saturating_add(5_i32),
+            )
+            .expect("close button should be hit-testable on the top layer");
+        assert_eq!(
+            hit.action(),
+            Some(ShellAction::Back),
+            "{screen_id:?} close button should return to the previous screen"
+        );
+    }
+}
+
+#[test]
+fn new_game_headers_do_not_render_under_buttons() {
+    let screen = screen_for(
+        ShellScreenId::NewGame,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for (label_name, button_name) in [
+        ("Difficulty Label", "Difficulty"),
+        ("Players Label", "Players"),
+        ("Rules Label", "Rules"),
+        ("World Shape Label", "World Shape"),
+        ("Map Size Label", "Map Size"),
+        ("World Type Label", "World Type"),
+    ] {
+        let label = screen
+            .find_accessible(label_name)
+            .expect("new-game label should exist");
+        let button = screen
+            .find_accessible(button_name)
+            .expect("new-game button should exist");
+        assert!(
+            !overlaps(label.rect(), button.rect()),
+            "{label_name} should not be hidden by {button_name}"
+        );
+    }
+}
+
+#[test]
 fn graphics_and_music_switches_use_original_art_families() {
     let graphics = screen_for(
         ShellScreenId::Graphics,
@@ -287,6 +445,35 @@ fn graphics_and_music_switches_use_original_art_families() {
         switch_images(auto_repeat.kind()),
         Some(ShellImageSet::popup_checkbox()),
         "music switches should use the original popup checkbox art"
+    );
+}
+
+#[test]
+fn graphics_switches_are_toggleable_and_update_labels() {
+    let mut model = SinglePlayerShellModel::default();
+    assert_eq!(
+        model.apply_action(ShellAction::ToggleOption(ShellOptionField::UnitAnimation)),
+        ShellFlowOutcome::Continue,
+        "unit animation switch should toggle"
+    );
+    assert!(
+        !model.options().bool_option(ShellOptionField::UnitAnimation),
+        "unit animation should be off after one toggle"
+    );
+
+    let graphics = screen_for(ShellScreenId::Graphics, model.setup(), model.options());
+    let walk = graphics
+        .find_accessible("Unit Animation")
+        .expect("graphics unit animation switch should exist");
+    assert_eq!(
+        walk.label(),
+        "UNIT ANIMATION OFF",
+        "graphics switch label should follow the original on/off stringtable behavior"
+    );
+    assert_eq!(
+        switch_images(walk.kind()),
+        Some(ShellImageSet::graphics_checkbox()),
+        "toggled graphics switches should retain original art"
     );
 }
 
@@ -366,7 +553,8 @@ fn options_screen_state_supports_volume_resolution_and_music_toggles() {
         "resolution picker should select a listed resolution"
     );
     assert_eq!(
-        options.resolution, "1024 x 768",
+        options.resolution(),
+        "1024 x 768",
         "resolution label should follow the original picker list"
     );
     assert!(

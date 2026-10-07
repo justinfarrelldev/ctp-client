@@ -43,6 +43,24 @@ pub(super) fn button(
     }
 }
 
+/// Creates a standard `c3_PopupWindow::AddClose` button.
+pub(super) fn popup_close_button(screen_width: u32, screen_height: u32) -> ShellControl {
+    let x = i32::try_from(screen_width.saturating_sub(87_u32)).map_or(0_i32, |value| value);
+    let y = i32::try_from(screen_height.saturating_sub(41_u32)).map_or(0_i32, |value| value);
+    button(
+        "c3_PopupClose",
+        "CLOSE",
+        "Close",
+        x,
+        y,
+        70,
+        24,
+        ButtonVisualStyle::ctp2_small(),
+        ShellAction::Back,
+        "c3_popupwindow.cpp:AddClose",
+    )
+}
+
 /// Creates a patterned list-button control.
 #[expect(
     clippy::too_many_arguments,
@@ -165,6 +183,8 @@ pub(super) fn field(
         source,
     );
     control.kind = ShellControlKind::TextField;
+    control.action = Some(ShellAction::FocusLeaderName);
+    control.sound = Some(ShellSoundPolicy::original_button());
     control
 }
 
@@ -228,33 +248,6 @@ pub(super) fn image_switch_control(
         },
         action: Some(action),
         sound: Some(ShellSoundPolicy::original_button()),
-        source,
-    }
-}
-
-/// Creates a decoration or image-button control.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Shell builder helpers preserve original LDL control geometry in one call."
-)]
-pub(super) fn decoration(
-    ldl_name: &'static str,
-    label_text: &str,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-    action: Option<ShellAction>,
-    source: &'static str,
-) -> ShellControl {
-    ShellControl {
-        ldl_name,
-        label: label_text.to_owned(),
-        accessible_name: label_text.to_owned(),
-        rect: MenuRect::new(x, y, width, height),
-        kind: ShellControlKind::Decoration,
-        action,
-        sound: action.map(|_| ShellSoundPolicy::original_button()),
         source,
     }
 }
