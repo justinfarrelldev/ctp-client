@@ -123,6 +123,24 @@ pub(in crate::main_menu) fn button_triplet_render_plan_for_test(
     ])
 }
 
+/// Returns the original disabled layer stack for a styled button.
+#[cfg(test)]
+pub(in crate::main_menu) fn disabled_button_layer_render_plan_for_test(
+    installation_root: &Path,
+    style: ButtonVisualStyle,
+    target_width: u32,
+) -> Result<ButtonLayerRenderPlan, MainMenuError> {
+    let mut plan = Vec::new();
+    append_named_triplet_plan(
+        &mut plan,
+        "disabled",
+        installation_root,
+        style.assets.inactive,
+        target_width,
+    )?;
+    Ok(plan)
+}
+
 /// Returns the original layer stack for a styled button in one interaction state.
 #[cfg(test)]
 pub(in crate::main_menu) fn button_layer_render_plan_for_test(

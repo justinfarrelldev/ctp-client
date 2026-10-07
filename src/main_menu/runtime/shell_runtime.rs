@@ -342,6 +342,10 @@ fn draw_shell_control(
                     draw_fallback_button(canvas, &rect, style, hovered)?;
                     draw_centered_text(canvas, font, &rect, control.label())
                 }
+            } else if let Some(button_textures) = textures_for_style(textures, style) {
+                button_art::draw_disabled_styled_button(canvas, &rect, button_textures)?;
+                let text_rect = button_art::disabled_button_text_rect(&rect, button_textures);
+                draw_centered_text(canvas, font, &text_rect, control.label())
             } else {
                 draw_disabled_button(canvas, font, &rect, control.label())
             }

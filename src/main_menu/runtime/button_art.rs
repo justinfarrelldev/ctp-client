@@ -42,6 +42,15 @@ pub(super) struct TextureDimensions {
     pub(super) height: u32,
 }
 
+/// Draws a disabled button with only the original inactive/disabled art layer.
+pub(super) fn draw_disabled_styled_button(
+    canvas: &mut Canvas<Window>,
+    rect: &MenuRect,
+    textures: &ButtonStateTextures<'_>,
+) -> Result<(), MainMenuError> {
+    draw_texture_triplet(canvas, rect, &textures.always)
+}
+
 /// Draws a button with original three-piece art and layer flags.
 pub(super) fn draw_styled_button(
     canvas: &mut Canvas<Window>,
@@ -148,6 +157,19 @@ fn texture_dimensions(texture: &Texture<'_>) -> TextureDimensions {
         width: query.width,
         height: query.height,
     }
+}
+
+/// Builds the text rectangle for disabled button art using the inactive layer height.
+pub(super) fn disabled_button_text_rect(
+    rect: &MenuRect,
+    textures: &ButtonStateTextures<'_>,
+) -> MenuRect {
+    MenuRect::new(
+        rect.x,
+        rect.y,
+        rect.width,
+        triplet_height(&textures.always).max(rect.height),
+    )
 }
 
 /// Builds the text rectangle after original button art expands the native layer height.

@@ -295,6 +295,44 @@ fn hover_button_art_layers_match_original_ctp2_sizable_button_flags() {
 }
 
 #[test]
+fn disabled_button_art_uses_only_original_inactive_layer() {
+    let render_plan = runtime::disabled_button_layer_render_plan_for_test(
+        std::path::Path::new("ctp2"),
+        ButtonVisualStyle::blue_large(),
+        146,
+    )
+    .expect("disabled button layers should load from original art");
+
+    assert_eq!(
+        render_plan,
+        vec![
+            (
+                "disabled".to_owned(),
+                "upbt07ax.rim".to_owned(),
+                35,
+                39,
+                false,
+            ),
+            (
+                "disabled".to_owned(),
+                "upbt07bx.rim".to_owned(),
+                76,
+                39,
+                true,
+            ),
+            (
+                "disabled".to_owned(),
+                "upbt07cx.rim".to_owned(),
+                35,
+                39,
+                false,
+            ),
+        ],
+        "disabled buttons should draw the original X-state triplet only, without U/H overlays"
+    );
+}
+
+#[test]
 fn button_labels_use_original_dark_text_color() {
     assert_eq!(
         runtime::button_label_text_color_for_test(),
