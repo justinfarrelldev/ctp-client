@@ -1,0 +1,677 @@
+//! Testable Call to Power II landing main menu model.
+//!
+//! The data in this module mirrors the original `InitPlayWindow` definitions
+//! from `ctp2_data/english/uidata/layouts/spnewgame.ldl` and the button wiring
+//! in `ui/interface/initialplaywindow.cpp`. Runtime rendering is intentionally
+//! separated from the model so tests can find and activate controls by
+//! accessible names instead of screen coordinates.
+
+extern crate alloc;
+
+/// SDL runtime for the landing menu.
+mod runtime;
+
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::error::Error;
+use core::fmt::{Display, Formatter, Result as FmtResult};
+use std::path::PathBuf;
+
+use crate::config::GameInstallation;
+
+/// Width of the original CTP2 shell screens at the supported resolution.
+pub const MAIN_MENU_WIDTH: u32 = 800;
+/// Height of the original CTP2 shell screens at the supported resolution.
+pub const MAIN_MENU_HEIGHT: u32 = 600;
+
+/// A rectangle in logical 800x600 menu coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MenuRect {
+    /// Left edge in pixels.
+    pub x: i32,
+    /// Top edge in pixels.
+    pub y: i32,
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+}
+
+impl MenuRect {
+    /// Creates a new menu rectangle.
+    #[must_use]
+    pub const fn new(x: i32, y: i32, width: u32, height: u32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// Returns whether the provided point is inside this rectangle.
+    #[must_use]
+    pub fn contains_point(&self, point_x: i32, point_y: i32) -> bool {
+        let width = i32::try_from(self.width).map_or(i32::MAX, |value| value);
+        let height = i32::try_from(self.height).map_or(i32::MAX, |value| value);
+        let right = self.x.saturating_add(width);
+        let bottom = self.y.saturating_add(height);
+
+        point_x >= self.x && point_x < right && point_y >= self.y && point_y < bottom
+    }
+}
+
+/// Three-piece image set used by the original stretchable CTP2 buttons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ButtonAssetTriplet {
+    /// Left cap image file from the original LDL style.
+    pub left: &'static str,
+    /// Center stretch image file from the original LDL style.
+    pub middle: &'static str,
+    /// Right cap image file from the original LDL style.
+    pub right: &'static str,
+}
+
+impl ButtonAssetTriplet {
+    /// Creates a new three-piece button asset set.
+    #[must_use]
+    pub const fn new(left: &'static str, middle: &'static str, right: &'static str) -> Self {
+        Self {
+            left,
+            middle,
+            right,
+        }
+    }
+}
+
+/// Asset groups for the original CTP2 button interaction states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ButtonStateAssets {
+    /// Original inactive/disabled triplet (`image00`-`image02`).
+    pub inactive: ButtonAssetTriplet,
+    /// Original up/default triplet (`image10`-`image12`).
+    pub up: ButtonAssetTriplet,
+    /// Original down/pressed triplet (`image20`-`image22`).
+    pub down: ButtonAssetTriplet,
+    /// Original hover triplet (`image30`-`image32`).
+    pub hover: ButtonAssetTriplet,
+}
+
+/// Identifier for visual button styles copied from the original LDL templates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonStyleId {
+    /// Blue/gold large shell button, `SP_BUTTON_BIG` in `spnewgame.ldl`.
+    BlueLarge,
+    /// Stone large shell button, `SP_BUTTON_BIG_STONE` in `spnewgame.ldl`.
+    StoneLarge,
+}
+
+/// Complete visual style metadata for one menu button style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ButtonVisualStyle {
+    /// Stable style identifier.
+    pub id: ButtonStyleId,
+    /// LDL template name used by the original source.
+    pub ldl_template: &'static str,
+    /// Source asset names for each interaction state.
+    pub assets: ButtonStateAssets,
+    /// Original template width before LDL per-button overrides.
+    pub template_width: u32,
+    /// Original template height before LDL per-button overrides.
+    pub template_height: u32,
+}
+
+impl ButtonVisualStyle {
+    /// Returns the original blue large button style.
+    #[must_use]
+    pub const fn blue_large() -> Self {
+        Self {
+            id: ButtonStyleId::BlueLarge,
+            ldl_template: "SP_BUTTON_BIG",
+            assets: ButtonStateAssets {
+                inactive: ButtonAssetTriplet::new("upbt07aX.tga", "upbt07bX.tga", "upbt07cX.tga"),
+                up: ButtonAssetTriplet::new("upbt07aU.tga", "upbt07bU.tga", "upbt07cU.tga"),
+                down: ButtonAssetTriplet::new("upbt07aD.tga", "upbt07bD.tga", "upbt07cD.tga"),
+                hover: ButtonAssetTriplet::new("upbt07aH.tga", "upbt07bH.tga", "upbt07cH.tga"),
+            },
+            template_width: 99,
+            template_height: 20,
+        }
+    }
+
+    /// Returns the original stone large button style.
+    #[must_use]
+    pub const fn stone_large() -> Self {
+        Self {
+            id: ButtonStyleId::StoneLarge,
+            ldl_template: "SP_BUTTON_BIG_STONE",
+            assets: ButtonStateAssets {
+                inactive: ButtonAssetTriplet::new("upbt06aX.tga", "upbt06bX.tga", "upbt06cX.tga"),
+                up: ButtonAssetTriplet::new("upbt06aU.tga", "upbt06bU.tga", "upbt06cU.tga"),
+                down: ButtonAssetTriplet::new("upbt06aD.tga", "upbt06bD.tga", "upbt06cD.tga"),
+                hover: ButtonAssetTriplet::new("upbt06aH.tga", "upbt06bH.tga", "upbt06cH.tga"),
+            },
+            template_width: 99,
+            template_height: 20,
+        }
+    }
+}
+
+/// Stable identifier for each accessible landing-page button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MainMenuButtonId {
+    /// `SPButton` in the original LDL and C++.
+    SinglePlayer,
+    /// `MPButton` in the original LDL and C++.
+    Multiplayer,
+    /// `CreditsButton` in the original LDL and C++.
+    Credits,
+    /// `QuitButton` in the original LDL and C++.
+    Quit,
+}
+
+/// Resulting high-level action when a main-menu button is activated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MainMenuAction {
+    /// Show the single-player shell flow.
+    SinglePlayer,
+    /// Show the multiplayer shell flow.
+    Multiplayer,
+    /// Show the credits screen.
+    Credits,
+    /// Quit the client.
+    Quit,
+}
+
+impl MainMenuAction {
+    /// Returns a stable label suitable for logs and tests.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::SinglePlayer => "single-player",
+            Self::Multiplayer => "multiplayer",
+            Self::Credits => "credits",
+            Self::Quit => "quit",
+        }
+    }
+}
+
+/// One accessible button on the CTP2 landing menu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MainMenuButton {
+    /// Stable test and runtime identifier.
+    pub id: MainMenuButtonId,
+    /// Original LDL object name.
+    pub ldl_name: &'static str,
+    /// Text displayed on the button.
+    pub label: &'static str,
+    /// Accessible name used by tests and assistive activation paths.
+    pub accessible_name: &'static str,
+    /// Logical bounds copied from `spnewgame.ldl`.
+    pub rect: MenuRect,
+    /// Original visual style metadata.
+    pub style: ButtonVisualStyle,
+    /// Action emitted when this button is activated.
+    pub action: MainMenuAction,
+}
+
+/// Reference to one asset inside a CTP2 ZFS archive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MenuAssetReference {
+    /// Archive path relative to the installation root.
+    pub archive_relative_path: &'static str,
+    /// Entry name inside the archive.
+    pub entry_name: &'static str,
+}
+
+/// Music autoplay configuration for the landing menu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MenuMusicPolicy {
+    /// Whether the menu should start music as soon as it is displayed.
+    pub autoplay: bool,
+    /// Music file path relative to the CTP2 installation root.
+    pub relative_path: PathBuf,
+    /// `SDL_mixer` loop count; `-1` means loop indefinitely.
+    pub loops: i32,
+}
+
+/// Testable landing-menu model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MainMenuModel {
+    /// Root directory of the CTP2 installation currently being launched.
+    pub installation_root: PathBuf,
+    /// Logical menu width.
+    pub width: u32,
+    /// Logical menu height.
+    pub height: u32,
+    /// Background image reference from the original LDL.
+    pub background: MenuAssetReference,
+    /// Landing-page buttons.
+    pub buttons: Vec<MainMenuButton>,
+    /// Menu music policy.
+    pub music: MenuMusicPolicy,
+    /// Version string shown by the original LDL landing page.
+    pub version_text: &'static str,
+    /// Version string bounds from the original LDL.
+    pub version_rect: MenuRect,
+}
+
+impl MainMenuModel {
+    /// Builds the Call to Power II landing page model for an installation root.
+    #[must_use]
+    pub fn ctp2_landing(installation_root: PathBuf) -> Self {
+        Self {
+            installation_root,
+            width: MAIN_MENU_WIDTH,
+            height: MAIN_MENU_HEIGHT,
+            background: MenuAssetReference {
+                archive_relative_path: "ctp2_data/default/graphics/pictures/pic565.zfs",
+                entry_name: "upsg001.rim",
+            },
+            buttons: original_landing_buttons(),
+            music: MenuMusicPolicy {
+                autoplay: true,
+                relative_path: PathBuf::from("ctp2_program/ctp/music/Track02.ogg"),
+                loops: -1,
+            },
+            version_text: "1.1",
+            version_rect: MenuRect::new(720, 515, 60, 24),
+        }
+    }
+
+    /// Returns the absolute music path for the current installation.
+    #[must_use]
+    pub fn music_path(&self) -> PathBuf {
+        self.installation_root.join(&self.music.relative_path)
+    }
+
+    /// Finds a visible button by accessible name, case-insensitively.
+    #[must_use]
+    pub fn find_button_by_accessible_name(&self, accessible_name: &str) -> Option<&MainMenuButton> {
+        self.buttons
+            .iter()
+            .find(|button| button.accessible_name.eq_ignore_ascii_case(accessible_name))
+    }
+
+    /// Finds a visible button by stable identifier.
+    #[must_use]
+    pub fn button_by_id(&self, id: MainMenuButtonId) -> Option<&MainMenuButton> {
+        self.buttons.iter().find(|button| button.id == id)
+    }
+
+    /// Activates a button by accessible name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MainMenuError::ButtonNotFound`] when no button has that accessible name.
+    pub fn activate_accessible(
+        &self,
+        accessible_name: &str,
+    ) -> Result<MainMenuAction, MainMenuError> {
+        self.find_button_by_accessible_name(accessible_name)
+            .map(|button| button.action)
+            .ok_or_else(|| MainMenuError::ButtonNotFound {
+                accessible_name: accessible_name.to_owned(),
+            })
+    }
+
+    /// Activates the button containing the supplied point, if any.
+    #[must_use]
+    pub fn activate_at_point(&self, point_x: i32, point_y: i32) -> Option<MainMenuAction> {
+        self.buttons
+            .iter()
+            .find(|button| button.rect.contains_point(point_x, point_y))
+            .map(|button| button.action)
+    }
+
+    /// Returns style/layout mismatches compared with the original LDL source.
+    #[must_use]
+    pub fn original_style_mismatches(&self) -> Vec<String> {
+        let mut mismatches = Vec::new();
+        let expected_buttons = original_landing_buttons();
+
+        for expected in expected_buttons {
+            match self.button_by_id(expected.id) {
+                Some(actual) if actual == &expected => {}
+                Some(actual) => mismatches.push(format!(
+                    "{} differs from original style/layout: expected {} at {}x{}, got {} at {}x{}",
+                    expected.ldl_name,
+                    expected.style.ldl_template,
+                    expected.rect.x,
+                    expected.rect.y,
+                    actual.style.ldl_template,
+                    actual.rect.x,
+                    actual.rect.y
+                )),
+                None => mismatches.push(format!(
+                    "{} is missing from the landing menu",
+                    expected.ldl_name
+                )),
+            }
+        }
+
+        mismatches
+    }
+}
+
+/// Errors produced by the menu model or runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MainMenuError {
+    /// No button could be found for an accessible activation request.
+    ButtonNotFound {
+        /// Accessible name that was requested.
+        accessible_name: String,
+    },
+    /// Menu music could not be started.
+    Music {
+        /// Human-readable error details.
+        message: String,
+    },
+    /// SDL/runtime rendering failed.
+    Runtime {
+        /// Human-readable error details.
+        message: String,
+    },
+}
+
+impl Display for MainMenuError {
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "Borrowed enum matching keeps error strings available for Display formatting"
+    )]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::ButtonNotFound { accessible_name } => {
+                write!(f, "Main menu button not found: {accessible_name}")
+            }
+            Self::Music { message } => write!(f, "Main menu music failed: {message}"),
+            Self::Runtime { message } => write!(f, "Main menu runtime failed: {message}"),
+        }
+    }
+}
+
+impl Error for MainMenuError {}
+
+/// Audio backend used by menu sessions.
+pub trait MainMenuMusicBackend {
+    /// Starts menu music using the supplied policy and absolute path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MainMenuError::Music`] or [`MainMenuError::Runtime`] when playback setup fails.
+    fn play_music(
+        &mut self,
+        policy: &MenuMusicPolicy,
+        absolute_path: PathBuf,
+    ) -> Result<(), MainMenuError>;
+}
+
+/// Runtime session that keeps menu music alive while the landing menu is visible.
+pub struct MainMenuSession<AudioBackend> {
+    /// Testable menu model.
+    model: MainMenuModel,
+    /// Audio backend used for autoplay.
+    audio_backend: AudioBackend,
+    /// Whether autoplay has already been requested.
+    music_started: bool,
+}
+
+impl<AudioBackend> MainMenuSession<AudioBackend>
+where
+    AudioBackend: MainMenuMusicBackend,
+{
+    /// Creates a new menu session.
+    #[must_use]
+    pub const fn new(model: MainMenuModel, audio_backend: AudioBackend) -> Self {
+        Self {
+            model,
+            audio_backend,
+            music_started: false,
+        }
+    }
+
+    /// Starts autoplay music once when configured by the model.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`MainMenuError`] if the audio backend fails.
+    pub fn start_music(&mut self) -> Result<(), MainMenuError> {
+        if self.music_started || !self.model.music.autoplay {
+            return Ok(());
+        }
+
+        let music_path = self.model.music_path();
+        self.audio_backend
+            .play_music(&self.model.music, music_path)?;
+        self.music_started = true;
+        Ok(())
+    }
+
+    /// Returns the model rendered by this session.
+    #[must_use]
+    pub const fn model(&self) -> &MainMenuModel {
+        &self.model
+    }
+
+    /// Returns whether music has started.
+    #[must_use]
+    pub const fn music_started(&self) -> bool {
+        self.music_started
+    }
+}
+
+/// Runs the SDL-backed CTP2 main menu for an installation.
+///
+/// # Errors
+///
+/// Returns a [`MainMenuError`] when SDL, audio, asset loading, or rendering fails.
+pub fn run_sdl_main_menu(installation: &GameInstallation) -> Result<MainMenuAction, MainMenuError> {
+    runtime::run_sdl_main_menu(installation)
+}
+
+/// Returns the landing-page buttons copied from `InitPlayWindow` in `spnewgame.ldl`.
+fn original_landing_buttons() -> Vec<MainMenuButton> {
+    vec![
+        MainMenuButton {
+            id: MainMenuButtonId::Multiplayer,
+            ldl_name: "MPButton",
+            label: "MULTIPLAYER",
+            accessible_name: "Multiplayer",
+            rect: MenuRect::new(36, 455, 290, 32),
+            style: ButtonVisualStyle::blue_large(),
+            action: MainMenuAction::Multiplayer,
+        },
+        MainMenuButton {
+            id: MainMenuButtonId::SinglePlayer,
+            ldl_name: "SPButton",
+            label: "SINGLE PLAYER",
+            accessible_name: "Single Player",
+            rect: MenuRect::new(478, 455, 290, 32),
+            style: ButtonVisualStyle::blue_large(),
+            action: MainMenuAction::SinglePlayer,
+        },
+        MainMenuButton {
+            id: MainMenuButtonId::Credits,
+            ldl_name: "CreditsButton",
+            label: "CREDITS",
+            accessible_name: "Credits",
+            rect: MenuRect::new(36, 558, 140, 32),
+            style: ButtonVisualStyle::stone_large(),
+            action: MainMenuAction::Credits,
+        },
+        MainMenuButton {
+            id: MainMenuButtonId::Quit,
+            ldl_name: "QuitButton",
+            label: "QUIT",
+            accessible_name: "Quit",
+            rect: MenuRect::new(624, 558, 140, 32),
+            style: ButtonVisualStyle::stone_large(),
+            action: MainMenuAction::Quit,
+        },
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::cell::RefCell;
+    use tempfile::TempDir;
+
+    /// Recorded music autoplay request.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct MusicCall {
+        /// Policy supplied by the session.
+        policy: MenuMusicPolicy,
+        /// Absolute path supplied by the session.
+        absolute_path: PathBuf,
+    }
+
+    /// Test audio backend that records calls.
+    struct RecordingMusicBackend {
+        /// Recorded play requests.
+        calls: RefCell<Vec<MusicCall>>,
+    }
+
+    impl RecordingMusicBackend {
+        /// Creates an empty recording backend.
+        fn new() -> Self {
+            Self {
+                calls: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl MainMenuMusicBackend for RecordingMusicBackend {
+        fn play_music(
+            &mut self,
+            policy: &MenuMusicPolicy,
+            absolute_path: PathBuf,
+        ) -> Result<(), MainMenuError> {
+            self.calls.borrow_mut().push(MusicCall {
+                policy: policy.clone(),
+                absolute_path,
+            });
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn landing_page_exposes_accessible_buttons() {
+        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+
+        assert_eq!(
+            model.activate_accessible("Single Player"),
+            Ok(MainMenuAction::SinglePlayer)
+        );
+        assert_eq!(
+            model.activate_accessible("multiplayer"),
+            Ok(MainMenuAction::Multiplayer),
+            "accessible lookup should be case-insensitive"
+        );
+        assert_eq!(
+            model.activate_accessible("Credits"),
+            Ok(MainMenuAction::Credits)
+        );
+        assert_eq!(model.activate_accessible("Quit"), Ok(MainMenuAction::Quit));
+    }
+
+    #[test]
+    fn landing_page_button_layout_matches_original_ldl() {
+        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+
+        let multiplayer = model
+            .button_by_id(MainMenuButtonId::Multiplayer)
+            .expect("multiplayer button should exist");
+        let single_player = model
+            .button_by_id(MainMenuButtonId::SinglePlayer)
+            .expect("single-player button should exist");
+        let credits = model
+            .button_by_id(MainMenuButtonId::Credits)
+            .expect("credits button should exist");
+        let quit = model
+            .button_by_id(MainMenuButtonId::Quit)
+            .expect("quit button should exist");
+
+        assert_eq!(multiplayer.rect, MenuRect::new(36, 455, 290, 32));
+        assert_eq!(single_player.rect, MenuRect::new(478, 455, 290, 32));
+        assert_eq!(credits.rect, MenuRect::new(36, 558, 140, 32));
+        assert_eq!(quit.rect, MenuRect::new(624, 558, 140, 32));
+    }
+
+    #[test]
+    fn landing_page_button_styles_match_original_assets() {
+        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+
+        let multiplayer = model
+            .button_by_id(MainMenuButtonId::Multiplayer)
+            .expect("multiplayer button should exist");
+        let quit = model
+            .button_by_id(MainMenuButtonId::Quit)
+            .expect("quit button should exist");
+
+        assert_eq!(multiplayer.style.id, ButtonStyleId::BlueLarge);
+        assert_eq!(multiplayer.style.assets.up.left, "upbt07aU.tga");
+        assert_eq!(multiplayer.style.assets.hover.middle, "upbt07bH.tga");
+        assert_eq!(quit.style.id, ButtonStyleId::StoneLarge);
+        assert_eq!(quit.style.assets.up.left, "upbt06aU.tga");
+        assert_eq!(quit.style.assets.down.right, "upbt06cD.tga");
+        assert!(
+            model.original_style_mismatches().is_empty(),
+            "landing page style should validate against original LDL values"
+        );
+    }
+
+    #[test]
+    fn landing_page_uses_original_background_and_version_metadata() {
+        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+
+        assert_eq!(model.width, MAIN_MENU_WIDTH);
+        assert_eq!(model.height, MAIN_MENU_HEIGHT);
+        assert_eq!(
+            model.background,
+            MenuAssetReference {
+                archive_relative_path: "ctp2_data/default/graphics/pictures/pic565.zfs",
+                entry_name: "upsg001.rim",
+            }
+        );
+        assert_eq!(model.version_text, "1.1");
+        assert_eq!(model.version_rect, MenuRect::new(720, 515, 60, 24));
+    }
+
+    #[test]
+    fn menu_music_autoplays_expected_ctp2_track_once() {
+        let temp_dir = TempDir::new().expect("temp directory should be created");
+        let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());
+        let backend = RecordingMusicBackend::new();
+        let mut session = MainMenuSession::new(model, backend);
+
+        session.start_music().expect("music should start");
+        session
+            .start_music()
+            .expect("second start should be ignored");
+
+        assert!(session.music_started());
+        let calls = session.audio_backend.calls.borrow();
+        assert_eq!(calls.len(), 1, "autoplay should happen exactly once");
+        assert!(calls[0].policy.autoplay);
+        assert_eq!(calls[0].policy.loops, -1_i32);
+        assert!(
+            calls[0]
+                .absolute_path
+                .ends_with("ctp2_program/ctp/music/Track02.ogg"),
+            "main menu should use the expected CTP2 music track"
+        );
+    }
+
+    #[test]
+    fn accessible_activation_reports_missing_buttons() {
+        let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+
+        assert_eq!(
+            model.activate_accessible("Load Game"),
+            Err(MainMenuError::ButtonNotFound {
+                accessible_name: "Load Game".to_owned(),
+            })
+        );
+    }
+}

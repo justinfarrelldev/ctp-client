@@ -28,14 +28,18 @@
 
 ### `main-menu` branch
 
-- [ ] Create branch `main-menu` from the post-intro-test commit.
-- [ ] Capture original menu reference values from `ctp2_data/english/uidata/layouts/spnewgame.ldl` and `ui/interface/initialplaywindow.cpp`.
-- [ ] Build a `MainMenuModel` with accessible IDs/names and click-by-accessible-name support.
-- [ ] Add tests for all landing-page button labels, accessible lookup, actions, geometry, and original style asset names.
-- [ ] Add an injectable menu music policy/backend and tests proving autoplay starts the expected CTP2 music.
-- [ ] Add SDL rendering/runtime for the 800x600 menu with original background/button assets when available and safe procedural fallback.
-- [ ] Integrate the menu runtime after intro playback.
-- [ ] Run lint, tests, coverage/build commands, lint-fix, and commit main-menu work atomically.
+- [x] Create branch `main-menu` from the post-intro-test commit.
+- [x] Capture original menu reference values from `ctp2_data/english/uidata/layouts/spnewgame.ldl` and `ui/interface/initialplaywindow.cpp`.
+- [x] Build a `MainMenuModel` with accessible IDs/names and click-by-accessible-name support.
+- [x] Add tests for all landing-page button labels, accessible lookup, actions, geometry, and original style asset names.
+- [x] Add an injectable menu music policy/backend and tests proving autoplay starts the expected CTP2 music.
+- [x] Add SDL rendering/runtime for the 800x600 menu with original background/button assets when available and safe procedural fallback.
+- [x] Integrate the menu runtime after intro playback.
+- [x] Run lint, tests, coverage/build commands, lint-fix, and commit main-menu work atomically.
+  - `cargo make lint` passed.
+  - `cargo make test` passed.
+  - `./scripts/check-coverage-fast.sh` is not present in this repository.
+  - `cargo build` passed.
 
 ## Source References
 

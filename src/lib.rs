@@ -36,6 +36,8 @@ mod dialogs;
 pub mod i18n;
 /// Installation validation and detection module.
 pub mod installation;
+/// CTP2 main menu module.
+pub mod main_menu;
 /// Settings UI module.
 pub mod settings;
 /// User interface module.

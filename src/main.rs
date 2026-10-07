@@ -119,6 +119,8 @@ mod dialogs;
 pub mod i18n;
 /// Installation validation and detection module.
 pub mod installation;
+/// CTP2 main menu module.
+pub mod main_menu;
 /// Settings UI module.
 pub mod settings;
 /// User interface module.
@@ -180,6 +182,15 @@ fn main() {
                         },
                         Err(e) => {
                             log::warn!("Failed to initialize video player: {}", e);
+                        }
+                    }
+
+                    match main_menu::run_sdl_main_menu(&installation) {
+                        Ok(action) => {
+                            info!("Main menu action selected: {}", action.label());
+                        }
+                        Err(error) => {
+                            log::warn!("Main menu could not be displayed: {error}");
                         }
                     }
 
