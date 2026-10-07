@@ -15,24 +15,6 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
     }
 }
 
-/// Returns whether two modeled rectangles overlap.
-fn overlaps(left: MenuRect, right: MenuRect) -> bool {
-    let left_right = left
-        .x
-        .saturating_add(i32::try_from(left.width).map_or(0_i32, |value| value));
-    let left_bottom = left
-        .y
-        .saturating_add(i32::try_from(left.height).map_or(0_i32, |value| value));
-    let right_right = right
-        .x
-        .saturating_add(i32::try_from(right.width).map_or(0_i32, |value| value));
-    let right_bottom = right
-        .y
-        .saturating_add(i32::try_from(right.height).map_or(0_i32, |value| value));
-
-    left.x < right_right && left_right > right.x && left.y < right_bottom && left_bottom > right.y
-}
-
 #[test]
 fn single_player_hub_preserves_original_ldl_metadata_and_sound_policy() {
     let screen = screen_for(
@@ -275,37 +257,31 @@ fn setup_picker_popups_match_original_ldl_dimensions_and_checkbox_art() {
         (
             ShellScreenId::DifficultyPicker,
             MenuRect::new(200, 165, 400, 270),
-            "CHIEFTAIN",
+            "Beginner",
             MenuRect::new(40, 60, 146, 24),
-        ),
-        (
-            ShellScreenId::WorldTypePicker,
-            MenuRect::new(200, 215, 400, 170),
-            "RANDOM MAP",
-            MenuRect::new(125, 45, 146, 24),
         ),
         (
             ShellScreenId::MapSizePicker,
             MenuRect::new(200, 205, 400, 190),
-            "SMALL 24x48",
+            "Small",
             MenuRect::new(125, 45, 146, 24),
         ),
         (
             ShellScreenId::WorldShapePicker,
             MenuRect::new(150, 225, 500, 150),
-            "EARTH WORLD",
+            "Earth World",
             MenuRect::new(20, 45, 146, 24),
         ),
         (
             ShellScreenId::PlayersPicker,
             MenuRect::new(200, 175, 400, 250),
-            "3 PLAYERS",
+            "3",
             MenuRect::new(125, 45, 146, 24),
         ),
         (
             ShellScreenId::RulesPicker,
             MenuRect::new(275, 220, 250, 160),
-            "BLOODLUST OFF",
+            "Bloodlust - Off",
             MenuRect::new(50, 50, 160, 24),
         ),
     ];
@@ -389,32 +365,186 @@ fn popup_close_buttons_use_original_c3_popup_close_style_and_top_layer() {
 }
 
 #[test]
-fn new_game_headers_do_not_render_under_buttons() {
+fn new_game_labels_use_original_ldl_text_and_geometry() {
     let screen = screen_for(
         ShellScreenId::NewGame,
         &GameSetupState::default(),
         &ShellOptionsState::default(),
     );
 
-    for (label_name, button_name) in [
-        ("Difficulty Label", "Difficulty"),
-        ("Players Label", "Players"),
-        ("Rules Label", "Rules"),
-        ("World Shape Label", "World Shape"),
-        ("Map Size Label", "Map Size"),
-        ("World Type Label", "World Type"),
+    for (accessible_name, expected_label, expected_rect) in [
+        (
+            "Difficulty Label",
+            "DIFFICULTY",
+            MenuRect::new(165, 192, 180, 18),
+        ),
+        (
+            "Players Label",
+            "# EMPIRES",
+            MenuRect::new(165, 258, 180, 18),
+        ),
+        ("Rules Label", "RULES", MenuRect::new(165, 322, 180, 18)),
+        (
+            "World Shape Label",
+            "WORLD SHAPE",
+            MenuRect::new(455, 192, 180, 18),
+        ),
+        (
+            "Map Size Label",
+            "MAP SIZE",
+            MenuRect::new(455, 258, 180, 18),
+        ),
+        (
+            "World Type Label",
+            "CUSTOMIZE MAP",
+            MenuRect::new(455, 322, 180, 18),
+        ),
+        (
+            "Editor Label",
+            "str_ldl_LaunchScenerioEditor",
+            MenuRect::new(455, 388, 180, 18),
+        ),
     ] {
-        let label = screen
-            .find_accessible(label_name)
+        let control = screen
+            .find_accessible(accessible_name)
             .expect("new-game label should exist");
-        let button = screen
-            .find_accessible(button_name)
-            .expect("new-game button should exist");
-        assert!(
-            !overlaps(label.rect(), button.rect()),
-            "{label_name} should not be hidden by {button_name}"
+        assert_eq!(
+            control.label(),
+            expected_label,
+            "{accessible_name} should use the original visible string"
+        );
+        assert_eq!(
+            control.rect(),
+            expected_rect,
+            "{accessible_name} should keep the original LDL geometry"
         );
     }
+}
+
+#[test]
+fn unimplemented_custom_map_button_does_not_open_a_non_original_world_type_picker() {
+    let screen = screen_for(
+        ShellScreenId::NewGame,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    let map_button = screen
+        .find_accessible("World Type")
+        .expect("original MapButton should still be visible");
+
+    assert_eq!(
+        map_button.label(),
+        "MAP",
+        "MapButton should keep the original LDL text until CustomMapScreen is implemented"
+    );
+    assert_eq!(
+        map_button.action(),
+        Some(ShellAction::Disabled),
+        "the previous RANDOM MAP/CONTINENTS picker is not part of the original CTP2 flow"
+    );
+}
+
+#[test]
+fn difficulty_risk_column_only_contains_source_instantiated_radios() {
+    let screen = screen_for(
+        ShellScreenId::DifficultyPicker,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    assert!(
+        screen.find_accessible("Ruins Only").is_some(),
+        "the first risk radio should use the original string-table text"
+    );
+    assert!(
+        screen.find_accessible("No Danger Here").is_none(),
+        "spnewgamediffscreen.cpp only instantiates four risk radio buttons"
+    );
+}
+
+#[test]
+fn option_screen_labels_use_original_visible_strings() {
+    let options_screen = screen_for(
+        ShellScreenId::Options,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        options_screen
+            .find_accessible("Sound")
+            .expect("sound button should exist")
+            .label(),
+        "SOUND",
+        "OptionsWindow.SoundButton uses str_ldl_SFX, whose English text is SOUND"
+    );
+    assert_eq!(
+        options_screen
+            .find_accessible("Quit To Shell")
+            .expect("quit-to-shell button should exist")
+            .label(),
+        "QUIT",
+        "QuitToShellButton uses str_ldl_QUITTOSHELL"
+    );
+
+    let graphics = screen_for(
+        ShellScreenId::Graphics,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        graphics
+            .find_accessible("Graphics Title")
+            .expect("graphics title should exist")
+            .label(),
+        "GRAPHICS"
+    );
+    assert_eq!(
+        graphics
+            .find_accessible("Change Resolution")
+            .expect("resolution button should exist")
+            .label(),
+        "Screen Size"
+    );
+
+    let sound = screen_for(
+        ShellScreenId::Sound,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        sound
+            .find_accessible("Sound Title")
+            .expect("sound title should exist")
+            .label(),
+        "SOUND"
+    );
+    assert_eq!(
+        sound
+            .find_accessible("SFX Volume Label")
+            .expect("SFX label should exist")
+            .label(),
+        "Sound Volume"
+    );
+
+    let music = screen_for(
+        ShellScreenId::Music,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    assert_eq!(
+        music
+            .find_accessible("Select Track")
+            .expect("select-track button should exist")
+            .label(),
+        "Select Track"
+    );
+    assert_eq!(
+        music
+            .find_accessible("Auto Repeat")
+            .expect("auto-repeat switch should exist")
+            .label(),
+        "Auto Repeat Off"
+    );
 }
 
 #[test]
@@ -467,7 +597,7 @@ fn graphics_switches_are_toggleable_and_update_labels() {
         .expect("graphics unit animation switch should exist");
     assert_eq!(
         walk.label(),
-        "UNIT ANIMATION OFF",
+        "Unit Animations Off",
         "graphics switch label should follow the original on/off stringtable behavior"
     );
     assert_eq!(
@@ -498,6 +628,14 @@ fn new_game_screen_omits_uninstantiated_profile_world_dropdown_panels() {
             "{bad_control} is an LDL leftover/dropdown panel control not instantiated by SPNewGameWindow"
         );
     }
+    assert!(
+        screen.find_accessible("Scenario Static Text").is_none(),
+        "SPNewGameWindow::Update hides the scenario caption when no scenario is active"
+    );
+    assert!(
+        screen.find_accessible("Scenario Name").is_none(),
+        "SPNewGameWindow::Update hides the scenario name when no scenario is active"
+    );
     assert!(
         screen.find_accessible("Scenario Picker").is_some(),
         "Scenario picker belongs on the New Game screen in the original source"

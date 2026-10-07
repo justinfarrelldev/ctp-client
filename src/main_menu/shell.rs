@@ -62,8 +62,6 @@ pub(super) enum ShellScreenId {
     MapSizePicker,
     /// World-shape selection popup opened from `WorldShapeButton`.
     WorldShapePicker,
-    /// World-type selection popup opened from `MapButton` / `WorldType`.
-    WorldTypePicker,
     /// Player-count selection popup opened from `PlayersButton` / `Opponent`.
     PlayersPicker,
     /// Rules selection popup opened from `RulesButton`.
@@ -81,8 +79,6 @@ pub(super) enum GameSetupField {
     MapSize,
     /// World shape.
     WorldShape,
-    /// World type.
-    WorldType,
     /// Number of computer opponents.
     Players,
     /// Rule preset.
@@ -442,8 +438,6 @@ pub(super) struct GameSetupState {
     map_size: String,
     /// Selected world shape.
     world_shape: String,
-    /// Selected world type.
-    world_type: String,
     /// Selected player count.
     players: String,
     /// Selected rules preset.
@@ -459,12 +453,11 @@ impl Default for GameSetupState {
         Self {
             nation: "ROMANS".to_owned(),
             leader_name: "Julius Caesar".to_owned(),
-            difficulty: "PRINCE".to_owned(),
-            map_size: "MEDIUM 48x96".to_owned(),
-            world_shape: "EARTH WORLD".to_owned(),
-            world_type: "RANDOM MAP".to_owned(),
-            players: "4 PLAYERS".to_owned(),
-            rules: "BLOODLUST OFF".to_owned(),
+            difficulty: "Medium".to_owned(),
+            map_size: "Regular".to_owned(),
+            world_shape: "Earth World".to_owned(),
+            players: "4".to_owned(),
+            rules: "Bloodlust - Off".to_owned(),
             leader_name_focused: false,
             leader_name_replace_on_input: false,
         }
@@ -479,7 +472,6 @@ impl GameSetupState {
             GameSetupField::Difficulty => self.difficulty.as_str(),
             GameSetupField::MapSize => self.map_size.as_str(),
             GameSetupField::WorldShape => self.world_shape.as_str(),
-            GameSetupField::WorldType => self.world_type.as_str(),
             GameSetupField::Players => self.players.as_str(),
             GameSetupField::Rules => self.rules.as_str(),
         }
@@ -500,7 +492,6 @@ impl GameSetupState {
             GameSetupField::Difficulty => (*value).clone_into(&mut self.difficulty),
             GameSetupField::MapSize => (*value).clone_into(&mut self.map_size),
             GameSetupField::WorldShape => (*value).clone_into(&mut self.world_shape),
-            GameSetupField::WorldType => (*value).clone_into(&mut self.world_type),
             GameSetupField::Players => (*value).clone_into(&mut self.players),
             GameSetupField::Rules => (*value).clone_into(&mut self.rules),
         }

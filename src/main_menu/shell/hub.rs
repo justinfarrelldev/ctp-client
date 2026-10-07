@@ -80,7 +80,7 @@ pub(super) fn single_player_hub_screen() -> ShellScreen {
             ),
             button(
                 "TutorialButton",
-                "PLAY TUTORIAL",
+                "TUTORIAL",
                 "Play Tutorial",
                 850,
                 230,

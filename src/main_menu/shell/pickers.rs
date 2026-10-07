@@ -22,7 +22,6 @@ pub(super) const fn setup_options(field: GameSetupField) -> &'static [&'static s
         GameSetupField::Difficulty => DIFFICULTIES,
         GameSetupField::MapSize => MAP_SIZES,
         GameSetupField::WorldShape => WORLD_SHAPES,
-        GameSetupField::WorldType => WORLD_TYPES,
         GameSetupField::Players => PLAYER_COUNTS,
         GameSetupField::Rules => RULE_PRESETS,
     }
@@ -35,7 +34,6 @@ pub(super) const fn picker_screen_for(field: GameSetupField) -> ShellScreenId {
         GameSetupField::Difficulty => ShellScreenId::DifficultyPicker,
         GameSetupField::MapSize => ShellScreenId::MapSizePicker,
         GameSetupField::WorldShape => ShellScreenId::WorldShapePicker,
-        GameSetupField::WorldType => ShellScreenId::WorldTypePicker,
         GameSetupField::Players => ShellScreenId::PlayersPicker,
         GameSetupField::Rules => ShellScreenId::RulesPicker,
     }
@@ -69,8 +67,9 @@ pub(super) fn resolution_screen() -> ShellScreen {
     picker_from_values(
         ShellScreenId::Resolution,
         "ScreenResScreen",
-        "RESOLUTION",
+        "Screen Size",
         MenuRect::new(282, 183, 235, 234),
+        55,
         RESOLUTIONS,
         |index| ShellAction::SelectOption(ShellOptionField::Resolution, index),
     )
@@ -82,7 +81,8 @@ pub(super) fn music_track_screen() -> ShellScreen {
         ShellScreenId::MusicTrack,
         "MusicTrackScreen",
         "SELECT TRACK",
-        MenuRect::new(282, 183, 235, 234),
+        MenuRect::new(282, 203, 235, 194),
+        45,
         MUSIC_TRACKS,
         |index| ShellAction::SelectOption(ShellOptionField::MusicTrack, index),
     )
@@ -92,7 +92,7 @@ pub(super) fn music_track_screen() -> ShellScreen {
 pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
     let mut controls = vec![label(
         "Name",
-        "TRIBE",
+        "Empire",
         "Tribe Title",
         162,
         20,
@@ -197,13 +197,13 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::DifficultyPicker,
         "SPNewGameDiffScreen",
-        "DIFFICULTY",
+        "Difficulty",
         MenuRect::new(200, 165, 400, 270),
     );
     controls.extend([
         label(
             "SkillLevel",
-            "SKILL LEVEL",
+            "Skill Level",
             "Skill Level",
             30,
             35,
@@ -213,7 +213,7 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
         ),
         label(
             "BarbarianThreat",
-            "BARBARIAN THREAT",
+            "Barbarian Threat",
             "Barbarian Threat",
             200,
             35,
@@ -248,27 +248,12 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
     )
 }
 
-/// Builds the original CTP2 map-type popup.
-pub(super) fn world_type_picker_screen() -> ShellScreen {
-    radio_popup_screen(
-        ShellScreenId::WorldTypePicker,
-        "SPNewGameMapScreen",
-        "MAP",
-        MenuRect::new(200, 215, 400, 170),
-        WORLD_TYPES,
-        125,
-        45,
-        GameSetupField::WorldType,
-        "spnewgamepopups.ldl:512",
-    )
-}
-
 /// Builds the original CTP2 map-size popup.
 pub(super) fn map_size_picker_screen() -> ShellScreen {
     radio_popup_screen(
         ShellScreenId::MapSizePicker,
         "SPNewGameMapSizeScreen",
-        "MAP SIZE",
+        "Map Size",
         MenuRect::new(200, 205, 400, 190),
         MAP_SIZES,
         125,
@@ -283,13 +268,13 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::WorldShapePicker,
         "SPNewGameMapShapeScreen",
-        "MAP SHAPE",
+        "World Shape",
         MenuRect::new(150, 225, 500, 150),
     );
     controls.extend([
         label(
             "EWLabel",
-            "EAST AND WEST EDGES CONNECT",
+            "East and West edges of the map connect.",
             "East West Description",
             190,
             51,
@@ -299,7 +284,7 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
         ),
         label(
             "DWLabel",
-            "ALL EDGES CONNECT",
+            "East/West and North/South edges of the map connect.",
             "Doughnut Description",
             190,
             84,
@@ -309,7 +294,7 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
         ),
         label(
             "FWLabel",
-            "NO WRAPPING",
+            "No wrapping",
             "Flat Description",
             150,
             116,
@@ -341,7 +326,7 @@ pub(super) fn players_picker_screen() -> ShellScreen {
     radio_popup_screen(
         ShellScreenId::PlayersPicker,
         "SPNewGamePlayersScreen",
-        "PLAYERS",
+        "Players",
         MenuRect::new(200, 175, 400, 250),
         PLAYER_COUNTS,
         125,
@@ -356,7 +341,7 @@ pub(super) fn rules_picker_screen() -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::RulesPicker,
         "SPNewGameRulesScreen",
-        "RULES",
+        "Rules",
         MenuRect::new(275, 220, 250, 160),
     );
     controls.push(image_switch_control(
@@ -400,6 +385,7 @@ fn picker_from_values<ActionBuilder>(
     ldl_name: &'static str,
     title: &'static str,
     rect: MenuRect,
+    first_row_y: i32,
     values: &'static [&'static str],
     action_builder: ActionBuilder,
 ) -> ShellScreen
@@ -408,8 +394,8 @@ where
 {
     let mut controls = vec![label("Name", title, title, 20, 20, 195, 20, "picker")];
     for (index, value) in values.iter().enumerate() {
-        let y = 55_i32
-            .saturating_add(i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(22_i32)));
+        let y = first_row_y
+            .saturating_add(i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(20_i32)));
         controls.push(list_item(
             "ListItem",
             value,
@@ -722,49 +708,36 @@ const NATION_LEADER_NAMES: &[&str] = &[
     "Moctezuma II",
 ];
 /// Original difficulty picker values.
-const DIFFICULTIES: &[&str] = &["CHIEFTAIN", "WARLORD", "PRINCE", "KING", "EMPEROR", "DEITY"];
-/// Original barbarian risk companion column values.
-const BARBARIAN_RISKS: &[&str] = &[
-    "VILLAGES ONLY",
-    "ROVING BANDS",
-    "RESTLESS TRIBES",
-    "RAGING HORDES",
-    "NO DANGER HERE",
+const DIFFICULTIES: &[&str] = &[
+    "Beginner",
+    "Easy",
+    "Medium",
+    "Hard",
+    "Very Hard",
+    "Impossible",
 ];
+/// Original barbarian risk companion column values instantiated by source.
+const BARBARIAN_RISKS: &[&str] = &["Ruins Only", "Bandits", "Raiders", "Marauders"];
 /// Original map-size values.
-const MAP_SIZES: &[&str] = &[
-    "SMALL 24x48",
-    "MEDIUM 48x96",
-    "LARGE 64x128",
-    "VERY LARGE 70x140",
-];
+const MAP_SIZES: &[&str] = &["Small", "Regular", "Huge", "Gigantic"];
 /// Original world-shape values.
-const WORLD_SHAPES: &[&str] = &["EARTH WORLD", "DOUGHNUT WORLD", "FLAT WORLD"];
-/// Original map screen values.
-const WORLD_TYPES: &[&str] = &["RANDOM MAP", "CONTINENTS", "ISLANDS", "CUSTOM MAP"];
+const WORLD_SHAPES: &[&str] = &["Earth World", "Doughnut World", "Flat World"];
 /// Supported opponent/player presets before launch.
-const PLAYER_COUNTS: &[&str] = &[
-    "3 PLAYERS",
-    "4 PLAYERS",
-    "5 PLAYERS",
-    "6 PLAYERS",
-    "7 PLAYERS",
-    "8 PLAYERS",
-];
+const PLAYER_COUNTS: &[&str] = &["3", "4", "5", "6", "7", "8"];
 /// Rule toggles surfaced by the original shell rules popup.
-const RULE_PRESETS: &[&str] = &["BLOODLUST OFF", "POLLUTION OFF"];
+const RULE_PRESETS: &[&str] = &["Bloodlust - Off", "Pollution - Off"];
 /// Resolution choices used by the original resolution picker flow.
 pub(super) const RESOLUTIONS: &[&str] = &["640 x 480", "800 x 600", "1024 x 768"];
 /// Music tracks listed by `MusicTrackScreen.TrackNames`.
 pub(super) const MUSIC_TRACKS: &[&str] = &[
-    "MUSIC TRACK 1",
-    "MUSIC TRACK 2",
-    "MUSIC TRACK 3",
-    "MUSIC TRACK 4",
-    "MUSIC TRACK 5",
-    "MUSIC TRACK 6",
-    "MUSIC TRACK 7",
-    "MUSIC TRACK 8",
-    "MUSIC TRACK 9",
-    "MUSIC TRACK 10",
+    "A Fortiori",
+    "Pacari Tampu",
+    "Amaethon",
+    "A'tugewinu",
+    "Summum Bonum",
+    "Casus Belli",
+    "Ankh Djet",
+    "Shaolin San",
+    "Quiet Outback",
+    "Kali Dance",
 ];

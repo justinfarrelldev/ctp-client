@@ -49,7 +49,7 @@ pub(super) fn popup_close_button(screen_width: u32, screen_height: u32) -> Shell
     let y = i32::try_from(screen_height.saturating_sub(41_u32)).map_or(0_i32, |value| value);
     button(
         "c3_PopupClose",
-        "CLOSE",
+        "Close",
         "Close",
         x,
         y,

@@ -27,7 +27,6 @@ pub(super) fn screen_for(
         ShellScreenId::DifficultyPicker => pickers::difficulty_picker_screen(),
         ShellScreenId::MapSizePicker => pickers::map_size_picker_screen(),
         ShellScreenId::WorldShapePicker => pickers::world_shape_picker_screen(),
-        ShellScreenId::WorldTypePicker => pickers::world_type_picker_screen(),
         ShellScreenId::PlayersPicker => pickers::players_picker_screen(),
         ShellScreenId::RulesPicker => pickers::rules_picker_screen(),
     }

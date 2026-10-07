@@ -691,7 +691,7 @@ mod tests {
         click(&mut state, &model, 156_i32, 276_i32);
         click(&mut state, &model, 238_i32, 318_i32);
         click(&mut state, &model, 316_i32, 217_i32);
-        click(&mut state, &model, 303_i32, 282_i32);
+        click(&mut state, &model, 303_i32, 303_i32);
         click(&mut state, &model, 327_i32, 330_i32);
 
         let effects = state.take_effects();

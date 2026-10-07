@@ -65,7 +65,7 @@ pub(super) fn options_screen() -> ShellScreen {
             ),
             button(
                 "SoundButton",
-                "SFX",
+                "SOUND",
                 "Sound",
                 28,
                 155,
@@ -159,7 +159,7 @@ pub(super) fn options_screen() -> ShellScreen {
             ),
             button(
                 "QuitToShellButton",
-                "QUIT TO SHELL",
+                "QUIT",
                 "Quit To Shell",
                 206,
                 245,
@@ -201,7 +201,7 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
         controls: vec![
             label(
                 "Name",
-                "GRAPHICS OPTIONS",
+                "GRAPHICS",
                 "Graphics Title",
                 170,
                 20,
@@ -225,7 +225,7 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             label(
                 "UnitSpeedName",
-                "UNIT SPEED",
+                "Unit Speed:",
                 "Unit Speed Label",
                 30,
                 60,
@@ -238,8 +238,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::UnitAnimation,
-                    "UNIT ANIMATION ON",
-                    "UNIT ANIMATION OFF",
+                    "Unit Animations On",
+                    "Unit Animations Off",
                 ),
                 "Unit Animation",
                 30,
@@ -256,8 +256,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::AnimatedTradeRoutes,
-                    "ANIMATED TRADE ROUTES ON",
-                    "ANIMATED TRADE ROUTES OFF",
+                    "Animated Trade Routes On",
+                    "Animated Trade Routes Off",
                 ),
                 "Animated Trade Routes",
                 30,
@@ -274,8 +274,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::WonderMovies,
-                    "WONDER MOVIES ON",
-                    "WONDER MOVIES OFF",
+                    "Wonder Movies On",
+                    "Wonder Movies Off",
                 ),
                 "Wonder Movies",
                 30,
@@ -292,8 +292,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::CityNames,
-                    "CITY NAMES ON",
-                    "CITY NAMES OFF",
+                    "City Names On",
+                    "City Names Off",
                 ),
                 "City Names",
                 30,
@@ -310,8 +310,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::PoliticalBorders,
-                    "POLITICAL BORDERS ON",
-                    "POLITICAL BORDERS OFF",
+                    "Show Political Borders",
+                    "Hide Political Borders",
                 ),
                 "Political Borders",
                 350,
@@ -328,8 +328,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::TradeRoutes,
-                    "TRADE ROUTES ON",
-                    "TRADE ROUTES OFF",
+                    "Show Trade Routes",
+                    "Hide Trade Routes",
                 ),
                 "Trade Routes",
                 350,
@@ -346,8 +346,8 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
                 graphics_toggle_label(
                     options,
                     ShellOptionField::CityInfluence,
-                    "CITY INFLUENCE ON",
-                    "CITY INFLUENCE OFF",
+                    "Show City Influence",
+                    "Hide City Influence",
                 ),
                 "City Influence",
                 350,
@@ -361,7 +361,12 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             image_switch_control(
                 "GridButton",
-                graphics_toggle_label(options, ShellOptionField::Grid, "GRID ON", "GRID OFF"),
+                graphics_toggle_label(
+                    options,
+                    ShellOptionField::Grid,
+                    "Map Grid Lines On",
+                    "Map Grid Lines Off",
+                ),
                 "Grid",
                 350,
                 180,
@@ -374,7 +379,7 @@ pub(super) fn graphics_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             button(
                 "ResolutionButton",
-                "CHANGE RESOLUTION",
+                "Screen Size",
                 "Change Resolution",
                 265,
                 225,
@@ -414,7 +419,7 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
         controls: vec![
             label(
                 "Name",
-                "SOUND OPTIONS",
+                "SOUND",
                 "Sound Title",
                 88,
                 20,
@@ -424,7 +429,7 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             label(
                 "SFXName",
-                "SFX VOLUME",
+                "Sound Volume",
                 "SFX Volume Label",
                 95,
                 40,
@@ -448,7 +453,7 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             label(
                 "MusicName",
-                "VOICE VOLUME",
+                "Voice Volume",
                 "Voice Volume Label",
                 95,
                 100,
@@ -472,7 +477,7 @@ pub(super) fn sound_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             label(
                 "VoiceName",
-                "MUSIC VOLUME",
+                "Music Volume",
                 "Music Volume Label",
                 95,
                 160,
@@ -520,7 +525,7 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             button(
                 "SelectTrackButton",
-                format!("TRACK {}", options.music_track()).as_str(),
+                "Select Track",
                 "Select Track",
                 46,
                 47,
@@ -532,7 +537,11 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             image_switch_control(
                 "AutoRepeatSwitch",
-                "AUTO REPEAT",
+                if options.auto_repeat() {
+                    "Auto Repeat On"
+                } else {
+                    "Auto Repeat Off"
+                },
                 "Auto Repeat",
                 57,
                 100,
@@ -545,7 +554,11 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
             ),
             image_switch_control(
                 "RandomOrderSwitch",
-                "RANDOM ORDER",
+                if options.random_order() {
+                    "Random Order On"
+                } else {
+                    "Random Order Off"
+                },
                 "Random Order",
                 57,
                 130,
@@ -559,9 +572,9 @@ pub(super) fn music_screen(options: &ShellOptionsState) -> ShellScreen {
             image_switch_control(
                 "MusicOnSwitch",
                 if options.music_enabled() {
-                    "MUSIC ON"
+                    "Music On"
                 } else {
-                    "MUSIC OFF"
+                    "Music Off"
                 },
                 "Music On",
                 57,
