@@ -1030,6 +1030,12 @@ impl GtkUI {
         match main_menu_result {
             Ok(action) => {
                 log::info!("Main menu action selected: {}", action.label());
+                if action == crate::main_menu::MainMenuAction::LaunchSinglePlayer {
+                    match crate::gameplay::run_sdl_singleplayer_game(&installation) {
+                        Ok(outcome) => log::info!("Gameplay session ended: {outcome:?}"),
+                        Err(error) => log::warn!("Gameplay could not be displayed: {error}"),
+                    }
+                }
             }
             Err(error) => {
                 log::warn!("Main menu could not be displayed: {error}");

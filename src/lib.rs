@@ -32,12 +32,17 @@ pub mod asset_extraction;
 /// Configuration management module.
 pub mod config;
 mod dialogs;
+/// Gameplay module.
+pub mod gameplay;
 /// Internationalization module.
 pub mod i18n;
 /// Installation validation and detection module.
 pub mod installation;
 /// CTP2 main menu module.
 pub mod main_menu;
+#[cfg(test)]
+/// Shared SDL test serialization.
+pub mod sdl_test_lock;
 /// Settings UI module.
 pub mod settings;
 /// User interface module.

@@ -115,12 +115,17 @@ pub mod asset_extraction;
 /// Configuration management module.
 pub mod config;
 mod dialogs;
+/// Gameplay module.
+pub mod gameplay;
 /// Internationalization module.
 pub mod i18n;
 /// Installation validation and detection module.
 pub mod installation;
 /// CTP2 main menu module.
 pub mod main_menu;
+#[cfg(test)]
+/// Shared SDL test serialization.
+pub mod sdl_test_lock;
 /// Settings UI module.
 pub mod settings;
 /// User interface module.
@@ -188,13 +193,20 @@ fn main() {
                     match main_menu::run_sdl_main_menu(&installation) {
                         Ok(action) => {
                             info!("Main menu action selected: {}", action.label());
+                            if action == main_menu::MainMenuAction::LaunchSinglePlayer {
+                                match gameplay::run_sdl_singleplayer_game(&installation) {
+                                    Ok(outcome) => info!("Gameplay session ended: {outcome:?}"),
+                                    Err(error) => {
+                                        log::warn!("Gameplay could not be displayed: {error}");
+                                    }
+                                }
+                            }
                         }
                         Err(error) => {
                             log::warn!("Main menu could not be displayed: {error}");
                         }
                     }
 
-                    println!("Would start game: {}", installation.display_name);
                     info!("Game session completed");
                 } else {
                     info!(

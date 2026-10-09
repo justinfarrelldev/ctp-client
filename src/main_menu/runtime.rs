@@ -6,8 +6,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use std::fs;
 use std::path::{Path, PathBuf};
-#[cfg(test)]
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
@@ -36,10 +34,6 @@ const BUTTON_LABEL_TEXT_COLOR: (u8, u8, u8) = (0, 0, 0);
 const VERSION_TEXT_COLOR: (u8, u8, u8) = (100, 100, 255);
 /// Font point size used by original CTP2 shell button templates.
 const BUTTON_FONT_POINT_SIZE: u16 = 10;
-/// Test-only guard serializing SDL initialization across parallel tests.
-#[cfg(test)]
-static SDL_TEST_LOCK: Mutex<()> = Mutex::new(());
-
 /// Candidate fonts used only for drawing fallback text over original assets.
 const FONT_CANDIDATES: [&str; 8] = [
     "C:/Windows/Fonts/timesbd.ttf",
@@ -195,9 +189,7 @@ pub(super) fn run_headless_events_for_test(
 fn with_sdl_test_lock<T>(
     action: impl FnOnce() -> Result<T, MainMenuError>,
 ) -> Result<T, MainMenuError> {
-    let guard = SDL_TEST_LOCK
-        .lock()
-        .map_err(|error| runtime_error(format!("SDL test lock was poisoned: {error}")))?;
+    let guard = crate::sdl_test_lock::lock_sdl_for_test().map_err(runtime_error)?;
     let result = action();
     drop(guard);
     result
