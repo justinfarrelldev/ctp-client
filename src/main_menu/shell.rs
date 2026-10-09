@@ -431,7 +431,6 @@ pub(super) struct ShellScreen {
 
 impl ShellScreen {
     /// Returns the screen identifier.
-    #[cfg(test)]
     pub(super) const fn id(&self) -> ShellScreenId {
         self.id
     }

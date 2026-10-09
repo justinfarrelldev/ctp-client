@@ -555,16 +555,6 @@ where
             visible_rows,
             "graphics.ldl:192",
         ),
-        label(
-            "Warning",
-            "This change will take effect when you restart Call to Power II.",
-            "Resolution Warning",
-            20,
-            155,
-            200,
-            30,
-            "graphics.ldl:217",
-        ),
     ];
     append_list_rows(
         &mut controls,

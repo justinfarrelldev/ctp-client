@@ -38,6 +38,39 @@ fn resolution_picker_click_queues_window_resize_effect() {
 }
 
 #[test]
+fn resolution_scrollbar_drag_reveals_later_mode_and_queues_resize() {
+    let model = test_model();
+    let mut state = ShellRuntimeState::new();
+    state.open_single_player();
+
+    click(&mut state, &model, 156_i32, 276_i32);
+    click(&mut state, &model, 238_i32, 228_i32);
+    click(&mut state, &model, 325_i32, 380_i32);
+    assert!(
+        state.click_shell(472_i32, 262_i32).action.is_none(),
+        "grabbing the visible scrollbar thumb should not exit the menu"
+    );
+    assert_eq!(
+        state.drag_shell(472_i32, 306_i32),
+        None,
+        "dragging the listbox scrollbar should scroll silently"
+    );
+    assert_eq!(
+        state.release_pointer(),
+        None,
+        "releasing a listbox scrollbar should not play slider-release audio"
+    );
+    click(&mut state, &model, 320_i32, 244_i32);
+
+    let effects = state.take_effects();
+    assert_eq!(
+        effects.resolution,
+        Some((1920_u32, 1200_u32)),
+        "dragging the resolution scrollbar should reveal and select later legal rows"
+    );
+}
+
+#[test]
 fn resolution_scrollbar_click_reveals_later_mode_and_queues_resize() {
     let model = test_model();
     let mut state = ShellRuntimeState::new();

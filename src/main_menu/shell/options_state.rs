@@ -563,9 +563,7 @@ impl ShellOptionsState {
                     picker_data::RESOLUTIONS.len(),
                     pickers::RESOLUTION_VISIBLE_ROWS,
                 );
-                let changed = next != self.resolution_scroll_offset;
-                self.resolution_scroll_offset = next;
-                changed
+                self.set_option_list_scroll_offset(field, next)
             }
             ShellOptionField::MusicTrack => {
                 let next = scrolled_offset(
@@ -574,6 +572,58 @@ impl ShellOptionsState {
                     picker_data::MUSIC_TRACKS.len(),
                     pickers::MUSIC_TRACK_VISIBLE_ROWS,
                 );
+                self.set_option_list_scroll_offset(field, next)
+            }
+            ShellOptionField::SfxVolume
+            | ShellOptionField::VoiceVolume
+            | ShellOptionField::MusicVolume
+            | ShellOptionField::UnitSpeed
+            | ShellOptionField::MouseSpeed
+            | ShellOptionField::UnitAnimation
+            | ShellOptionField::AnimatedTradeRoutes
+            | ShellOptionField::WonderMovies
+            | ShellOptionField::CityNames
+            | ShellOptionField::PoliticalBorders
+            | ShellOptionField::TradeRoutes
+            | ShellOptionField::CityInfluence
+            | ShellOptionField::Grid
+            | ShellOptionField::MusicEnabled
+            | ShellOptionField::AutoRepeat
+            | ShellOptionField::RandomOrder
+            | ShellOptionField::TutorialAdvice
+            | ShellOptionField::AutoCycleTurns
+            | ShellOptionField::AutoCycleUnits
+            | ShellOptionField::BattleView
+            | ShellOptionField::EnemyMoves
+            | ShellOptionField::AutoCenter
+            | ShellOptionField::AutoTabSelect
+            | ShellOptionField::ShowAllBattles
+            | ShellOptionField::AutoSave
+            | ShellOptionField::LeftHandedMouse => false,
+        }
+    }
+
+    /// Sets an option list's first visible row and returns whether it changed.
+    pub(in crate::main_menu) fn set_option_list_scroll_offset(
+        &mut self,
+        field: ShellOptionField,
+        offset: usize,
+    ) -> bool {
+        match field {
+            ShellOptionField::Resolution => {
+                let next = offset.min(scroll_max_offset(
+                    picker_data::RESOLUTIONS.len(),
+                    pickers::RESOLUTION_VISIBLE_ROWS,
+                ));
+                let changed = next != self.resolution_scroll_offset;
+                self.resolution_scroll_offset = next;
+                changed
+            }
+            ShellOptionField::MusicTrack => {
+                let next = offset.min(scroll_max_offset(
+                    picker_data::MUSIC_TRACKS.len(),
+                    pickers::MUSIC_TRACK_VISIBLE_ROWS,
+                ));
                 let changed = next != self.music_track_scroll_offset;
                 self.music_track_scroll_offset = next;
                 changed
@@ -648,12 +698,17 @@ fn scroll_offset_for_selected(
     visible_rows: usize,
     item_count: usize,
 ) -> usize {
-    let max_offset = item_count.saturating_sub(visible_rows);
+    let max_offset = scroll_max_offset(item_count, visible_rows);
     if selected_index < visible_rows {
         0_usize
     } else {
         selected_index.min(max_offset)
     }
+}
+
+/// Returns the largest first-visible row for a listbox.
+const fn scroll_max_offset(item_count: usize, visible_rows: usize) -> usize {
+    item_count.saturating_sub(visible_rows)
 }
 
 /// Returns a scroll offset after applying a signed row delta.

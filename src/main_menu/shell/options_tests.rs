@@ -222,8 +222,8 @@ fn listbox_pickers_use_original_chrome_and_warning_labels() {
         "ScreenResScreen should use original CTP2_LISTBOX chrome metadata and visible row count"
     );
     assert!(
-        resolution.find_accessible("Resolution Warning").is_some(),
-        "ScreenResScreen should render the original restart warning label"
+        resolution.find_accessible("Resolution Warning").is_none(),
+        "immediate runtime resolution changes should not show the obsolete restart warning"
     );
     assert!(
         resolution.find_accessible("640 x 480").is_none(),

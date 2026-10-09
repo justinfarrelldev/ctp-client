@@ -25,7 +25,7 @@ use super::{
 /// Individual shell control drawing helpers.
 mod controls;
 /// Original listbox chrome drawing helpers.
-mod listbox;
+pub(in crate::main_menu::runtime) mod listbox;
 /// Immediate shell UI sound types.
 pub(super) mod sound;
 
@@ -41,6 +41,8 @@ pub(super) struct ShellRuntimeState {
     pending_effects: ShellRuntimeEffects,
     /// Numeric slider currently captured by pointer dragging.
     active_slider: Option<ShellOptionField>,
+    /// Scrollable option list currently captured by pointer dragging.
+    active_listbox_scroll: Option<ShellOptionField>,
 }
 
 /// SDL/audio effects requested by shell controls.
@@ -75,6 +77,7 @@ impl ShellRuntimeState {
             model: SinglePlayerShellModel::with_persisted_options(&load_persisted_options()),
             pending_effects: ShellRuntimeEffects::default(),
             active_slider: None,
+            active_listbox_scroll: None,
         }
     }
 
@@ -115,13 +118,7 @@ impl ShellRuntimeState {
     /// Handles a click in the current shell screen.
     pub(super) fn click_shell(&mut self, point_x: i32, point_y: i32) -> ShellRuntimeInteraction {
         let screen = current_screen(&self.model);
-        if let Some(action) = self.listbox_scroll_action_at(&screen, point_x, point_y) {
-            self.active_slider = None;
-            let outcome = self.model.apply_action(action);
-            debug_assert!(
-                matches!(outcome, ShellFlowOutcome::Continue),
-                "scrolling listboxes should not leave the shell"
-            );
+        if self.handle_listbox_scroll_press(&screen, point_x, point_y) {
             return ShellRuntimeInteraction::none();
         }
         let Some(control) = screen.find_at_point(point_x, point_y) else {
@@ -139,6 +136,7 @@ impl ShellRuntimeState {
             return ShellRuntimeInteraction::none();
         }
         self.active_slider = None;
+        self.active_listbox_scroll = None;
         match self.model.apply_action(action) {
             ShellFlowOutcome::Continue => {
                 self.record_action_effect(action);
@@ -162,7 +160,10 @@ impl ShellRuntimeState {
     }
 
     /// Handles pointer dragging for a captured slider.
-    pub(super) fn drag_shell(&mut self, point_x: i32, _point_y: i32) -> Option<ShellRuntimeSound> {
+    pub(super) fn drag_shell(&mut self, point_x: i32, point_y: i32) -> Option<ShellRuntimeSound> {
+        if self.update_active_listbox_scroll(point_y) {
+            return None;
+        }
         let field = self.active_slider?;
         let screen = current_screen(&self.model);
         let Some(control) = screen.controls().iter().find(|control| {
@@ -180,6 +181,7 @@ impl ShellRuntimeState {
 
     /// Releases any captured pointer control.
     pub(super) fn release_pointer(&mut self) -> Option<ShellRuntimeSound> {
+        self.active_listbox_scroll = None;
         self.active_slider
             .take()
             .map(|_field| ShellRuntimeSound::SliderDown)
@@ -201,22 +203,65 @@ impl ShellRuntimeState {
         self.model.options().numeric(field)
     }
 
-    /// Returns a listbox scroll action for a scrollbar button click.
-    fn listbox_scroll_action_at(
-        &self,
+    /// Handles a press on a listbox scrollbar and captures thumb dragging.
+    fn handle_listbox_scroll_press(
+        &mut self,
         screen: &ShellScreen,
         point_x: i32,
         point_y: i32,
-    ) -> Option<ShellAction> {
-        let field = scrollable_option_field(self.model.current())?;
-        screen.controls().iter().find_map(|control| {
-            if !matches!(control.kind(), ShellControlKind::ListBoxChrome { .. }) {
-                return None;
-            }
-            let rect = screen_rect(screen, control.rect());
-            listbox::scrollbar_delta_at(&rect, point_x, point_y)
-                .map(|delta| ShellAction::ScrollOptionList(field, delta))
-        })
+    ) -> bool {
+        let Some(field) = scrollable_option_field(self.model.current()) else {
+            return false;
+        };
+        let Some((rect, item_count, visible_rows)) = listbox_metrics_at(screen, point_x, point_y)
+        else {
+            return false;
+        };
+        self.active_slider = None;
+        if let Some(delta) = listbox::scrollbar_delta_at(&rect, point_x, point_y) {
+            let outcome = self
+                .model
+                .apply_action(ShellAction::ScrollOptionList(field, delta));
+            debug_assert!(
+                matches!(outcome, ShellFlowOutcome::Continue),
+                "scrollbar arrow clicks should not leave the shell"
+            );
+            self.active_listbox_scroll = None;
+        } else {
+            self.active_listbox_scroll = Some(field);
+            self.update_listbox_scroll_offset(field, &rect, item_count, visible_rows, point_y);
+        }
+        true
+    }
+
+    /// Updates a captured listbox scrollbar from pointer motion.
+    fn update_active_listbox_scroll(&mut self, point_y: i32) -> bool {
+        let Some(field) = self.active_listbox_scroll else {
+            return false;
+        };
+        let screen = current_screen(&self.model);
+        let Some((rect, item_count, visible_rows)) = listbox_metrics_for_field(&screen, field)
+        else {
+            self.active_listbox_scroll = None;
+            return false;
+        };
+        self.update_listbox_scroll_offset(field, &rect, item_count, visible_rows, point_y);
+        true
+    }
+
+    /// Updates listbox scroll offset from a pointer y coordinate.
+    fn update_listbox_scroll_offset(
+        &mut self,
+        field: ShellOptionField,
+        rect: &MenuRect,
+        item_count: usize,
+        visible_rows: usize,
+        point_y: i32,
+    ) {
+        let offset = listbox::scrollbar_drag_offset_at(rect, point_y, item_count, visible_rows);
+        self.model
+            .options_mut()
+            .set_option_list_scroll_offset(field, offset);
     }
 
     /// Updates a slider value from a pointer X coordinate.
@@ -361,6 +406,55 @@ impl ShellRuntimeState {
 /// Builds the current shell screen from runtime state.
 fn current_screen(state: &SinglePlayerShellModel) -> ShellScreen {
     shell::screen_for(state.current(), state.setup(), state.options())
+}
+
+/// Returns listbox metrics when a point is inside one scrollbar.
+fn listbox_metrics_at(
+    screen: &ShellScreen,
+    point_x: i32,
+    point_y: i32,
+) -> Option<(MenuRect, usize, usize)> {
+    screen.controls().iter().find_map(|control| {
+        let ShellControlKind::ListBoxChrome {
+            item_count,
+            visible_rows,
+            ..
+        } = control.kind()
+        else {
+            return None;
+        };
+        let rect = screen_rect(screen, control.rect());
+        listbox::scrollbar_contains_point(&rect, point_x, point_y).then_some((
+            rect,
+            item_count,
+            visible_rows,
+        ))
+    })
+}
+
+/// Returns listbox metrics for one scrollable option field.
+fn listbox_metrics_for_field(
+    screen: &ShellScreen,
+    field: ShellOptionField,
+) -> Option<(MenuRect, usize, usize)> {
+    if scrollable_option_field(screen.id()) != Some(field) {
+        return None;
+    }
+    screen.controls().iter().find_map(|control| {
+        let ShellControlKind::ListBoxChrome {
+            item_count,
+            visible_rows,
+            ..
+        } = control.kind()
+        else {
+            return None;
+        };
+        Some((
+            screen_rect(screen, control.rect()),
+            item_count,
+            visible_rows,
+        ))
+    })
 }
 
 /// Returns the option field controlled by the current scrollable picker.

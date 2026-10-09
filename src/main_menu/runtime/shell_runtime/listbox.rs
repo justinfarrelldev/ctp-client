@@ -1,6 +1,7 @@
 //! Original CTP2 listbox chrome rendering.
 
 use sdl2::pixels::Color;
+use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
@@ -16,6 +17,10 @@ const SCROLL_BUTTON_HEIGHT: u32 = 15;
 const BORDER_PIECE_SIZE: u32 = 8;
 /// Native height of the original `upbt14` scrollbar thumb.
 const THUMB_HEIGHT: u32 = 18;
+/// Visible height of the arrow glyph drawn over original scrollbar buttons.
+const ARROW_GLYPH_HEIGHT: u32 = 5;
+/// Visible width of the arrow glyph drawn over original scrollbar buttons.
+const ARROW_GLYPH_WIDTH: u32 = 9;
 /// Original CTP2 border-box art laid out as a three-by-three grid.
 const BORDER_ASSETS: [[&str; 3]; 3] = [
     ["uptg06a.tga", "uptg06b.tga", "uptg06c.tga"],
@@ -139,6 +144,8 @@ fn draw_original_scrollbar(
         &MenuRect::new(scrollbar.x, down_y, SCROLLBAR_WIDTH, SCROLL_BUTTON_HEIGHT),
     )?;
 
+    draw_scrollbar_arrow_glyphs(canvas, &scrollbar)?;
+
     let thumb = create_texture_for_ldl_asset(texture_creator, model, "upbt14.tga")?;
     copy_texture(
         canvas,
@@ -188,7 +195,101 @@ fn draw_fallback_scrollbar(
         THUMB_HEIGHT.min(track.height),
     );
     canvas.set_draw_color(Color::RGB(180, 165, 125));
-    canvas.fill_rect(to_sdl_rect(&thumb)).map_err(runtime_error)
+    canvas
+        .fill_rect(to_sdl_rect(&thumb))
+        .map_err(runtime_error)?;
+    draw_scrollbar_arrow_glyphs(canvas, &scrollbar)
+}
+
+/// Draws visible directional glyphs over the original blank scroller buttons.
+fn draw_scrollbar_arrow_glyphs(
+    canvas: &mut Canvas<Window>,
+    scrollbar: &MenuRect,
+) -> Result<(), MainMenuError> {
+    canvas.set_draw_color(Color::RGB(22, 18, 12));
+    for (direction, rect) in arrow_glyph_plan_from_scrollbar(scrollbar) {
+        draw_arrow_glyph(canvas, direction, &rect)?;
+    }
+    Ok(())
+}
+
+/// Draws one arrow glyph as a small filled triangle.
+fn draw_arrow_glyph(
+    canvas: &mut Canvas<Window>,
+    direction: ArrowDirection,
+    rect: &MenuRect,
+) -> Result<(), MainMenuError> {
+    let height = i32::try_from(rect.height).map_or(0_i32, |value| value);
+    let center_x = rect.x.saturating_add(
+        i32::try_from(rect.width.checked_div(2_u32).map_or(0_u32, |value| value))
+            .map_or(0_i32, |value| value),
+    );
+    for row in 0_i32..height {
+        let half_width = match direction {
+            ArrowDirection::Up => row,
+            ArrowDirection::Down => height.saturating_sub(1_i32).saturating_sub(row),
+        };
+        let width = u32::try_from(half_width.saturating_mul(2_i32).saturating_add(1_i32))
+            .map_or(1_u32, |value| value);
+        let x = center_x.saturating_sub(half_width);
+        let y = rect.y.saturating_add(row);
+        canvas
+            .fill_rect(SdlRect::new(x, y, width, 1_u32))
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
+/// Returns arrow glyph rectangles inside a scrollbar.
+fn arrow_glyph_plan_from_scrollbar(scrollbar: &MenuRect) -> [(ArrowDirection, MenuRect); 2] {
+    let x = scrollbar.x.saturating_add(
+        u32_to_i32(scrollbar.width.saturating_sub(ARROW_GLYPH_WIDTH))
+            .checked_div(2_i32)
+            .map_or(0_i32, |value| value),
+    );
+    let top_y = scrollbar.y.saturating_add(
+        u32_to_i32(SCROLL_BUTTON_HEIGHT.saturating_sub(ARROW_GLYPH_HEIGHT))
+            .checked_div(2_i32)
+            .map_or(0_i32, |value| value),
+    );
+    let down_button_y = scrollbar.y.saturating_add(u32_to_i32(
+        scrollbar.height.saturating_sub(SCROLL_BUTTON_HEIGHT),
+    ));
+    let bottom_y = down_button_y.saturating_add(
+        u32_to_i32(SCROLL_BUTTON_HEIGHT.saturating_sub(ARROW_GLYPH_HEIGHT))
+            .checked_div(2_i32)
+            .map_or(0_i32, |value| value),
+    );
+    [
+        (
+            ArrowDirection::Up,
+            MenuRect::new(x, top_y, ARROW_GLYPH_WIDTH, ARROW_GLYPH_HEIGHT),
+        ),
+        (
+            ArrowDirection::Down,
+            MenuRect::new(x, bottom_y, ARROW_GLYPH_WIDTH, ARROW_GLYPH_HEIGHT),
+        ),
+    ]
+}
+
+/// Direction for a scrollbar arrow glyph.
+#[derive(Clone, Copy)]
+enum ArrowDirection {
+    /// Up/increment-toward-start glyph.
+    Up,
+    /// Down/increment-toward-end glyph.
+    Down,
+}
+
+impl ArrowDirection {
+    /// Returns a stable test label.
+    #[cfg(test)]
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Down => "down",
+        }
+    }
 }
 
 /// Copies one texture into a destination rectangle.
@@ -226,6 +327,55 @@ pub(super) fn scrollbar_delta_at(rect: &MenuRect, point_x: i32, point_y: i32) ->
     } else {
         None
     }
+}
+
+/// Returns whether a point falls inside the listbox scrollbar.
+pub(super) fn scrollbar_contains_point(rect: &MenuRect, point_x: i32, point_y: i32) -> bool {
+    scrollbar_rect(rect).contains_point(point_x, point_y)
+}
+
+/// Maps a pointer y coordinate to the first visible row for thumb dragging.
+pub(super) fn scrollbar_drag_offset_at(
+    rect: &MenuRect,
+    point_y: i32,
+    item_count: usize,
+    visible_rows: usize,
+) -> usize {
+    let scrollbar = scrollbar_rect(rect);
+    let track = scrollbar_track_rect(&scrollbar);
+    let max_offset = item_count.saturating_sub(visible_rows);
+    if max_offset == 0 || track.height <= THUMB_HEIGHT {
+        return 0_usize;
+    }
+    let thumb_height = THUMB_HEIGHT.min(track.height);
+    let available = track.height.saturating_sub(thumb_height);
+    if available == 0 {
+        return 0_usize;
+    }
+    let half_thumb = u32_to_i32(thumb_height.checked_div(2_u32).map_or(0_u32, |value| value));
+    let centered_y = point_y.saturating_sub(track.y).saturating_sub(half_thumb);
+    let clamped_position = centered_y.clamp(0_i32, u32_to_i32(available));
+    let numerator = u64::try_from(clamped_position)
+        .map_or(0_u64, |value| value)
+        .saturating_mul(u64::try_from(max_offset).map_or(u64::MAX, |value| value))
+        .saturating_add(u64::from(
+            available.checked_div(2_u32).map_or(0_u32, |value| value),
+        ));
+    let offset = numerator
+        .checked_div(u64::from(available))
+        .map_or(0_u64, |value| value);
+    usize::try_from(offset).map_or(max_offset, |value| value.min(max_offset))
+}
+
+/// Returns the visible scrollbar arrow overlay plan for tests.
+#[cfg(test)]
+pub(in crate::main_menu::runtime) fn arrow_glyph_plan_for_test(
+    listbox_rect: MenuRect,
+) -> Vec<(&'static str, MenuRect)> {
+    arrow_glyph_plan_from_scrollbar(&scrollbar_rect(&listbox_rect))
+        .into_iter()
+        .map(|(direction, rect)| (direction.label(), rect))
+        .collect()
 }
 
 /// Returns the track rectangle between scrollbar buttons.

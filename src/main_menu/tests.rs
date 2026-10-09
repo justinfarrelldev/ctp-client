@@ -409,6 +409,28 @@ fn disabled_button_art_uses_only_original_inactive_layer() {
 }
 
 #[test]
+fn listbox_scrollbar_arrows_have_visible_overlay_glyphs() {
+    let plan =
+        runtime::listbox_scrollbar_arrow_glyph_plan_for_test(MenuRect::new(303, 238, 177, 89));
+
+    assert_eq!(
+        plan.len(),
+        2_usize,
+        "vertical listbox scrollbars should draw visible up and down arrow glyph overlays"
+    );
+    assert!(
+        plan.iter()
+            .any(|glyph| glyph.0 == "up" && glyph.1.height > 0),
+        "the top arrow button should include a visible up-arrow glyph"
+    );
+    assert!(
+        plan.iter()
+            .any(|glyph| glyph.0 == "down" && glyph.1.height > 0),
+        "the bottom arrow button should include a visible down-arrow glyph"
+    );
+}
+
+#[test]
 fn button_labels_use_original_dark_text_color() {
     assert_eq!(
         runtime::button_label_text_color_for_test(),

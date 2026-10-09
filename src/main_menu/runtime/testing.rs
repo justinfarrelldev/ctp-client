@@ -107,6 +107,14 @@ pub(in crate::main_menu) const fn button_label_text_color_for_test() -> (u8, u8,
     BUTTON_LABEL_TEXT_COLOR
 }
 
+/// Returns visible scrollbar arrow overlay rectangles for tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn listbox_scrollbar_arrow_glyph_plan_for_test(
+    listbox_rect: MenuRect,
+) -> Vec<(&'static str, MenuRect)> {
+    shell_runtime::listbox::arrow_glyph_plan_for_test(listbox_rect)
+}
+
 /// Returns a native/tiled render plan for a button triplet loaded from original assets.
 #[cfg(test)]
 pub(in crate::main_menu) fn button_triplet_render_plan_for_test(
