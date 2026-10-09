@@ -11,7 +11,7 @@ fn switch_enabled(kind: ShellControlKind) -> Option<bool> {
         | ShellControlKind::Label
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
-        | ShellControlKind::ListBoxChrome
+        | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
     }
 }
@@ -24,8 +24,21 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         | ShellControlKind::Label
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
-        | ShellControlKind::ListBoxChrome
+        | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
+/// Returns whether a list item is selected.
+fn list_item_selected(kind: ShellControlKind) -> Option<bool> {
+    match kind {
+        ShellControlKind::ListItem { selected, .. } => Some(selected),
+        ShellControlKind::Button(_)
+        | ShellControlKind::Label
+        | ShellControlKind::TextField
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::Switch { .. }
+        | ShellControlKind::ListBoxChrome { .. } => None,
     }
 }
 
@@ -201,8 +214,12 @@ fn listbox_pickers_use_original_chrome_and_warning_labels() {
             .find_accessible("Resolution List")
             .expect("resolution picker should model ResList chrome")
             .kind(),
-        ShellControlKind::ListBoxChrome,
-        "ScreenResScreen should use original CTP2_LISTBOX chrome metadata"
+        ShellControlKind::ListBoxChrome {
+            scroll_offset: 0_usize,
+            item_count: 19_usize,
+            visible_rows: 4_usize,
+        },
+        "ScreenResScreen should use original CTP2_LISTBOX chrome metadata and visible row count"
     );
     assert!(
         resolution.find_accessible("Resolution Warning").is_some(),
@@ -212,13 +229,28 @@ fn listbox_pickers_use_original_chrome_and_warning_labels() {
         resolution.find_accessible("640 x 480").is_none(),
         "base-game display mode filter rejects 640x480"
     );
-    assert!(
-        resolution.find_accessible("800 x 600").is_some(),
-        "base-game display mode filter keeps the special 800x600 shell mode"
+    let visible_resolution_rows = resolution
+        .controls()
+        .iter()
+        .filter(|control| matches!(control.kind(), ShellControlKind::ListItem { .. }))
+        .count();
+    assert_eq!(
+        visible_resolution_rows, 4_usize,
+        "the 89px ScreenResScreen listbox should show four 20px rows plus native chrome instead of spilling all modes over the popup"
+    );
+    assert_eq!(
+        list_item_selected(
+            resolution
+                .find_accessible("800 x 600")
+                .expect("800 x 600 should be initially visible")
+                .kind(),
+        ),
+        Some(true),
+        "the current resolution should be force-selected like the original c3_ListBox"
     );
     assert!(
-        resolution.find_accessible("1920 x 1200").is_some(),
-        "base-game display mode filter keeps modes at least 1024x768"
+        resolution.find_accessible("1920 x 1200").is_none(),
+        "modes outside the initial visible listbox window should be reached by scrolling rather than spilling outside the popup"
     );
 
     let music_tracks = screen_for(
@@ -231,8 +263,46 @@ fn listbox_pickers_use_original_chrome_and_warning_labels() {
             .find_accessible("Track List")
             .expect("music picker should model TrackList chrome")
             .kind(),
-        ShellControlKind::ListBoxChrome,
+        ShellControlKind::ListBoxChrome {
+            scroll_offset: 0_usize,
+            item_count: 10_usize,
+            visible_rows: 5_usize,
+        },
         "MusicTrackScreen should use original TrackList listbox chrome metadata"
+    );
+}
+
+#[test]
+fn resolution_picker_scrolls_to_all_legal_modes_without_row_spill() {
+    let mut model = SinglePlayerShellModel::default();
+
+    assert_eq!(
+        model.apply_action(ShellAction::OpenOption(ShellOptionField::Resolution)),
+        ShellFlowOutcome::Continue,
+        "opening the resolution picker should keep the shell active"
+    );
+    assert_eq!(
+        model.apply_action(ShellAction::ScrollOptionList(
+            ShellOptionField::Resolution,
+            12_i32,
+        )),
+        ShellFlowOutcome::Continue,
+        "scrolling should keep the resolution picker open"
+    );
+    let scrolled = screen_for(ShellScreenId::Resolution, model.setup(), model.options());
+    assert!(
+        scrolled.find_accessible("1920 x 1200").is_some(),
+        "scrolling the original listbox should reveal later legal display modes"
+    );
+    assert_eq!(
+        model.activate_accessible("1920 x 1200"),
+        Some(ShellFlowOutcome::Continue),
+        "visible scrolled modes should remain selectable by accessible interaction"
+    );
+    assert_eq!(
+        model.options().resolution(),
+        "1920 x 1200",
+        "selecting a scrolled row should update the modeled resolution"
     );
 }
 

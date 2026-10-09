@@ -32,6 +32,8 @@ mod new_game;
 mod options;
 /// Functional shell option state.
 mod options_state;
+/// Original picker value tables.
+mod picker_data;
 /// Picker and option-list builders.
 mod pickers;
 /// Original shell screen dispatcher.
@@ -171,6 +173,8 @@ pub(super) enum ShellAction {
     SelectGameSetupInPlace(GameSetupField, usize),
     /// Select one option value by index.
     SelectOption(ShellOptionField, usize),
+    /// Scroll one option list by signed rows without changing the selected value.
+    ScrollOptionList(ShellOptionField, i32),
     /// Toggle one boolean option.
     ToggleOption(ShellOptionField),
     /// Select a keyboard-mapping category.
@@ -312,7 +316,14 @@ pub(super) enum ShellControlKind {
         images: Option<ShellImageSet>,
     },
     /// Listbox chrome preserving original CTP2 list frame metadata.
-    ListBoxChrome,
+    ListBoxChrome {
+        /// First visible item index.
+        scroll_offset: usize,
+        /// Total item count in the original listbox model.
+        item_count: usize,
+        /// Number of rows visible inside the original listbox viewport.
+        visible_rows: usize,
+    },
     /// List or dropdown item.
     ListItem {
         /// Optional original image family for selectable list items.
@@ -464,14 +475,28 @@ impl ShellScreen {
     /// Finds a control by point.
     pub(super) fn find_at_point(&self, point_x: i32, point_y: i32) -> Option<&ShellControl> {
         self.controls.iter().rev().find(|control| {
-            let global_rect = MenuRect::new(
-                self.rect.x.saturating_add(control.rect.x),
-                self.rect.y.saturating_add(control.rect.y),
-                control.rect.width,
-                control.rect.height,
-            );
-            global_rect.contains_point(point_x, point_y)
+            self.control_interaction_rect(control)
+                .contains_point(point_x, point_y)
         })
+    }
+
+    /// Returns the rendered interaction rectangle for one control in global coordinates.
+    const fn control_interaction_rect(&self, control: &ShellControl) -> MenuRect {
+        let global_rect = MenuRect::new(
+            self.rect.x.saturating_add(control.rect.x),
+            self.rect.y.saturating_add(control.rect.y),
+            control.rect.width,
+            control.rect.height,
+        );
+        match control.kind {
+            ShellControlKind::Button(style) => style.visual_style().rendered_rect(global_rect),
+            ShellControlKind::Label
+            | ShellControlKind::TextField
+            | ShellControlKind::Slider { .. }
+            | ShellControlKind::Switch { .. }
+            | ShellControlKind::ListBoxChrome { .. }
+            | ShellControlKind::ListItem { .. } => global_rect,
+        }
     }
 }
 
@@ -683,6 +708,9 @@ impl SinglePlayerShellModel {
                 if selected {
                     self.back();
                 }
+            }
+            ShellAction::ScrollOptionList(field, delta) => {
+                self.options.scroll_option_list(field, delta);
             }
             ShellAction::SelectKeyboardCategory(category) => {
                 self.options.select_keyboard_category(category);

@@ -6,6 +6,11 @@ use super::builders::{
     asset, button, field, image_switch_control, label, list_item, listbox_chrome,
     popup_close_button, slider,
 };
+use super::options_state::ShellOptionsState;
+use super::picker_data::{
+    BARBARIAN_RISKS, DIFFICULTIES, MAP_SIZES, MUSIC_TRACKS, NATION_LEADER_NAMES,
+    NATION_PICKER_LABELS, NATION_VALUES, PLAYER_COUNTS, RESOLUTIONS, RULE_PRESETS, WORLD_SHAPES,
+};
 use super::{
     GameSetupField, GameSetupState, MenuRect, ShellAction, ShellImageSet, ShellOptionField,
     ShellScreen, ShellScreenId,
@@ -17,6 +22,12 @@ const TRIBE_COLUMN_X: [i32; 4] = [25, 176, 327, 478];
 const TRIBE_ROWS_PER_COLUMN: usize = 11;
 /// Vertical spacing between original popup radio rows.
 const POPUP_RADIO_ROW_STEP: i32 = 30;
+/// Width reserved by the original `CTP2_LISTBOX` vertical ranger.
+pub(super) const LISTBOX_SCROLLBAR_WIDTH: u32 = 15;
+/// Visible rows in the 89px `ScreenResScreen.ResList` viewport.
+pub(super) const RESOLUTION_VISIBLE_ROWS: usize = 4;
+/// Visible rows in the 100px `MusicTrackScreen.TrackList` viewport.
+pub(super) const MUSIC_TRACK_VISIBLE_ROWS: usize = 5;
 
 /// Returns setup options for a field.
 pub(super) const fn setup_options(field: GameSetupField) -> &'static [&'static str] {
@@ -77,7 +88,7 @@ pub(super) const fn option_screen_for(field: ShellOptionField) -> ShellScreenId 
 }
 
 /// Builds resolution picker popup.
-pub(super) fn resolution_screen() -> ShellScreen {
+pub(super) fn resolution_screen(options: &ShellOptionsState) -> ShellScreen {
     picker_from_values(
         ShellScreenId::Resolution,
         "ScreenResScreen",
@@ -85,12 +96,15 @@ pub(super) fn resolution_screen() -> ShellScreen {
         MenuRect::new(282, 183, 235, 234),
         55,
         RESOLUTIONS,
+        options.option_list_scroll_offset(ShellOptionField::Resolution),
+        RESOLUTION_VISIBLE_ROWS,
+        Some(options.resolution()),
         |index| ShellAction::SelectOption(ShellOptionField::Resolution, index),
     )
 }
 
 /// Builds music-track picker popup.
-pub(super) fn music_track_screen() -> ShellScreen {
+pub(super) fn music_track_screen(options: &ShellOptionsState) -> ShellScreen {
     let rect = MenuRect::new(282, 203, 235, 194);
     let mut controls = vec![
         label(
@@ -110,6 +124,9 @@ pub(super) fn music_track_screen() -> ShellScreen {
             45,
             177,
             100,
+            options.option_list_scroll_offset(ShellOptionField::MusicTrack),
+            MUSIC_TRACKS.len(),
+            MUSIC_TRACK_VISIBLE_ROWS,
             "musicscreen.ldl:104",
         ),
     ];
@@ -119,6 +136,10 @@ pub(super) fn music_track_screen() -> ShellScreen {
         MUSIC_TRACKS,
         21,
         45,
+        listbox_content_width(177),
+        options.option_list_scroll_offset(ShellOptionField::MusicTrack),
+        MUSIC_TRACK_VISIBLE_ROWS,
+        selected_music_track_label(options),
         |index| ShellAction::SelectOption(ShellOptionField::MusicTrack, index),
         "musicscreen.ldl:173",
     );
@@ -501,6 +522,10 @@ pub(super) fn rules_picker_screen(setup: &GameSetupState) -> ShellScreen {
 }
 
 /// Builds a generic listbox-style picker popup from values.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Original listbox popup builders carry LDL geometry, scroll, and selection state."
+)]
 fn picker_from_values<ActionBuilder>(
     id: ShellScreenId,
     ldl_name: &'static str,
@@ -508,6 +533,9 @@ fn picker_from_values<ActionBuilder>(
     rect: MenuRect,
     first_row_y: i32,
     values: &'static [&'static str],
+    scroll_offset: usize,
+    visible_rows: usize,
+    selected_value: Option<&str>,
     action_builder: ActionBuilder,
 ) -> ShellScreen
 where
@@ -522,6 +550,9 @@ where
             55,
             177,
             89,
+            scroll_offset,
+            values.len(),
+            visible_rows,
             "graphics.ldl:192",
         ),
         label(
@@ -541,6 +572,10 @@ where
         values,
         21,
         first_row_y,
+        listbox_content_width(177),
+        scroll_offset,
+        visible_rows,
+        selected_value,
         action_builder,
         "graphics.ldl:223",
     );
@@ -555,33 +590,62 @@ where
     }
 }
 
-/// Appends standard list rows using original list item templates.
+/// Appends visible list rows using original list item templates.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Original list row construction carries LDL geometry and scroll metadata."
+)]
 fn append_list_rows<ActionBuilder>(
     controls: &mut Vec<super::ShellControl>,
     ldl_name: &'static str,
     values: &'static [&'static str],
     x: i32,
     first_row_y: i32,
+    width: u32,
+    scroll_offset: usize,
+    visible_rows: usize,
+    selected_value: Option<&str>,
     action_builder: ActionBuilder,
     source: &'static str,
 ) where
     ActionBuilder: Fn(usize) -> ShellAction,
 {
-    for (index, value) in values.iter().enumerate() {
-        let y = first_row_y
-            .saturating_add(i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(20_i32)));
+    for (index, value) in values
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(visible_rows)
+    {
+        let visible_index = index.saturating_sub(scroll_offset);
+        let y = first_row_y.saturating_add(
+            i32::try_from(visible_index).map_or(0_i32, |row| row.saturating_mul(20_i32)),
+        );
         controls.push(list_item(
             ldl_name,
             value,
             value,
             x,
             y,
-            177,
+            width,
             20,
+            selected_value.is_some_and(|selected| selected == *value),
             action_builder(index),
             source,
         ));
     }
+}
+
+/// Returns the content width left after the original always-visible vertical ranger.
+const fn listbox_content_width(width: u32) -> u32 {
+    width.saturating_sub(LISTBOX_SCROLLBAR_WIDTH)
+}
+
+/// Returns the selected music track label.
+fn selected_music_track_label(options: &ShellOptionsState) -> Option<&'static str> {
+    options
+        .music_track()
+        .checked_sub(1_usize)
+        .and_then(|index| MUSIC_TRACKS.get(index).copied())
 }
 
 /// Appends one original custom-map slider and its left/right labels.
@@ -782,193 +846,3 @@ const fn tribe_ldl_name(column: usize) -> &'static str {
 pub(super) fn leader_name_for_nation_index(index: usize) -> Option<&'static str> {
     NATION_LEADER_NAMES.get(index).copied()
 }
-
-/// Original nation values from `civilisation.txt`, excluding barbarians.
-pub(super) const NATION_VALUES: &[&str] = &[
-    "GREEKS",
-    "AMERICANS",
-    "SCOTS",
-    "IRISH",
-    "ENGLISH",
-    "NATIVE AMERICANS",
-    "GERMANS",
-    "FRENCH",
-    "JAPANESE",
-    "CHINESE",
-    "RUSSIANS",
-    "SPANIARDS",
-    "PORTUGUESE",
-    "DUTCH",
-    "VIKINGS",
-    "ROMANS",
-    "EGYPTIANS",
-    "PERSIANS",
-    "TURKS",
-    "PHOENICIANS",
-    "WELSH",
-    "CUBANS",
-    "ZULUS",
-    "HEBREWS",
-    "ASSYRIANS",
-    "INDIANS",
-    "THAI",
-    "POLYNESIANS",
-    "INDONESIANS",
-    "POLISH",
-    "INCANS",
-    "MAYANS",
-    "CANADIANS",
-    "NIGERIANS",
-    "KOREANS",
-    "BRAZILIANS",
-    "AUSTRALIANS",
-    "MEXICANS",
-    "ETHIOPIANS",
-    "MONGOLS",
-    "NICARAGUANS",
-];
-
-/// Original singular tribe labels shown by `SPNewGameTribeScreen`.
-const NATION_PICKER_LABELS: &[&str] = &[
-    "Greek",
-    "American",
-    "Scottish",
-    "Irish",
-    "English",
-    "Native American",
-    "German",
-    "French",
-    "Japanese",
-    "Chinese",
-    "Russian",
-    "Spaniard",
-    "Portuguese",
-    "Dutch",
-    "Viking",
-    "Roman",
-    "Egyptian",
-    "Persian",
-    "Turk",
-    "Phoenician",
-    "Welsh",
-    "Cuban",
-    "Zulu",
-    "Hebrew",
-    "Assyrian",
-    "Indian",
-    "Thai",
-    "Polynesian",
-    "Indonesian",
-    "Polish",
-    "Incan",
-    "Mayan",
-    "Canadian",
-    "Nigerian",
-    "Korean",
-    "Brazilian",
-    "Australian",
-    "Mexican",
-    "Ethiopian",
-    "Mongol",
-    "Nicaraguan",
-];
-
-/// Default male leader names from `civilisation.txt` + `civ_str.txt`.
-const NATION_LEADER_NAMES: &[&str] = &[
-    "Alexander the Great",
-    "George Washington",
-    "William Wallace",
-    "Brian Boru",
-    "Winston Churchill",
-    "Sitting Bull",
-    "Frederick",
-    "Napoleon Bonaparte",
-    "Minamoto",
-    "Sun Tzu",
-    "Ivan The Terrible",
-    "Ferdinand",
-    "Vasco da Gama",
-    "Willem I",
-    "Sweyn Forkbeard",
-    "Julius Caesar",
-    "Ramses",
-    "Cyrus the Great",
-    "Osman I",
-    "Hiram",
-    "Owain Glyndwr",
-    "Jose Marti",
-    "Shaka Zulu",
-    "David",
-    "Tiglath-pileser III",
-    "Mohandas Gandhi",
-    "Yot Fa",
-    "Kamehameha",
-    "Airlangga",
-    "Lech Walesa",
-    "Viracocha",
-    "Hunahpu",
-    "Pierre Trudeau",
-    "Azikiwe",
-    "Yi Songgye",
-    "Manuel Deodoro da Fonseca",
-    "Gough Whitlam",
-    "Santa Anna",
-    "Haile Selassie I",
-    "Genghis Khan",
-    "Moctezuma II",
-];
-/// Original difficulty picker values.
-const DIFFICULTIES: &[&str] = &[
-    "Beginner",
-    "Easy",
-    "Medium",
-    "Hard",
-    "Very Hard",
-    "Impossible",
-];
-/// Original barbarian risk companion column values instantiated by source.
-const BARBARIAN_RISKS: &[&str] = &["Ruins Only", "Bandits", "Raiders", "Marauders"];
-/// Original map-size values.
-const MAP_SIZES: &[&str] = &["Small", "Regular", "Huge", "Gigantic"];
-/// Original world-shape values.
-const WORLD_SHAPES: &[&str] = &["Earth World", "Doughnut World", "Flat World"];
-/// Supported opponent/player presets before launch.
-const PLAYER_COUNTS: &[&str] = &["3", "4", "5", "6", "7", "8"];
-/// Rule toggles surfaced by the original shell rules popup.
-const RULE_PRESETS: &[&str] = &["Bloodlust - Off", "Pollution - Off"];
-/// Legal base-game resolution choices: `display_DisplayModeCallback` accepts 800x600 plus
-/// display modes at least 1024x768 and rejects 640x480.
-pub(super) const RESOLUTIONS: &[&str] = &[
-    "800 x 600",
-    "1024 x 768",
-    "1152 x 864",
-    "1280 x 720",
-    "1280 x 768",
-    "1280 x 800",
-    "1280 x 960",
-    "1280 x 1024",
-    "1360 x 768",
-    "1366 x 768",
-    "1440 x 900",
-    "1600 x 900",
-    "1600 x 1200",
-    "1680 x 1050",
-    "1920 x 1080",
-    "1920 x 1200",
-    "2560 x 1440",
-    "2560 x 1600",
-    "3840 x 2160",
-];
-/// Music tracks listed by `MusicTrackScreen.TrackNames`.
-pub(super) const MUSIC_TRACKS: &[&str] = &[
-    "A Fortiori",
-    "Pacari Tampu",
-    "Amaethon",
-    "A'tugewinu",
-    "Summum Bonum",
-    "Casus Belli",
-    "Ankh Djet",
-    "Shaolin San",
-    "Quiet Outback",
-    "Kali Dance",
-];

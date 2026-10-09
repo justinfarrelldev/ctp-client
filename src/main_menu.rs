@@ -110,6 +110,18 @@ pub enum ButtonStyleId {
     Ctp2Small,
 }
 
+impl ButtonStyleId {
+    /// Returns complete visual metadata for this style identifier.
+    #[must_use]
+    pub const fn visual_style(self) -> ButtonVisualStyle {
+        match self {
+            Self::BlueLarge => ButtonVisualStyle::blue_large(),
+            Self::StoneLarge => ButtonVisualStyle::stone_large(),
+            Self::Ctp2Small => ButtonVisualStyle::ctp2_small(),
+        }
+    }
+}
+
 /// Complete visual style metadata for one menu button style.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ButtonVisualStyle {
@@ -175,6 +187,27 @@ impl ButtonVisualStyle {
             template_width: 70,
             template_height: 24,
         }
+    }
+
+    /// Returns the native rendered height of the original button art family.
+    #[must_use]
+    pub const fn rendered_height(self) -> u32 {
+        match self.id {
+            ButtonStyleId::BlueLarge | ButtonStyleId::StoneLarge => 39,
+            ButtonStyleId::Ctp2Small => 24,
+        }
+    }
+
+    /// Returns the rectangle covered by the rendered button art.
+    #[must_use]
+    pub const fn rendered_rect(self, rect: MenuRect) -> MenuRect {
+        let rendered_height = self.rendered_height();
+        let height = if rect.height > rendered_height {
+            rect.height
+        } else {
+            rendered_height
+        };
+        MenuRect::new(rect.x, rect.y, rect.width, height)
     }
 }
 
@@ -344,7 +377,12 @@ impl MainMenuModel {
     pub fn activate_at_point(&self, point_x: i32, point_y: i32) -> Option<MainMenuAction> {
         self.buttons
             .iter()
-            .find(|button| button.rect.contains_point(point_x, point_y))
+            .find(|button| {
+                button
+                    .style
+                    .rendered_rect(button.rect)
+                    .contains_point(point_x, point_y)
+            })
             .map(|button| button.action)
     }
 

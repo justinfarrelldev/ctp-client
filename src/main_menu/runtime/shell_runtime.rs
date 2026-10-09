@@ -9,8 +9,8 @@ use sdl2::video::{Window, WindowContext};
 use crate::config::AppConfig;
 use crate::config::ctp2_options::Ctp2Options;
 use crate::main_menu::shell::{
-    self, ShellAction, ShellControl, ShellControlKind, ShellFlowOutcome, ShellImageSet,
-    ShellOptionField, ShellScreen, ShellScreenId, SinglePlayerShellModel,
+    self, ShellAction, ShellControl, ShellControlKind, ShellFlowOutcome, ShellOptionField,
+    ShellScreen, ShellScreenId, SinglePlayerShellModel,
 };
 use crate::main_menu::{
     MainMenuAction, MainMenuError, MainMenuModel, MenuAssetReference, MenuRect,
@@ -22,9 +22,15 @@ use super::{
     load_rim_rgba_entry, parse_resolution_label, runtime_error, textures_for_style, to_sdl_rect,
 };
 
+/// Individual shell control drawing helpers.
+mod controls;
+/// Original listbox chrome drawing helpers.
+mod listbox;
 /// Immediate shell UI sound types.
 pub(super) mod sound;
 
+use controls::{draw_disabled_button, draw_list_item, draw_slider, draw_switch, draw_text_field};
+use listbox::draw_listbox_chrome;
 use sound::{ShellRuntimeInteraction, ShellRuntimeSound};
 
 /// Runtime state for the navigable single-player shell.
@@ -101,7 +107,7 @@ impl ShellRuntimeState {
             | ShellControlKind::Label
             | ShellControlKind::TextField
             | ShellControlKind::Switch { .. }
-            | ShellControlKind::ListBoxChrome
+            | ShellControlKind::ListBoxChrome { .. }
             | ShellControlKind::ListItem { .. } => Some(ShellRuntimeSound::ButtonClick),
         }
     }
@@ -109,6 +115,15 @@ impl ShellRuntimeState {
     /// Handles a click in the current shell screen.
     pub(super) fn click_shell(&mut self, point_x: i32, point_y: i32) -> ShellRuntimeInteraction {
         let screen = current_screen(&self.model);
+        if let Some(action) = self.listbox_scroll_action_at(&screen, point_x, point_y) {
+            self.active_slider = None;
+            let outcome = self.model.apply_action(action);
+            debug_assert!(
+                matches!(outcome, ShellFlowOutcome::Continue),
+                "scrolling listboxes should not leave the shell"
+            );
+            return ShellRuntimeInteraction::none();
+        }
         let Some(control) = screen.find_at_point(point_x, point_y) else {
             return ShellRuntimeInteraction::none();
         };
@@ -134,6 +149,16 @@ impl ShellRuntimeState {
             }
             ShellFlowOutcome::Quit => ShellRuntimeInteraction::action(MainMenuAction::Quit),
         }
+    }
+
+    /// Handles mouse-wheel scrolling for the active scrollable listbox.
+    pub(super) fn scroll_shell(&mut self, delta_y: i32) {
+        let Some(field) = scrollable_option_field(self.model.current()) else {
+            return;
+        };
+        self.model
+            .options_mut()
+            .scroll_option_list(field, delta_y.saturating_neg());
     }
 
     /// Handles pointer dragging for a captured slider.
@@ -174,6 +199,24 @@ impl ShellRuntimeState {
     #[cfg(test)]
     pub(super) const fn numeric_option_for_test(&self, field: ShellOptionField) -> Option<i32> {
         self.model.options().numeric(field)
+    }
+
+    /// Returns a listbox scroll action for a scrollbar button click.
+    fn listbox_scroll_action_at(
+        &self,
+        screen: &ShellScreen,
+        point_x: i32,
+        point_y: i32,
+    ) -> Option<ShellAction> {
+        let field = scrollable_option_field(self.model.current())?;
+        screen.controls().iter().find_map(|control| {
+            if !matches!(control.kind(), ShellControlKind::ListBoxChrome { .. }) {
+                return None;
+            }
+            let rect = screen_rect(screen, control.rect());
+            listbox::scrollbar_delta_at(&rect, point_x, point_y)
+                .map(|delta| ShellAction::ScrollOptionList(field, delta))
+        })
     }
 
     /// Updates a slider value from a pointer X coordinate.
@@ -272,6 +315,7 @@ impl ShellRuntimeState {
             | ShellAction::SelectGameSetup(_, _)
             | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
+            | ShellAction::ScrollOptionList(_, _)
             | ShellAction::FocusLeaderName
             | ShellAction::LaunchGame
             | ShellAction::Back
@@ -317,6 +361,30 @@ impl ShellRuntimeState {
 /// Builds the current shell screen from runtime state.
 fn current_screen(state: &SinglePlayerShellModel) -> ShellScreen {
     shell::screen_for(state.current(), state.setup(), state.options())
+}
+
+/// Returns the option field controlled by the current scrollable picker.
+const fn scrollable_option_field(screen: ShellScreenId) -> Option<ShellOptionField> {
+    match screen {
+        ShellScreenId::Resolution => Some(ShellOptionField::Resolution),
+        ShellScreenId::MusicTrack => Some(ShellOptionField::MusicTrack),
+        ShellScreenId::Landing
+        | ShellScreenId::SinglePlayerHub
+        | ShellScreenId::NewGame
+        | ShellScreenId::Options
+        | ShellScreenId::Gameplay
+        | ShellScreenId::Graphics
+        | ShellScreenId::Sound
+        | ShellScreenId::Music
+        | ShellScreenId::Keyboard
+        | ShellScreenId::NationPicker
+        | ShellScreenId::DifficultyPicker
+        | ShellScreenId::MapSizePicker
+        | ShellScreenId::WorldShapePicker
+        | ShellScreenId::PlayersPicker
+        | ShellScreenId::RulesPicker
+        | ShellScreenId::CustomMap => None,
+    }
 }
 
 /// Loads persisted options for production runtime startup.
@@ -431,7 +499,8 @@ fn draw_shell_control(
     match control.kind() {
         ShellControlKind::Button(style) => {
             let enabled = control.enabled();
-            let hovered = enabled && rect.contains_point(mouse_x, mouse_y);
+            let interaction_rect = style.visual_style().rendered_rect(rect);
+            let hovered = enabled && interaction_rect.contains_point(mouse_x, mouse_y);
             if enabled {
                 if let Some(button_textures) = textures_for_style(textures, style) {
                     button_art::draw_styled_button(canvas, &rect, button_textures, hovered)?;
@@ -439,20 +508,32 @@ fn draw_shell_control(
                         button_art::styled_button_text_rect(&rect, button_textures, hovered);
                     draw_centered_text(canvas, font, &text_rect, control.label())
                 } else {
-                    draw_fallback_button(canvas, &rect, style, hovered)?;
-                    draw_centered_text(canvas, font, &rect, control.label())
+                    draw_fallback_button(canvas, &interaction_rect, style, hovered)?;
+                    draw_centered_text(canvas, font, &interaction_rect, control.label())
                 }
             } else if let Some(button_textures) = textures_for_style(textures, style) {
                 button_art::draw_disabled_styled_button(canvas, &rect, button_textures)?;
                 let text_rect = button_art::disabled_button_text_rect(&rect, button_textures);
                 draw_centered_text(canvas, font, &text_rect, control.label())
             } else {
-                draw_disabled_button(canvas, font, &rect, control.label())
+                draw_disabled_button(canvas, font, &interaction_rect, control.label())
             }
         }
         ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
         ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
-        ShellControlKind::ListBoxChrome => draw_listbox_chrome(canvas, &rect),
+        ShellControlKind::ListBoxChrome {
+            scroll_offset,
+            item_count,
+            visible_rows,
+        } => draw_listbox_chrome(
+            canvas,
+            texture_creator,
+            model,
+            &rect,
+            scroll_offset,
+            item_count,
+            visible_rows,
+        ),
         ShellControlKind::Slider { min, max, value } => draw_slider(
             canvas,
             texture_creator,
@@ -508,6 +589,7 @@ const fn slider_field(action: ShellAction, kind: ShellControlKind) -> Option<She
             | ShellAction::SelectGameSetup(_, _)
             | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
+            | ShellAction::ScrollOptionList(_, _)
             | ShellAction::ToggleOption(_)
             | ShellAction::SelectKeyboardCategory(_)
             | ShellAction::ResetKeyboardDefaults
@@ -535,168 +617,6 @@ fn slider_value_at(rect: &MenuRect, kind: ShellControlKind, point_x: i32) -> i32
         .checked_div(width)
         .map_or(0_i32, |value| value);
     min.saturating_add(scaled).clamp(min, max)
-}
-
-/// Draws a disabled button fallback.
-fn draw_disabled_button(
-    canvas: &mut Canvas<Window>,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    label: &str,
-) -> Result<(), MainMenuError> {
-    canvas.set_draw_color(Color::RGB(82, 78, 70));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(35, 32, 28));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    draw_centered_text(canvas, font, rect, label)
-}
-
-/// Draws CTP2 listbox chrome with a patterned/beveled fallback.
-fn draw_listbox_chrome(canvas: &mut Canvas<Window>, rect: &MenuRect) -> Result<(), MainMenuError> {
-    canvas.set_draw_color(Color::RGB(150, 137, 103));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(50, 42, 31));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)
-}
-
-/// Draws a simple text-entry field.
-fn draw_text_field(
-    canvas: &mut Canvas<Window>,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    text: &str,
-) -> Result<(), MainMenuError> {
-    canvas.set_draw_color(Color::RGB(210, 200, 165));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(65, 55, 40));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    draw_centered_text(canvas, font, rect, text)
-}
-
-/// Draws a functional slider approximation with original bounds.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Slider rendering combines geometry, state, original art, and SDL resources."
-)]
-fn draw_slider(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    _font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    _label: &str,
-    min: i32,
-    max: i32,
-    value: i32,
-) -> Result<(), MainMenuError> {
-    let half_height = rect.height.checked_div(2_u32).map_or(0_u32, |half| half);
-    let track_y = rect
-        .y
-        .saturating_add(i32::try_from(half_height).map_or(0_i32, |half| half));
-    canvas.set_draw_color(Color::RGB(60, 50, 38));
-    canvas
-        .fill_rect(SdlRect::new(rect.x, track_y, rect.width, 3))
-        .map_err(runtime_error)?;
-    let range = max.saturating_sub(min).max(1_i32);
-    let offset = value
-        .saturating_sub(min)
-        .saturating_mul(i32::try_from(rect.width).map_or(0_i32, |width| width))
-        .checked_div(range)
-        .map_or(0_i32, |value| value);
-    let thumb_rect = MenuRect::new(rect.x.saturating_add(offset), rect.y, 9, rect.height);
-    if let Ok(texture) = create_texture_for_ldl_asset(texture_creator, model, "upba2513.tga") {
-        canvas
-            .copy(&texture, None, to_sdl_rect(&thumb_rect))
-            .map_err(runtime_error)?;
-    } else {
-        canvas.set_draw_color(Color::RGB(230, 215, 175));
-        canvas
-            .fill_rect(to_sdl_rect(&thumb_rect))
-            .map_err(runtime_error)?;
-    }
-    Ok(())
-}
-
-/// Draws a switch with its label.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Switch rendering combines state, original art, and SDL resources."
-)]
-fn draw_switch(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    label: &str,
-    enabled: bool,
-    images: Option<ShellImageSet>,
-) -> Result<(), MainMenuError> {
-    if let Some(image_set) = images {
-        draw_shell_image(canvas, texture_creator, model, rect, image_set, enabled)?;
-        return draw_centered_text(canvas, font, rect, label);
-    }
-
-    canvas.set_draw_color(if enabled {
-        Color::RGB(190, 180, 130)
-    } else {
-        Color::RGB(95, 88, 70)
-    });
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(45, 38, 28));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    draw_centered_text(canvas, font, rect, label)
-}
-
-/// Draws a patterned dropdown/list item.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "List rendering combines optional original art and SDL resources."
-)]
-fn draw_list_item(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-    rect: &MenuRect,
-    control: &ShellControl,
-    images: Option<ShellImageSet>,
-    selected: bool,
-) -> Result<(), MainMenuError> {
-    if let Some(image_set) = images {
-        draw_shell_image(canvas, texture_creator, model, rect, image_set, selected)?;
-        return draw_centered_text(canvas, font, rect, control.label());
-    }
-
-    canvas.set_draw_color(Color::RGB(165, 150, 112));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(70, 60, 45));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    draw_centered_text(canvas, font, rect, control.label())
-}
-
-/// Draws one original single-image shell control.
-fn draw_shell_image(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    rect: &MenuRect,
-    image_set: ShellImageSet,
-    selected: bool,
-) -> Result<(), MainMenuError> {
-    let image_name = image_set.image_for_state(selected, true);
-    if let Ok(texture) = create_texture_for_ldl_asset(texture_creator, model, image_name) {
-        canvas
-            .copy(&texture, None, to_sdl_rect(rect))
-            .map_err(runtime_error)
-    } else {
-        canvas.set_draw_color(if selected {
-            Color::RGB(190, 180, 130)
-        } else {
-            Color::RGB(95, 88, 70)
-        });
-        canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)
-    }
 }
 
 /// Creates a texture for a menu asset.

@@ -12,7 +12,7 @@ use crate::config::ctp2_options::{
     Ctp2Toggle,
 };
 
-use super::{ShellOptionField, pickers};
+use super::{ShellOptionField, picker_data, pickers};
 
 /// Bit for the music-enabled shell option.
 const OPTION_FLAG_MUSIC_ENABLED: u32 = 0b0000_0000_0000_0001;
@@ -92,6 +92,10 @@ pub(in crate::main_menu) struct ShellOptionsState {
     enabled_option_flags: u32,
     /// Selected music track index.
     music_track: usize,
+    /// First visible row in the resolution picker listbox.
+    resolution_scroll_offset: usize,
+    /// First visible row in the music-track picker listbox.
+    music_track_scroll_offset: usize,
     /// Selected keyboard mapping category.
     keyboard_category: Ctp2KeyboardCategory,
     /// Persisted key-binding overrides.
@@ -109,6 +113,8 @@ impl Default for ShellOptionsState {
             resolution: "800 x 600".to_owned(),
             enabled_option_flags: DEFAULT_OPTION_FLAGS,
             music_track: 2,
+            resolution_scroll_offset: 0,
+            music_track_scroll_offset: 0,
             keyboard_category: Ctp2KeyboardCategory::Basic,
             keyboard_bindings: Vec::new(),
         }
@@ -205,6 +211,7 @@ impl ShellOptionsState {
             ShellOptionField::LeftHandedMouse,
             options.gameplay.left_handed_mouse.enabled(),
         );
+        state.reveal_selected_list_items();
         state
     }
 
@@ -408,10 +415,15 @@ impl ShellOptionsState {
     pub(in crate::main_menu) fn select(&mut self, field: ShellOptionField, index: usize) -> bool {
         match field {
             ShellOptionField::Resolution => {
-                let Some(value) = pickers::RESOLUTIONS.get(index) else {
+                let Some(value) = picker_data::RESOLUTIONS.get(index) else {
                     return false;
                 };
                 (*value).clone_into(&mut self.resolution);
+                self.resolution_scroll_offset = scroll_offset_for_selected(
+                    index,
+                    pickers::RESOLUTION_VISIBLE_ROWS,
+                    picker_data::RESOLUTIONS.len(),
+                );
             }
             ShellOptionField::MusicEnabled
             | ShellOptionField::AutoRepeat
@@ -435,10 +447,15 @@ impl ShellOptionsState {
             | ShellOptionField::AutoSave
             | ShellOptionField::LeftHandedMouse => return self.set_bool_option(field, index != 0),
             ShellOptionField::MusicTrack => {
-                if index >= pickers::MUSIC_TRACKS.len() {
+                if index >= picker_data::MUSIC_TRACKS.len() {
                     return false;
                 }
                 self.music_track = index.saturating_add(1);
+                self.music_track_scroll_offset = scroll_offset_for_selected(
+                    index,
+                    pickers::MUSIC_TRACK_VISIBLE_ROWS,
+                    picker_data::MUSIC_TRACKS.len(),
+                );
             }
             ShellOptionField::SfxVolume
             | ShellOptionField::VoiceVolume
@@ -495,6 +512,124 @@ impl ShellOptionsState {
         self.music_track
     }
 
+    /// Returns the first visible row for an option list.
+    pub(in crate::main_menu) const fn option_list_scroll_offset(
+        &self,
+        field: ShellOptionField,
+    ) -> usize {
+        match field {
+            ShellOptionField::Resolution => self.resolution_scroll_offset,
+            ShellOptionField::MusicTrack => self.music_track_scroll_offset,
+            ShellOptionField::SfxVolume
+            | ShellOptionField::VoiceVolume
+            | ShellOptionField::MusicVolume
+            | ShellOptionField::UnitSpeed
+            | ShellOptionField::MouseSpeed
+            | ShellOptionField::UnitAnimation
+            | ShellOptionField::AnimatedTradeRoutes
+            | ShellOptionField::WonderMovies
+            | ShellOptionField::CityNames
+            | ShellOptionField::PoliticalBorders
+            | ShellOptionField::TradeRoutes
+            | ShellOptionField::CityInfluence
+            | ShellOptionField::Grid
+            | ShellOptionField::MusicEnabled
+            | ShellOptionField::AutoRepeat
+            | ShellOptionField::RandomOrder
+            | ShellOptionField::TutorialAdvice
+            | ShellOptionField::AutoCycleTurns
+            | ShellOptionField::AutoCycleUnits
+            | ShellOptionField::BattleView
+            | ShellOptionField::EnemyMoves
+            | ShellOptionField::AutoCenter
+            | ShellOptionField::AutoTabSelect
+            | ShellOptionField::ShowAllBattles
+            | ShellOptionField::AutoSave
+            | ShellOptionField::LeftHandedMouse => 0,
+        }
+    }
+
+    /// Scrolls an option list by signed rows and returns whether the offset changed.
+    pub(in crate::main_menu) fn scroll_option_list(
+        &mut self,
+        field: ShellOptionField,
+        delta: i32,
+    ) -> bool {
+        match field {
+            ShellOptionField::Resolution => {
+                let next = scrolled_offset(
+                    self.resolution_scroll_offset,
+                    delta,
+                    picker_data::RESOLUTIONS.len(),
+                    pickers::RESOLUTION_VISIBLE_ROWS,
+                );
+                let changed = next != self.resolution_scroll_offset;
+                self.resolution_scroll_offset = next;
+                changed
+            }
+            ShellOptionField::MusicTrack => {
+                let next = scrolled_offset(
+                    self.music_track_scroll_offset,
+                    delta,
+                    picker_data::MUSIC_TRACKS.len(),
+                    pickers::MUSIC_TRACK_VISIBLE_ROWS,
+                );
+                let changed = next != self.music_track_scroll_offset;
+                self.music_track_scroll_offset = next;
+                changed
+            }
+            ShellOptionField::SfxVolume
+            | ShellOptionField::VoiceVolume
+            | ShellOptionField::MusicVolume
+            | ShellOptionField::UnitSpeed
+            | ShellOptionField::MouseSpeed
+            | ShellOptionField::UnitAnimation
+            | ShellOptionField::AnimatedTradeRoutes
+            | ShellOptionField::WonderMovies
+            | ShellOptionField::CityNames
+            | ShellOptionField::PoliticalBorders
+            | ShellOptionField::TradeRoutes
+            | ShellOptionField::CityInfluence
+            | ShellOptionField::Grid
+            | ShellOptionField::MusicEnabled
+            | ShellOptionField::AutoRepeat
+            | ShellOptionField::RandomOrder
+            | ShellOptionField::TutorialAdvice
+            | ShellOptionField::AutoCycleTurns
+            | ShellOptionField::AutoCycleUnits
+            | ShellOptionField::BattleView
+            | ShellOptionField::EnemyMoves
+            | ShellOptionField::AutoCenter
+            | ShellOptionField::AutoTabSelect
+            | ShellOptionField::ShowAllBattles
+            | ShellOptionField::AutoSave
+            | ShellOptionField::LeftHandedMouse => false,
+        }
+    }
+
+    /// Reveals persisted selected items when opening scrollable pickers.
+    fn reveal_selected_list_items(&mut self) {
+        if let Some(index) = picker_data::RESOLUTIONS
+            .iter()
+            .position(|value| *value == self.resolution())
+        {
+            self.resolution_scroll_offset = scroll_offset_for_selected(
+                index,
+                pickers::RESOLUTION_VISIBLE_ROWS,
+                picker_data::RESOLUTIONS.len(),
+            );
+        }
+        let music_index = self
+            .music_track
+            .checked_sub(1_usize)
+            .map_or(0_usize, |value| value);
+        self.music_track_scroll_offset = scroll_offset_for_selected(
+            music_index,
+            pickers::MUSIC_TRACK_VISIBLE_ROWS,
+            picker_data::MUSIC_TRACKS.len(),
+        );
+    }
+
     /// Returns selected keyboard category.
     pub(in crate::main_menu) const fn keyboard_category(&self) -> Ctp2KeyboardCategory {
         self.keyboard_category
@@ -504,6 +639,32 @@ impl ShellOptionsState {
     #[cfg(test)]
     pub(in crate::main_menu) fn keyboard_bindings(&self) -> &[Ctp2KeyBinding] {
         self.keyboard_bindings.as_slice()
+    }
+}
+
+/// Returns a listbox offset that reveals the selected row.
+fn scroll_offset_for_selected(
+    selected_index: usize,
+    visible_rows: usize,
+    item_count: usize,
+) -> usize {
+    let max_offset = item_count.saturating_sub(visible_rows);
+    if selected_index < visible_rows {
+        0_usize
+    } else {
+        selected_index.min(max_offset)
+    }
+}
+
+/// Returns a scroll offset after applying a signed row delta.
+fn scrolled_offset(current: usize, delta: i32, item_count: usize, visible_rows: usize) -> usize {
+    let max_offset = item_count.saturating_sub(visible_rows);
+    if delta < 0_i32 {
+        let distance = usize::try_from(delta.unsigned_abs()).map_or(usize::MAX, |value| value);
+        current.saturating_sub(distance)
+    } else {
+        let distance = usize::try_from(delta).map_or(usize::MAX, |value| value);
+        current.saturating_add(distance).min(max_offset)
     }
 }
 

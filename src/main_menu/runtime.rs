@@ -469,6 +469,10 @@ fn handle_menu_event(
             }
         }
         Event::MouseButtonUp { .. } => shell_state.release_pointer(),
+        Event::MouseWheel { y, .. } => {
+            shell_state.scroll_shell(y);
+            None
+        }
         Event::TextInput { text, .. } => {
             shell_state.handle_text_input(&text);
             None
@@ -483,7 +487,6 @@ fn handle_menu_event(
         }
         Event::KeyDown { .. }
         | Event::KeyUp { .. }
-        | Event::MouseWheel { .. }
         | Event::ControllerButtonDown { .. }
         | Event::ControllerButtonUp { .. }
         | Event::ControllerAxisMotion { .. }
@@ -575,14 +578,15 @@ fn draw_menu(
     }
 
     for button in &model.buttons {
-        let hovered = button.rect.contains_point(mouse_x, mouse_y);
+        let interaction_rect = button.style.rendered_rect(button.rect);
+        let hovered = interaction_rect.contains_point(mouse_x, mouse_y);
         let text_rect = if let Some(button_textures) = textures_for_style(textures, button.style.id)
         {
             button_art::draw_styled_button(canvas, &button.rect, button_textures, hovered)?;
             button_art::styled_button_text_rect(&button.rect, button_textures, hovered)
         } else {
-            draw_fallback_button(canvas, &button.rect, button.style.id, hovered)?;
-            button.rect
+            draw_fallback_button(canvas, &interaction_rect, button.style.id, hovered)?;
+            interaction_rect
         };
         draw_centered_text(canvas, font, &text_rect, button.label)?;
     }

@@ -38,6 +38,28 @@ fn resolution_picker_click_queues_window_resize_effect() {
 }
 
 #[test]
+fn resolution_scrollbar_click_reveals_later_mode_and_queues_resize() {
+    let model = test_model();
+    let mut state = ShellRuntimeState::new();
+    state.open_single_player();
+
+    click(&mut state, &model, 156_i32, 276_i32);
+    click(&mut state, &model, 238_i32, 228_i32);
+    click(&mut state, &model, 325_i32, 380_i32);
+    for _step in 0_usize..12_usize {
+        click(&mut state, &model, 472_i32, 320_i32);
+    }
+    click(&mut state, &model, 320_i32, 308_i32);
+
+    let effects = state.take_effects();
+    assert_eq!(
+        effects.resolution,
+        Some((1920_u32, 1200_u32)),
+        "scrollbar clicks should reveal and select later legal resolution rows without row spill"
+    );
+}
+
+#[test]
 fn music_controls_queue_track_and_toggle_effects() {
     let model = test_model();
     let mut state = ShellRuntimeState::new();

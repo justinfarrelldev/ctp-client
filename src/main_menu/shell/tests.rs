@@ -11,7 +11,7 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         | ShellControlKind::Label
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
-        | ShellControlKind::ListBoxChrome
+        | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
     }
 }
@@ -312,6 +312,37 @@ fn setup_picker_popups_match_original_ldl_dimensions_and_checkbox_art() {
             "{screen_id:?} selectable options should use original popup checkbox/toggle art"
         );
     }
+}
+
+#[test]
+fn shell_button_hitboxes_include_rendered_button_art() {
+    let screen = screen_for(
+        ShellScreenId::Options,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    let gameplay = screen
+        .find_accessible("Game Play")
+        .expect("Game Play button should exist");
+    let global_x = screen
+        .rect()
+        .x
+        .saturating_add(gameplay.rect().x)
+        .saturating_add(40_i32);
+    let ldl_bottom = screen
+        .rect()
+        .y
+        .saturating_add(gameplay.rect().y)
+        .saturating_add(i32::try_from(gameplay.rect().height).expect("height should fit i32"));
+    let hit = screen
+        .find_at_point(global_x, ldl_bottom.saturating_add(8_i32))
+        .expect("visible button art below the LDL rect should be hit-testable");
+
+    assert_eq!(
+        hit.ldl_name(),
+        "GamePlayButton",
+        "shell hit testing should follow the same rendered button area used for hover"
+    );
 }
 
 #[test]

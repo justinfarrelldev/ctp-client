@@ -131,7 +131,11 @@ pub(super) fn list_button(
     control
 }
 
-/// Creates original CTP2 listbox chrome.
+/// Creates original CTP2 scrollable listbox chrome.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Listbox chrome preserves original LDL geometry plus runtime scroll metadata."
+)]
 pub(super) fn listbox_chrome(
     ldl_name: &'static str,
     accessible_name: &str,
@@ -139,6 +143,9 @@ pub(super) fn listbox_chrome(
     y: i32,
     width: u32,
     height: u32,
+    scroll_offset: usize,
+    item_count: usize,
+    visible_rows: usize,
     source: &'static str,
 ) -> ShellControl {
     ShellControl {
@@ -146,7 +153,11 @@ pub(super) fn listbox_chrome(
         label: String::new(),
         accessible_name: accessible_name.to_owned(),
         rect: MenuRect::new(x, y, width, height),
-        kind: ShellControlKind::ListBoxChrome,
+        kind: ShellControlKind::ListBoxChrome {
+            scroll_offset,
+            item_count,
+            visible_rows,
+        },
         enabled: true,
         action: None,
         sound: None,
@@ -167,6 +178,7 @@ pub(super) fn list_item(
     y: i32,
     width: u32,
     height: u32,
+    selected: bool,
     action: ShellAction,
     source: &'static str,
 ) -> ShellControl {
@@ -183,7 +195,7 @@ pub(super) fn list_item(
     );
     control.kind = ShellControlKind::ListItem {
         images: None,
-        selected: false,
+        selected,
     };
     control
 }

@@ -101,6 +101,24 @@ fn landing_page_button_layout_matches_original_ldl() {
 }
 
 #[test]
+fn landing_page_button_hitboxes_include_rendered_button_art() {
+    let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
+    let single_player = model
+        .button_by_id(MainMenuButtonId::SinglePlayer)
+        .expect("single-player button should exist");
+    let ldl_bottom = single_player
+        .rect
+        .y
+        .saturating_add(i32::try_from(single_player.rect.height).expect("height should fit i32"));
+
+    assert_eq!(
+        model.activate_at_point(623_i32, ldl_bottom.saturating_add(4_i32)),
+        Some(MainMenuAction::SinglePlayer),
+        "button hitboxes should include the visible native 39px button art, not only the shorter LDL height"
+    );
+}
+
+#[test]
 fn landing_page_button_styles_match_original_assets() {
     let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
 
