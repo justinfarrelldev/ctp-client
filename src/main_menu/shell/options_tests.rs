@@ -42,6 +42,74 @@ fn list_item_selected(kind: ShellControlKind) -> Option<bool> {
     }
 }
 
+/// Expected metadata for one original options-root button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExpectedOptionsButton {
+    /// Accessible name used to find the modeled control.
+    accessible_name: &'static str,
+    /// Original LDL object name.
+    ldl_name: &'static str,
+    /// Visible button label.
+    label_text: &'static str,
+    /// Original LDL bounds.
+    rect: MenuRect,
+    /// Whether the modeled button should be enabled.
+    enabled: bool,
+    /// Expected activation action.
+    action: Option<ShellAction>,
+    /// Original source reference.
+    source: &'static str,
+}
+
+/// Asserts that one options button preserves its LDL-derived metadata.
+fn assert_options_button_metadata(options: &ShellScreen, expected: ExpectedOptionsButton) {
+    let control = options
+        .find_accessible(expected.accessible_name)
+        .expect("options button should keep its accessible name");
+    assert_eq!(
+        control.ldl_name(),
+        expected.ldl_name,
+        "{} should keep its original LDL object name",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.label(),
+        expected.label_text,
+        "{} should keep its original visible label",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.rect(),
+        expected.rect,
+        "{} should keep its original LDL rectangle",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.kind(),
+        ShellControlKind::Button(ButtonStyleId::BlueLarge),
+        "{} should keep the original blue-large button art",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.enabled(),
+        expected.enabled,
+        "{} should keep its original enabled/disabled state",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.action(),
+        expected.action,
+        "{} should keep its modeled action",
+        expected.accessible_name
+    );
+    assert_eq!(
+        control.source(),
+        expected.source,
+        "{} should retain its CTP2 source reference",
+        expected.accessible_name
+    );
+}
+
 #[test]
 fn gameplay_options_toggle_and_persist_modeled_state() {
     let mut model = SinglePlayerShellModel::default();
@@ -144,6 +212,221 @@ fn keyboard_options_categories_and_reset_defaults_work() {
         Some(true),
         "selected keyboard category should render selected"
     );
+}
+
+#[test]
+fn options_root_navigation_buttons_preserve_original_ldl_metadata() {
+    let options = screen_for(
+        ShellScreenId::Options,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for expected in [
+        ExpectedOptionsButton {
+            accessible_name: "Game Play",
+            ldl_name: "GamePlayButton",
+            label_text: "GAME PLAY",
+            rect: MenuRect::new(28, 65, 146, 24),
+            enabled: true,
+            action: Some(ShellAction::Navigate(ShellScreenId::Gameplay)),
+            source: "options.ldl:94",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Graphics",
+            ldl_name: "GraphicsButton",
+            label_text: "GRAPHICS",
+            rect: MenuRect::new(28, 110, 146, 24),
+            enabled: true,
+            action: Some(ShellAction::Navigate(ShellScreenId::Graphics)),
+            source: "options.ldl:106",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Sound",
+            ldl_name: "SoundButton",
+            label_text: "SOUND",
+            rect: MenuRect::new(28, 155, 146, 24),
+            enabled: true,
+            action: Some(ShellAction::Navigate(ShellScreenId::Sound)),
+            source: "options.ldl:115",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Music",
+            ldl_name: "MusicButton",
+            label_text: "MUSIC",
+            rect: MenuRect::new(28, 200, 146, 24),
+            enabled: true,
+            action: Some(ShellAction::Navigate(ShellScreenId::Music)),
+            source: "options.ldl:124",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Keyboard",
+            ldl_name: "KeyboardButton",
+            label_text: "KEYBOARD",
+            rect: MenuRect::new(28, 245, 146, 24),
+            enabled: true,
+            action: Some(ShellAction::Navigate(ShellScreenId::Keyboard)),
+            source: "options.ldl:133",
+        },
+    ] {
+        assert_options_button_metadata(&options, expected);
+    }
+}
+
+#[test]
+fn options_root_disabled_buttons_preserve_original_ldl_metadata() {
+    let options = screen_for(
+        ShellScreenId::Options,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for expected in [
+        ExpectedOptionsButton {
+            accessible_name: "Save Game",
+            ldl_name: "SaveGameButton",
+            label_text: "SAVE GAME",
+            rect: MenuRect::new(206, 65, 146, 24),
+            enabled: false,
+            action: Some(ShellAction::Disabled),
+            source: "options.ldl:162 + optionswindow.cpp:DisableButtons",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Load Game",
+            ldl_name: "LoadGameButton",
+            label_text: "LOAD GAME",
+            rect: MenuRect::new(206, 110, 146, 24),
+            enabled: false,
+            action: Some(ShellAction::Disabled),
+            source: "options.ldl:170 + optionswindow.cpp:DisableButtons",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Restart",
+            ldl_name: "RestartButton",
+            label_text: "RESTART",
+            rect: MenuRect::new(206, 155, 146, 24),
+            enabled: false,
+            action: Some(ShellAction::Disabled),
+            source: "options.ldl:179 + optionswindow.cpp:DisableButtons",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "New Game",
+            ldl_name: "NewGameButton",
+            label_text: "NEW GAME",
+            rect: MenuRect::new(206, 200, 146, 24),
+            enabled: false,
+            action: Some(ShellAction::Disabled),
+            source: "options.ldl:187 + optionswindow.cpp:DisableButtons",
+        },
+        ExpectedOptionsButton {
+            accessible_name: "Cheat Mode",
+            ldl_name: "MapEditorButton",
+            label_text: "CHEAT MODE",
+            rect: MenuRect::new(117, 295, 146, 24),
+            enabled: false,
+            action: Some(ShellAction::Disabled),
+            source: "options.ldl:205 + unavailable in pre-game shell",
+        },
+    ] {
+        assert_options_button_metadata(&options, expected);
+    }
+}
+
+#[test]
+fn graphics_toggles_preserve_original_positions_and_sources() {
+    let graphics = screen_for(
+        ShellScreenId::Graphics,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for (accessible_name, ldl_name, rect, field, source) in [
+        (
+            "Unit Animation",
+            "WalkButton",
+            MenuRect::new(30, 90, 300, 24),
+            ShellOptionField::UnitAnimation,
+            "graphics.ldl:57",
+        ),
+        (
+            "Animated Trade Routes",
+            "TradeButton",
+            MenuRect::new(30, 120, 300, 24),
+            ShellOptionField::AnimatedTradeRoutes,
+            "graphics.ldl:66",
+        ),
+        (
+            "Wonder Movies",
+            "WonderButton",
+            MenuRect::new(30, 150, 300, 24),
+            ShellOptionField::WonderMovies,
+            "graphics.ldl:75",
+        ),
+        (
+            "City Names",
+            "CityNamesButton",
+            MenuRect::new(30, 180, 300, 24),
+            ShellOptionField::CityNames,
+            "graphics.ldl:84",
+        ),
+        (
+            "Political Borders",
+            "PoliticalBordersButton",
+            MenuRect::new(350, 90, 300, 24),
+            ShellOptionField::PoliticalBorders,
+            "graphics.ldl:96",
+        ),
+        (
+            "Trade Routes",
+            "TradeRoutesButton",
+            MenuRect::new(350, 120, 300, 24),
+            ShellOptionField::TradeRoutes,
+            "graphics.ldl:105",
+        ),
+        (
+            "City Influence",
+            "CityInflenceButton",
+            MenuRect::new(350, 150, 300, 24),
+            ShellOptionField::CityInfluence,
+            "graphics.ldl:114",
+        ),
+        (
+            "Grid",
+            "GridButton",
+            MenuRect::new(350, 180, 300, 24),
+            ShellOptionField::Grid,
+            "graphics.ldl:123",
+        ),
+    ] {
+        let control = graphics
+            .find_accessible(accessible_name)
+            .expect("graphics toggle should keep its accessible name");
+        assert_eq!(
+            control.ldl_name(),
+            ldl_name,
+            "{accessible_name} should keep its original LDL object name"
+        );
+        assert_eq!(
+            control.rect(),
+            rect,
+            "{accessible_name} should keep its original LDL rectangle"
+        );
+        assert_eq!(
+            switch_images(control.kind()),
+            Some(ShellImageSet::graphics_checkbox()),
+            "{accessible_name} should use the original graphics checkbox art"
+        );
+        assert_eq!(
+            control.action(),
+            Some(ShellAction::ToggleOption(field)),
+            "{accessible_name} should toggle its original option field"
+        );
+        assert_eq!(
+            control.source(),
+            source,
+            "{accessible_name} should retain its graphics.ldl source reference"
+        );
+    }
 }
 
 #[test]

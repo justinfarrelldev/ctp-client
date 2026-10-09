@@ -153,15 +153,24 @@ pub(super) fn draw_menu(
     }
 
     for button in &model.buttons {
-        let interaction_rect = button.style.rendered_rect(button.rect);
-        let hovered = interaction_rect.contains_point(mouse_x, mouse_y);
+        let geometry = button_render_geometry(button.rect, button.style.id, true, mouse_x, mouse_y);
         let text_rect = if let Some(button_textures) = textures_for_style(textures, button.style.id)
         {
-            button_art::draw_styled_button(canvas, &button.rect, button_textures, hovered)?;
-            button_art::styled_button_text_rect(&button.rect, button_textures, hovered)
+            button_art::draw_styled_button(
+                canvas,
+                &button.rect,
+                button_textures,
+                geometry.hovered(),
+            )?;
+            button_art::styled_button_text_rect(&button.rect, button_textures, geometry.hovered())
         } else {
-            draw_fallback_button(canvas, &interaction_rect, button.style.id, hovered)?;
-            interaction_rect
+            draw_fallback_button(
+                canvas,
+                &geometry.interaction_rect(),
+                button.style.id,
+                geometry.hovered(),
+            )?;
+            geometry.interaction_rect()
         };
         draw_centered_text(canvas, font, &text_rect, button.label)?;
     }
@@ -179,17 +188,56 @@ fn draw_menu_text_overlay(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), MainMenuError> {
     for button in &model.buttons {
-        let interaction_rect = button.style.rendered_rect(button.rect);
-        let hovered = interaction_rect.contains_point(mouse_x, mouse_y);
+        let geometry = button_render_geometry(button.rect, button.style.id, true, mouse_x, mouse_y);
         let text_rect = textures_for_style(textures, button.style.id).map_or(
-            interaction_rect,
+            geometry.interaction_rect(),
             |button_textures| {
-                button_art::styled_button_text_rect(&button.rect, button_textures, hovered)
+                button_art::styled_button_text_rect(
+                    &button.rect,
+                    button_textures,
+                    geometry.hovered(),
+                )
             },
         );
         draw_centered_text(canvas, font, &text_rect, button.label)?;
     }
     draw_version_text_at(canvas, font, &model.version_rect, model.version_text)
+}
+
+/// Button hit/hover geometry shared by landing and shell renderers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ButtonRenderGeometry {
+    /// Rect covered by the rendered art, including native CTP2 button height.
+    interaction_rect: MenuRect,
+    /// Whether an enabled button is currently hovered by the pointer.
+    hovered: bool,
+}
+
+impl ButtonRenderGeometry {
+    /// Returns the rendered interaction rectangle.
+    pub(super) const fn interaction_rect(self) -> MenuRect {
+        self.interaction_rect
+    }
+
+    /// Returns whether the pointer hovers an enabled button.
+    pub(super) const fn hovered(self) -> bool {
+        self.hovered
+    }
+}
+
+/// Computes shared button hover geometry from original CTP2 visual style bounds.
+pub(super) fn button_render_geometry(
+    rect: MenuRect,
+    style: ButtonStyleId,
+    enabled: bool,
+    mouse_x: i32,
+    mouse_y: i32,
+) -> ButtonRenderGeometry {
+    let interaction_rect = style.visual_style().rendered_rect(rect);
+    ButtonRenderGeometry {
+        interaction_rect,
+        hovered: enabled && interaction_rect.contains_point(mouse_x, mouse_y),
+    }
 }
 
 /// Draws a simple fallback background when original ZFS assets are unavailable.

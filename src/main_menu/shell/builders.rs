@@ -1,6 +1,7 @@
 //! Helpers for constructing original CTP2 shell controls.
 
 use alloc::string::String;
+use alloc::vec::Vec;
 
 use super::text_field::ShellTextFieldStyle;
 use super::{
@@ -15,6 +16,111 @@ pub(super) const fn asset(entry_name: &'static str) -> MenuAssetReference {
         archive_relative_path: SHELL_PICTURES_ARCHIVE,
         entry_name,
     }
+}
+
+/// Static metadata for one reusable shell button definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ShellButtonSpec {
+    /// Original LDL object name.
+    ldl_name: &'static str,
+    /// Visible English label text from the original string tables or LDL.
+    label_text: &'static str,
+    /// Stable accessible name for tests and non-coordinate activation.
+    accessible_name: &'static str,
+    /// Original LDL rectangle.
+    rect: MenuRect,
+    /// Original visual button style/template.
+    style: ButtonVisualStyle,
+    /// Runtime behavior and enabled state.
+    behavior: ShellButtonBehavior,
+    /// Source reference used to audit the modeled value.
+    source: &'static str,
+}
+
+impl ShellButtonSpec {
+    /// Creates an enabled button spec with the supplied action.
+    pub(super) const fn enabled(
+        ldl_name: &'static str,
+        label_text: &'static str,
+        accessible_name: &'static str,
+        rect: MenuRect,
+        style: ButtonVisualStyle,
+        action: ShellAction,
+        source: &'static str,
+    ) -> Self {
+        Self {
+            ldl_name,
+            label_text,
+            accessible_name,
+            rect,
+            style,
+            behavior: ShellButtonBehavior::Enabled(action),
+            source,
+        }
+    }
+
+    /// Creates a disabled button spec that draws with original inactive art.
+    pub(super) const fn disabled(
+        ldl_name: &'static str,
+        label_text: &'static str,
+        accessible_name: &'static str,
+        rect: MenuRect,
+        style: ButtonVisualStyle,
+        source: &'static str,
+    ) -> Self {
+        Self {
+            ldl_name,
+            label_text,
+            accessible_name,
+            rect,
+            style,
+            behavior: ShellButtonBehavior::Disabled,
+            source,
+        }
+    }
+
+    /// Builds a concrete shell control from this reusable spec.
+    fn build(&self) -> ShellControl {
+        match self.behavior {
+            ShellButtonBehavior::Enabled(action) => button(
+                self.ldl_name,
+                self.label_text,
+                self.accessible_name,
+                self.rect.x,
+                self.rect.y,
+                self.rect.width,
+                self.rect.height,
+                self.style,
+                action,
+                self.source,
+            ),
+            ShellButtonBehavior::Disabled => disabled_button(
+                self.ldl_name,
+                self.label_text,
+                self.accessible_name,
+                self.rect.x,
+                self.rect.y,
+                self.rect.width,
+                self.rect.height,
+                self.style,
+                self.source,
+            ),
+        }
+    }
+}
+
+/// Enabled/disabled behavior encoded by a reusable button spec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShellButtonBehavior {
+    /// Active button with an action emitted on activation.
+    Enabled(ShellAction),
+    /// Inactive button using the original disabled visual state.
+    Disabled,
+}
+
+/// Appends reusable button specs to an existing control list.
+pub(super) fn append_button_specs(controls: &mut Vec<ShellControl>, specs: &[ShellButtonSpec]) {
+    controls.extend(specs.iter().map(ShellButtonSpec::build));
 }
 
 /// Creates a shell button control.

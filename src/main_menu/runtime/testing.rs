@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use sdl2::pixels::PixelFormatEnum;
 
 use crate::main_menu::shell;
-use crate::main_menu::{ButtonAssetTriplet, MenuRect};
+use crate::main_menu::{ButtonAssetTriplet, ButtonStyleId, MenuRect};
 
 use super::viewport::prepare_menu_canvas;
 use super::*;
@@ -212,6 +212,19 @@ pub(in crate::main_menu) fn button_asset_entry_name_for_test(ldl_asset_name: &st
 #[cfg(test)]
 pub(in crate::main_menu) const fn button_label_text_color_for_test() -> (u8, u8, u8) {
     BUTTON_LABEL_TEXT_COLOR
+}
+
+/// Returns shared button interaction geometry for tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn button_render_geometry_for_test(
+    rect: MenuRect,
+    style: ButtonStyleId,
+    enabled: bool,
+    mouse_x: i32,
+    mouse_y: i32,
+) -> (MenuRect, bool) {
+    let geometry = frame::button_render_geometry(rect, style, enabled, mouse_x, mouse_y);
+    (geometry.interaction_rect(), geometry.hovered())
 }
 
 /// Returns the original dark left/top shell label color used by the renderer.

@@ -11,7 +11,8 @@ use crate::main_menu::shell::{
 use crate::main_menu::{MainMenuError, MainMenuModel, MenuAssetReference, MenuRect};
 
 use super::super::frame::{
-    draw_fallback_background, draw_fallback_button, textures_for_style, to_sdl_rect,
+    button_render_geometry, draw_fallback_background, draw_fallback_button, textures_for_style,
+    to_sdl_rect,
 };
 use super::super::text::{draw_centered_text, draw_text_at};
 use super::super::{
@@ -138,16 +139,17 @@ fn draw_button_text(
     mouse_y: i32,
     font: Option<&sdl2::ttf::Font<'_, '_>>,
 ) -> Result<(), MainMenuError> {
-    let interaction_rect = style.visual_style().rendered_rect(rect);
-    let hovered = control.enabled() && interaction_rect.contains_point(mouse_x, mouse_y);
-    let text_rect =
-        textures_for_style(textures, style).map_or(interaction_rect, |button_textures| {
+    let geometry = button_render_geometry(rect, style, control.enabled(), mouse_x, mouse_y);
+    let text_rect = textures_for_style(textures, style).map_or(
+        geometry.interaction_rect(),
+        |button_textures| {
             if control.enabled() {
-                button_art::styled_button_text_rect(&rect, button_textures, hovered)
+                button_art::styled_button_text_rect(&rect, button_textures, geometry.hovered())
             } else {
                 button_art::disabled_button_text_rect(&rect, button_textures)
             }
-        });
+        },
+    );
     draw_centered_text(canvas, font, &text_rect, control.label())
 }
 
@@ -246,24 +248,36 @@ fn draw_shell_control(
     match control.kind() {
         ShellControlKind::Button(style) => {
             let enabled = control.enabled();
-            let interaction_rect = style.visual_style().rendered_rect(rect);
-            let hovered = enabled && interaction_rect.contains_point(mouse_x, mouse_y);
+            let geometry = button_render_geometry(rect, style, enabled, mouse_x, mouse_y);
             if enabled {
                 if let Some(button_textures) = textures_for_style(textures, style) {
-                    button_art::draw_styled_button(canvas, &rect, button_textures, hovered)?;
-                    let text_rect =
-                        button_art::styled_button_text_rect(&rect, button_textures, hovered);
+                    button_art::draw_styled_button(
+                        canvas,
+                        &rect,
+                        button_textures,
+                        geometry.hovered(),
+                    )?;
+                    let text_rect = button_art::styled_button_text_rect(
+                        &rect,
+                        button_textures,
+                        geometry.hovered(),
+                    );
                     draw_centered_text(canvas, font, &text_rect, control.label())
                 } else {
-                    draw_fallback_button(canvas, &interaction_rect, style, hovered)?;
-                    draw_centered_text(canvas, font, &interaction_rect, control.label())
+                    draw_fallback_button(
+                        canvas,
+                        &geometry.interaction_rect(),
+                        style,
+                        geometry.hovered(),
+                    )?;
+                    draw_centered_text(canvas, font, &geometry.interaction_rect(), control.label())
                 }
             } else if let Some(button_textures) = textures_for_style(textures, style) {
                 button_art::draw_disabled_styled_button(canvas, &rect, button_textures)?;
                 let text_rect = button_art::disabled_button_text_rect(&rect, button_textures);
                 draw_centered_text(canvas, font, &text_rect, control.label())
             } else {
-                draw_disabled_button(canvas, font, &interaction_rect, control.label())
+                draw_disabled_button(canvas, font, &geometry.interaction_rect(), control.label())
             }
         }
         ShellControlKind::Label { layout } => {

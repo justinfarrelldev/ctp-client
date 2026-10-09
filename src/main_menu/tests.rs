@@ -119,6 +119,33 @@ fn landing_page_button_hitboxes_include_rendered_button_art() {
 }
 
 #[test]
+fn shared_button_render_geometry_preserves_hover_and_disabled_rules() {
+    let rect = MenuRect::new(10, 20, 100, 20);
+
+    assert_eq!(
+        runtime::button_render_geometry_for_test(rect, ButtonStyleId::BlueLarge, true, 50, 55,),
+        (MenuRect::new(10, 20, 100, 39), true),
+        "enabled large buttons should hover across the full native CTP2 art height"
+    );
+    assert_eq!(
+        runtime::button_render_geometry_for_test(rect, ButtonStyleId::BlueLarge, false, 50, 55,),
+        (MenuRect::new(10, 20, 100, 39), false),
+        "disabled buttons should keep the rendered hit area but never enter hover state"
+    );
+    assert_eq!(
+        runtime::button_render_geometry_for_test(
+            MenuRect::new(1, 2, 70, 24),
+            ButtonStyleId::Ctp2Small,
+            true,
+            70,
+            25,
+        ),
+        (MenuRect::new(1, 2, 70, 24), true),
+        "small popup buttons should keep their native 24px art bounds"
+    );
+}
+
+#[test]
 fn landing_page_button_styles_match_original_assets() {
     let model = MainMenuModel::ctp2_landing(PathBuf::from("/ctp2"));
 
