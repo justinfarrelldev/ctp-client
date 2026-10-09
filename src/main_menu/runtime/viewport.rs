@@ -1,7 +1,6 @@
 //! Viewport mapping for proportional 800x600 shell rendering in resized SDL windows.
 
 use sdl2::pixels::Color;
-use sdl2::rect::Rect as SdlRect;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
@@ -114,8 +113,8 @@ pub(in crate::main_menu::runtime) fn scaled_font_point_size_for_output_size(
     u16::try_from(scaled).map_or(u16::MAX, |value| value)
 }
 
-/// Prepares a frame by clearing letterbox space and enabling proportional menu scaling.
-pub(super) fn prepare_menu_canvas(canvas: &mut Canvas<Window>) -> Result<(), MainMenuError> {
+/// Prepares a frame by clearing letterbox space and returning the active menu viewport.
+pub(super) fn prepare_menu_canvas(canvas: &mut Canvas<Window>) -> Result<MenuRect, MainMenuError> {
     let (output_width, output_height) = canvas.output_size().map_err(runtime_error)?;
     let viewport = menu_viewport_for_output_size(output_width, output_height);
     canvas
@@ -125,35 +124,7 @@ pub(super) fn prepare_menu_canvas(canvas: &mut Canvas<Window>) -> Result<(), Mai
     canvas.set_viewport(None);
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    if viewport.width == 0 || viewport.height == 0 {
-        return Ok(());
-    }
-    canvas.set_viewport(Some(sdl_rect_from_menu_rect(&viewport)));
-    canvas
-        .set_scale(
-            renderer_scale_factor(viewport.width, super::super::MAIN_MENU_WIDTH),
-            renderer_scale_factor(viewport.height, super::super::MAIN_MENU_HEIGHT),
-        )
-        .map_err(runtime_error)
-}
-
-/// Converts a menu rectangle into an SDL rectangle for viewport setup.
-fn sdl_rect_from_menu_rect(rect: &MenuRect) -> SdlRect {
-    SdlRect::new(rect.x, rect.y, rect.width, rect.height)
-}
-
-/// Converts an integer scale ratio into the floating-point value required by SDL.
-#[expect(
-    clippy::float_arithmetic,
-    reason = "SDL render scaling requires floating-point scale factors."
-)]
-fn renderer_scale_factor(viewport_extent: u32, menu_extent: u32) -> f32 {
-    if menu_extent == 0 {
-        return 1.0_f32;
-    }
-    let viewport = f32::from(u16::try_from(viewport_extent).map_or(u16::MAX, |value| value));
-    let menu = f32::from(u16::try_from(menu_extent).map_or(u16::MAX, |value| value));
-    viewport / menu
+    Ok(viewport)
 }
 
 #[cfg(test)]

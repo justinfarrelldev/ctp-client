@@ -14,9 +14,11 @@ use crate::main_menu::shell::{
 };
 use crate::main_menu::{MainMenuAction, MainMenuError, MainMenuModel, MenuRect};
 
+use super::frame::to_sdl_rect;
+use super::text::draw_centered_text;
 use super::{
     BUTTON_CHROMA_KEY, MenuTextures, SHELL_ART_ARCHIVE, create_texture_from_rgba,
-    draw_centered_text, load_rim_rgba_entry, parse_resolution_label, runtime_error, to_sdl_rect,
+    load_rim_rgba_entry, parse_resolution_label, runtime_error,
 };
 
 /// Individual shell control drawing helpers.
@@ -430,6 +432,19 @@ impl ShellRuntimeState {
             mouse_y,
             font,
         )
+    }
+
+    /// Draws sharp shell text over the final physically scaled frame.
+    pub(super) fn draw_text_overlay(
+        &self,
+        canvas: &mut Canvas<Window>,
+        textures: &MenuTextures<'_>,
+        mouse_x: i32,
+        mouse_y: i32,
+        font: Option<&sdl2::ttf::Font<'_, '_>>,
+    ) -> Result<(), MainMenuError> {
+        let screen = current_screen(&self.model);
+        render::draw_shell_text_overlay(canvas, textures, &screen, mouse_x, mouse_y, font)
     }
 }
 

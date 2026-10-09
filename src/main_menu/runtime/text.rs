@@ -130,19 +130,11 @@ fn copy_texture_at_physical_resolution(
     texture: &Texture<'_>,
     destination: SdlRect,
 ) -> Result<(), MainMenuError> {
-    let output_size = canvas.output_size().map_err(runtime_error)?;
-    let saved_viewport = menu_viewport_for_output_size(output_size.0, output_size.1);
-    let saved_scale = canvas.scale();
     canvas.set_viewport(None);
     canvas.set_scale(1.0_f32, 1.0_f32).map_err(runtime_error)?;
-    let copy_result = canvas
-        .copy(texture, None, destination)
-        .map_err(runtime_error);
-    canvas.set_viewport(Some(sdl_rect_from_menu_rect(&saved_viewport)));
     canvas
-        .set_scale(saved_scale.0, saved_scale.1)
-        .map_err(runtime_error)?;
-    copy_result
+        .copy(texture, None, destination)
+        .map_err(runtime_error)
 }
 
 /// Converts a menu-space text rectangle into physical output pixels.
@@ -166,11 +158,6 @@ fn physical_rect_for_menu_rect(
         scale_unsigned_axis(rect.width, viewport.width, super::super::MAIN_MENU_WIDTH),
         scale_unsigned_axis(rect.height, viewport.height, super::super::MAIN_MENU_HEIGHT),
     ))
-}
-
-/// Converts a menu rectangle into an SDL rectangle.
-fn sdl_rect_from_menu_rect(rect: &MenuRect) -> SdlRect {
-    SdlRect::new(rect.x, rect.y, rect.width, rect.height)
 }
 
 /// Scales a signed menu coordinate into a physical viewport coordinate.

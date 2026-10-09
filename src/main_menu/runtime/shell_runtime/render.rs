@@ -10,10 +10,12 @@ use crate::main_menu::shell::{
 };
 use crate::main_menu::{MainMenuError, MainMenuModel, MenuAssetReference, MenuRect};
 
+use super::super::frame::{
+    draw_fallback_background, draw_fallback_button, textures_for_style, to_sdl_rect,
+};
+use super::super::text::{draw_centered_text, draw_text_at};
 use super::super::{
-    MenuTextures, button_art, create_texture_from_rgba, draw_centered_text,
-    draw_fallback_background, draw_fallback_button, draw_text_at, load_rim_rgba, runtime_error,
-    textures_for_style, to_sdl_rect,
+    MenuTextures, button_art, create_texture_from_rgba, load_rim_rgba, runtime_error,
 };
 use super::controls::{
     draw_disabled_button, draw_list_item, draw_slider, draw_switch, draw_text_field,
@@ -74,8 +76,76 @@ pub(super) fn draw_shell_screen(
         )?;
     }
 
-    canvas.present();
     Ok(())
+}
+
+/// Draws only text-bearing shell controls over the physically scaled frame.
+pub(super) fn draw_shell_text_overlay(
+    canvas: &mut Canvas<Window>,
+    textures: &MenuTextures<'_>,
+    screen: &ShellScreen,
+    mouse_x: i32,
+    mouse_y: i32,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+) -> Result<(), MainMenuError> {
+    for control in screen.controls() {
+        draw_shell_control_text(canvas, textures, screen, control, mouse_x, mouse_y, font)?;
+    }
+    Ok(())
+}
+
+/// Draws the text associated with one shell control without redrawing its art.
+fn draw_shell_control_text(
+    canvas: &mut Canvas<Window>,
+    textures: &MenuTextures<'_>,
+    screen: &ShellScreen,
+    control: &ShellControl,
+    mouse_x: i32,
+    mouse_y: i32,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+) -> Result<(), MainMenuError> {
+    let rect = screen_rect(screen, control.rect());
+    match control.kind() {
+        ShellControlKind::Button(style) => draw_button_text(
+            canvas, textures, control, rect, style, mouse_x, mouse_y, font,
+        ),
+        ShellControlKind::Label { layout } => {
+            draw_label(canvas, font, &rect, control.label(), layout)
+        }
+        ShellControlKind::TextField => draw_centered_text(canvas, font, &rect, control.label()),
+        ShellControlKind::Switch { .. } | ShellControlKind::ListItem { .. } => {
+            draw_centered_text(canvas, font, &rect, control.label())
+        }
+        ShellControlKind::Slider { .. } | ShellControlKind::ListBoxChrome { .. } => Ok(()),
+    }
+}
+
+/// Draws sharp text for a shell button using original art text bounds.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Button text bounds depend on style assets, state, and pointer hover."
+)]
+fn draw_button_text(
+    canvas: &mut Canvas<Window>,
+    textures: &MenuTextures<'_>,
+    control: &ShellControl,
+    rect: MenuRect,
+    style: crate::main_menu::ButtonStyleId,
+    mouse_x: i32,
+    mouse_y: i32,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+) -> Result<(), MainMenuError> {
+    let interaction_rect = style.visual_style().rendered_rect(rect);
+    let hovered = control.enabled() && interaction_rect.contains_point(mouse_x, mouse_y);
+    let text_rect =
+        textures_for_style(textures, style).map_or(interaction_rect, |button_textures| {
+            if control.enabled() {
+                button_art::styled_button_text_rect(&rect, button_textures, hovered)
+            } else {
+                button_art::disabled_button_text_rect(&rect, button_textures)
+            }
+        });
+    draw_centered_text(canvas, font, &text_rect, control.label())
 }
 
 /// Returns modeled control drawing order for tests.

@@ -13,17 +13,13 @@ use std::time::Duration;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::rect::Rect as SdlRect;
+use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{Canvas, Texture, TextureCreator};
-use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 
 use crate::config::GameInstallation;
 
-use super::{
-    ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel, MenuRect,
-};
+use super::{ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel};
 
 /// Delay between menu frames.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
@@ -63,6 +59,8 @@ mod audio;
 mod button_art;
 /// Immediate UI sound routing for SDL events.
 mod event_sound;
+/// Whole-frame menu composition.
+mod frame;
 /// Single-player shell runtime rendering and navigation.
 mod shell_runtime;
 /// High-resolution text rendering helpers.
@@ -75,10 +73,9 @@ use audio::{SdlMenuMusicBackend, advance_audio_after_frame, apply_audio_effects}
 #[cfg(test)]
 use audio::{music_track_relative_path, option_volume_to_mixer_volume};
 use event_sound::{play_menu_sound, sound_before_menu_event};
-use text::{MenuFontCache, draw_centered_text, draw_text_at};
-use viewport::{
-    output_point_to_menu_point, prepare_menu_canvas, scaled_font_point_size_for_output_size,
-};
+use frame::draw_current_menu;
+use text::MenuFontCache;
+use viewport::{output_point_to_menu_point, scaled_font_point_size_for_output_size};
 
 /// Event-loop settings used by production and headless smoke tests.
 struct RuntimeLoopOptions {
@@ -513,125 +510,6 @@ fn handle_menu_event(
     }
 }
 
-/// Draws the current landing or shell screen.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "The menu frame renderer borrows SDL resources explicitly."
-)]
-fn draw_current_menu(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    textures: &MenuTextures<'_>,
-    model: &MainMenuModel,
-    shell_state: &shell_runtime::ShellRuntimeState,
-    mouse_x: i32,
-    mouse_y: i32,
-    font: Option<&Font<'_, '_>>,
-) -> Result<(), MainMenuError> {
-    prepare_menu_canvas(canvas)?;
-    if shell_state.is_landing() {
-        draw_menu(canvas, textures, model, mouse_x, mouse_y, font)
-    } else {
-        shell_state.draw(
-            canvas,
-            texture_creator,
-            textures,
-            model,
-            mouse_x,
-            mouse_y,
-            font,
-        )
-    }
-}
-
-/// Draws one frame of the landing menu.
-fn draw_menu(
-    canvas: &mut Canvas<Window>,
-    textures: &MenuTextures<'_>,
-    model: &MainMenuModel,
-    mouse_x: i32,
-    mouse_y: i32,
-    font: Option<&Font<'_, '_>>,
-) -> Result<(), MainMenuError> {
-    match textures.background.as_ref() {
-        Some(texture) => canvas
-            .copy(
-                texture,
-                None,
-                SdlRect::new(0, 0, super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT),
-            )
-            .map_err(runtime_error)?,
-        None => draw_fallback_background(canvas)?,
-    }
-
-    for button in &model.buttons {
-        let interaction_rect = button.style.rendered_rect(button.rect);
-        let hovered = interaction_rect.contains_point(mouse_x, mouse_y);
-        let text_rect = if let Some(button_textures) = textures_for_style(textures, button.style.id)
-        {
-            button_art::draw_styled_button(canvas, &button.rect, button_textures, hovered)?;
-            button_art::styled_button_text_rect(&button.rect, button_textures, hovered)
-        } else {
-            draw_fallback_button(canvas, &interaction_rect, button.style.id, hovered)?;
-            interaction_rect
-        };
-        draw_centered_text(canvas, font, &text_rect, button.label)?;
-    }
-
-    draw_text_at(canvas, font, &model.version_rect, model.version_text)?;
-    canvas.present();
-    Ok(())
-}
-
-/// Draws a simple fallback background when original ZFS assets are unavailable.
-fn draw_fallback_background(canvas: &mut Canvas<Window>) -> Result<(), MainMenuError> {
-    canvas.set_draw_color(Color::RGB(4, 9, 20));
-    canvas
-        .fill_rect(SdlRect::new(
-            0,
-            0,
-            super::MAIN_MENU_WIDTH,
-            super::MAIN_MENU_HEIGHT,
-        ))
-        .map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(18, 28, 44));
-    canvas
-        .fill_rect(SdlRect::new(0, 430, super::MAIN_MENU_WIDTH, 170))
-        .map_err(runtime_error)
-}
-
-/// Draws a button using colors chosen to approximate the original asset family.
-fn draw_fallback_button(
-    canvas: &mut Canvas<Window>,
-    rect: &MenuRect,
-    style: ButtonStyleId,
-    hovered: bool,
-) -> Result<(), MainMenuError> {
-    let color = match (style, hovered) {
-        (ButtonStyleId::BlueLarge, false) => Color::RGB(33, 70, 112),
-        (ButtonStyleId::BlueLarge, true) => Color::RGB(63, 105, 158),
-        (ButtonStyleId::StoneLarge, false) => Color::RGB(89, 82, 70),
-        (ButtonStyleId::StoneLarge, true) => Color::RGB(123, 112, 93),
-        (ButtonStyleId::Ctp2Small, false) => Color::RGB(42, 78, 116),
-        (ButtonStyleId::Ctp2Small, true) => Color::RGB(70, 112, 160),
-    };
-    let border = match style {
-        ButtonStyleId::BlueLarge | ButtonStyleId::Ctp2Small => Color::RGB(211, 181, 85),
-        ButtonStyleId::StoneLarge => Color::RGB(188, 174, 138),
-    };
-    let sdl_rect = to_sdl_rect(rect);
-
-    canvas.set_draw_color(color);
-    canvas.fill_rect(sdl_rect).map_err(runtime_error)?;
-    canvas.set_draw_color(border);
-    canvas.draw_rect(sdl_rect).map_err(runtime_error)
-}
-
-/// Converts a menu rectangle into an SDL rectangle.
-fn to_sdl_rect(rect: &MenuRect) -> SdlRect {
-    SdlRect::new(rect.x, rect.y, rect.width, rect.height)
-}
-
 /// Parses an original resolution label such as `1024 x 768`.
 fn parse_resolution_label(label: &str) -> Option<(u32, u32)> {
     let (width, height) = label.split_once('x')?;
@@ -668,18 +546,6 @@ fn load_menu_textures<'texture>(
     }
 }
 
-/// Selects cached textures for a button style.
-const fn textures_for_style<'texture>(
-    textures: &'texture MenuTextures<'texture>,
-    style: ButtonStyleId,
-) -> Option<&'texture button_art::ButtonStateTextures<'texture>> {
-    match style {
-        ButtonStyleId::BlueLarge => textures.blue_large.as_ref(),
-        ButtonStyleId::StoneLarge => textures.stone_large.as_ref(),
-        ButtonStyleId::Ctp2Small => textures.ctp2_small.as_ref(),
-    }
-}
-
 /// Loads the original background texture from the CTP2 ZFS archive.
 fn load_background_texture<'texture>(
     texture_creator: &'texture TextureCreator<WindowContext>,
@@ -694,12 +560,12 @@ fn load_background_texture<'texture>(
 pub(super) mod testing;
 #[cfg(test)]
 pub(super) use testing::{
-    button_asset_entry_name_for_test, button_click_sound_summary_for_test,
-    button_label_text_color_for_test, button_layer_render_plan_for_test,
-    button_style_asset_summaries_for_test, button_triplet_render_plan_for_test,
-    disabled_button_layer_render_plan_for_test, initial_music_track_for_test,
-    listbox_scrollbar_arrow_glyph_plan_for_test, menu_texture_format_for_test,
-    mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
+    black_pixels_inside_viewport_after_resize_for_test, button_asset_entry_name_for_test,
+    button_click_sound_summary_for_test, button_label_text_color_for_test,
+    button_layer_render_plan_for_test, button_style_asset_summaries_for_test,
+    button_triplet_render_plan_for_test, disabled_button_layer_render_plan_for_test,
+    initial_music_track_for_test, listbox_scrollbar_arrow_glyph_plan_for_test,
+    menu_texture_format_for_test, mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
     music_track_relative_path_for_test, next_music_track_after_finish_for_test,
     option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
     prepared_canvas_state_for_test, render_headless_average_color_for_test,

@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 
 use sdl2::pixels::PixelFormatEnum;
 
-use crate::main_menu::ButtonAssetTriplet;
 use crate::main_menu::shell;
+use crate::main_menu::{ButtonAssetTriplet, MenuRect};
 
+use super::viewport::prepare_menu_canvas;
 use super::*;
 
 /// Test summary for one original sound asset: archive, entry, byte length, and RIFF header.
@@ -47,7 +48,7 @@ pub(in crate::main_menu) fn render_headless_average_color_for_test(
         let texture_creator = canvas.texture_creator();
         let textures = load_menu_textures(&texture_creator, model);
 
-        draw_menu(&mut canvas, &textures, model, -1, -1, None)?;
+        frame::draw_menu(&mut canvas, &textures, model, -1, -1, None)?;
 
         let pixels = canvas
             .read_pixels(None, MENU_TEXTURE_FORMAT)
@@ -86,6 +87,67 @@ pub(in crate::main_menu) fn prepared_canvas_state_for_test(
                 actual_output_size.1,
             ),
         })
+    })
+}
+
+/// Counts unpainted black pixels inside the active menu viewport after a resize path.
+#[cfg(test)]
+pub(in crate::main_menu) fn black_pixels_inside_viewport_after_resize_for_test(
+    model: &MainMenuModel,
+    first_size: (u32, u32),
+    second_size: (u32, u32),
+) -> Result<usize, MainMenuError> {
+    with_sdl_test_lock(|| {
+        let sdl = sdl2::init().map_err(runtime_error)?;
+        let video = sdl.video().map_err(runtime_error)?;
+        let window = video
+            .window("Call to Power II", first_size.0, first_size.1)
+            .position_centered()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let mut canvas = window
+            .into_canvas()
+            .software()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let texture_creator = canvas.texture_creator();
+        let textures = load_menu_textures(&texture_creator, model);
+        let shell_state = shell_runtime::ShellRuntimeState::new();
+
+        frame::draw_current_menu(
+            &mut canvas,
+            &texture_creator,
+            &textures,
+            model,
+            &shell_state,
+            -1_i32,
+            -1_i32,
+            None,
+        )?;
+        apply_resolution(&mut canvas, second_size.0, second_size.1)?;
+        frame::draw_current_menu(
+            &mut canvas,
+            &texture_creator,
+            &textures,
+            model,
+            &shell_state,
+            -1_i32,
+            -1_i32,
+            None,
+        )?;
+
+        let output_size = canvas.output_size().map_err(runtime_error)?;
+        let viewport = viewport::menu_viewport_for_output_size(output_size.0, output_size.1);
+        canvas.set_scale(1.0_f32, 1.0_f32).map_err(runtime_error)?;
+        canvas.set_viewport(None);
+        let pixels = canvas
+            .read_pixels(None, MENU_TEXTURE_FORMAT)
+            .map_err(runtime_error)?;
+        Ok(count_black_pixels_in_viewport(
+            &pixels,
+            output_size.0,
+            &viewport,
+        ))
     })
 }
 
@@ -368,6 +430,35 @@ pub(in crate::main_menu) const fn mixer_chunk_size_for_test() -> i32 {
 #[cfg(test)]
 pub(in crate::main_menu) const fn mixer_allocated_channels_for_test() -> i32 {
     audio::mixer_allocated_channels_for_test()
+}
+
+/// Counts pure black pixels inside a rendered viewport.
+#[cfg(test)]
+fn count_black_pixels_in_viewport(pixels: &[u8], output_width: u32, viewport: &MenuRect) -> usize {
+    let output_width_usize = usize::try_from(output_width).map_or(0_usize, |value| value);
+    let viewport_width = usize::try_from(viewport.width).map_or(0_usize, |value| value);
+    let viewport_height = usize::try_from(viewport.height).map_or(0_usize, |value| value);
+    let viewport_x = usize::try_from(viewport.x.max(0_i32)).map_or(0_usize, |value| value);
+    let viewport_y = usize::try_from(viewport.y.max(0_i32)).map_or(0_usize, |value| value);
+    let mut black_pixels = 0_usize;
+
+    for y in 0..viewport_height {
+        for x in 0..viewport_width {
+            let pixel_index = viewport_y
+                .saturating_add(y)
+                .saturating_mul(output_width_usize)
+                .saturating_add(viewport_x.saturating_add(x))
+                .saturating_mul(4_usize);
+            let Some(pixel) = pixels.get(pixel_index..pixel_index.saturating_add(4_usize)) else {
+                continue;
+            };
+            if pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 {
+                black_pixels = black_pixels.saturating_add(1_usize);
+            }
+        }
+    }
+
+    black_pixels
 }
 
 /// Computes average RGB from RGBA byte pixels.
