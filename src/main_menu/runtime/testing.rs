@@ -8,6 +8,9 @@ use crate::main_menu::ButtonAssetTriplet;
 
 use super::*;
 
+/// Test summary for one original sound asset: archive, entry, byte length, and RIFF header.
+pub(in crate::main_menu) type SoundAssetSummary = audio::SoundAssetSummary;
+
 /// Named button layer render plan rows: layer, entry, width, height, and tiled flag.
 type ButtonLayerRenderPlan = Vec<(String, String, u32, u32, bool)>;
 
@@ -45,8 +48,16 @@ pub(in crate::main_menu) fn render_headless_average_color_for_test(
 #[cfg(test)]
 pub(in crate::main_menu) fn button_click_sound_summary_for_test(
     installation_root: &Path,
-) -> Result<(String, String, usize, [u8; 4]), MainMenuError> {
+) -> Result<SoundAssetSummary, MainMenuError> {
     audio::button_click_sound_summary_for_test(installation_root)
+}
+
+/// Returns summaries for the original CTP2 slider sound assets.
+#[cfg(test)]
+pub(in crate::main_menu) fn slider_sound_summaries_for_test(
+    installation_root: &Path,
+) -> Result<Vec<SoundAssetSummary>, MainMenuError> {
+    audio::slider_sound_summaries_for_test(installation_root)
 }
 
 /// Returns summaries for original button art entries used by a style.
@@ -251,10 +262,32 @@ pub(in crate::main_menu) fn parse_resolution_label_for_test(label: &str) -> Opti
     parse_resolution_label(label)
 }
 
+/// Returns a deterministic initial music track for tests.
+#[cfg(test)]
+pub(in crate::main_menu) fn initial_music_track_for_test(
+    selected_track: usize,
+    random_order: bool,
+    seed: u64,
+) -> usize {
+    audio::initial_music_track_number_from_seed(selected_track, random_order, seed)
+}
+
 /// Returns a track path for tests.
 #[cfg(test)]
 pub(in crate::main_menu) fn music_track_relative_path_for_test(track_number: usize) -> PathBuf {
     music_track_relative_path(track_number)
+}
+
+/// Returns the low-latency mixer chunk size for tests.
+#[cfg(test)]
+pub(in crate::main_menu) const fn mixer_chunk_size_for_test() -> i32 {
+    audio::mixer_chunk_size_for_test()
+}
+
+/// Returns the mixer channel count for tests.
+#[cfg(test)]
+pub(in crate::main_menu) const fn mixer_allocated_channels_for_test() -> i32 {
+    audio::mixer_allocated_channels_for_test()
 }
 
 /// Computes average RGB from RGBA byte pixels.

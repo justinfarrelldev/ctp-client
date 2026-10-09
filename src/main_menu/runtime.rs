@@ -61,6 +61,8 @@ mod assets;
 mod audio;
 /// Original CTP2 button art loading and rendering.
 mod button_art;
+/// Immediate UI sound routing for SDL events.
+mod event_sound;
 /// Single-player shell runtime rendering and navigation.
 mod shell_runtime;
 /// Resolution-independent viewport mapping helpers.
@@ -70,6 +72,7 @@ use assets::{create_texture_from_rgba, load_rim_rgba, load_rim_rgba_entry};
 use audio::SdlMenuMusicBackend;
 #[cfg(test)]
 use audio::{music_track_relative_path, option_volume_to_mixer_volume};
+use event_sound::{play_menu_sound, sound_before_menu_event};
 use viewport::{output_point_to_menu_point, prepare_menu_canvas};
 
 /// Event-loop settings used by production and headless smoke tests.
@@ -269,16 +272,22 @@ fn run_sdl_event_loop_with_options_and_audio(
                 size
             });
         for event in event_pump.poll_iter() {
-            let play_click = handle_menu_event(
+            if let Some(sound) =
+                sound_before_menu_event(&event, model, &shell_state, event_output_size)
+            {
+                if let Some(backend) = audio_backend.as_deref_mut() {
+                    play_menu_sound(backend, sound);
+                }
+            }
+            if let Some(sound) = handle_menu_event(
                 &event,
                 model,
                 &mut shell_state,
                 &mut selected_action,
                 event_output_size,
-            );
-            if play_click {
+            ) {
                 if let Some(backend) = audio_backend.as_deref_mut() {
-                    backend.play_button_click();
+                    play_menu_sound(backend, sound);
                 }
             }
         }
@@ -414,17 +423,13 @@ fn apply_resolution(
 }
 
 /// Applies one SDL event to the menu action state.
-#[expect(
-    clippy::too_many_lines,
-    reason = "central event dispatch keeps shell action handling colocated"
-)]
 fn handle_menu_event(
     event: &Event,
     model: &MainMenuModel,
     shell_state: &mut shell_runtime::ShellRuntimeState,
     selected_action: &mut Option<MainMenuAction>,
     output_size: (u32, u32),
-) -> bool {
+) -> Option<shell_runtime::sound::ShellRuntimeSound> {
     match event.clone() {
         Event::Quit { .. }
         | Event::KeyDown {
@@ -433,14 +438,10 @@ fn handle_menu_event(
             ..
         } => {
             *selected_action = Some(MainMenuAction::Quit);
-            false
+            None
         }
         Event::MouseButtonDown { x, y, .. } => {
-            let Some((menu_x, menu_y)) =
-                output_point_to_menu_point(output_size.0, output_size.1, x, y)
-            else {
-                return false;
-            };
+            let (menu_x, menu_y) = output_point_to_menu_point(output_size.0, output_size.1, x, y)?;
             if shell_state.is_landing() {
                 if let Some(action) = model.activate_at_point(menu_x, menu_y) {
                     if action == MainMenuAction::SinglePlayer {
@@ -448,32 +449,29 @@ fn handle_menu_event(
                     } else {
                         *selected_action = Some(action);
                     }
-                    return true;
                 }
+                None
             } else {
-                let play_click = shell_state.click_has_sound(menu_x, menu_y);
-                if let Some(action) = shell_state.click_shell(menu_x, menu_y) {
+                let interaction = shell_state.click_shell(menu_x, menu_y);
+                if let Some(action) = interaction.action {
                     *selected_action = Some(action);
                 }
-                return play_click;
+                interaction.sound
             }
-            false
         }
         Event::MouseMotion { x, y, .. } => {
             if let Some((menu_x, menu_y)) =
                 output_point_to_menu_point(output_size.0, output_size.1, x, y)
             {
-                shell_state.drag_shell(menu_x, menu_y);
+                shell_state.drag_shell(menu_x, menu_y)
+            } else {
+                None
             }
-            false
         }
-        Event::MouseButtonUp { .. } => {
-            shell_state.release_pointer();
-            false
-        }
+        Event::MouseButtonUp { .. } => shell_state.release_pointer(),
         Event::TextInput { text, .. } => {
             shell_state.handle_text_input(&text);
-            false
+            None
         }
         Event::KeyDown {
             keycode: Some(Keycode::Backspace),
@@ -481,7 +479,7 @@ fn handle_menu_event(
             ..
         } => {
             shell_state.handle_backspace();
-            false
+            None
         }
         Event::KeyDown { .. }
         | Event::KeyUp { .. }
@@ -527,7 +525,7 @@ fn handle_menu_event(
         | Event::RenderTargetsReset { .. }
         | Event::RenderDeviceReset { .. }
         | Event::User { .. }
-        | Event::Unknown { .. } => false,
+        | Event::Unknown { .. } => None,
     }
 }
 
@@ -775,9 +773,11 @@ pub(super) use testing::{
     button_asset_entry_name_for_test, button_click_sound_summary_for_test,
     button_label_text_color_for_test, button_layer_render_plan_for_test,
     button_style_asset_summaries_for_test, button_triplet_render_plan_for_test,
-    disabled_button_layer_render_plan_for_test, menu_texture_format_for_test,
+    disabled_button_layer_render_plan_for_test, initial_music_track_for_test,
+    menu_texture_format_for_test, mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
     music_track_relative_path_for_test, option_volume_to_mixer_volume_for_test,
     parse_resolution_label_for_test, render_headless_average_color_for_test,
+    slider_sound_summaries_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

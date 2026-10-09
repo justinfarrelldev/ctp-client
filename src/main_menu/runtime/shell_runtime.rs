@@ -22,6 +22,11 @@ use super::{
     load_rim_rgba_entry, parse_resolution_label, runtime_error, textures_for_style, to_sdl_rect,
 };
 
+/// Immediate shell UI sound types.
+pub(super) mod sound;
+
+use sound::{ShellRuntimeInteraction, ShellRuntimeSound};
+
 /// Runtime state for the navigable single-player shell.
 pub(super) struct ShellRuntimeState {
     /// Testable shell model.
@@ -83,41 +88,57 @@ impl ShellRuntimeState {
         );
     }
 
-    /// Returns whether a click target has the original button sound policy.
-    pub(super) fn click_has_sound(&self, point_x: i32, point_y: i32) -> bool {
+    /// Returns the immediate sound for a click target before action handling.
+    pub(super) fn click_sound_at(&self, point_x: i32, point_y: i32) -> Option<ShellRuntimeSound> {
         let screen = current_screen(&self.model);
-        screen
-            .find_at_point(point_x, point_y)
-            .is_some_and(|control| control.enabled() && control.has_sound())
+        let control = screen.find_at_point(point_x, point_y)?;
+        if !control.enabled() || !control.has_sound() {
+            return None;
+        }
+        match control.kind() {
+            ShellControlKind::Slider { .. } => None,
+            ShellControlKind::Button(_)
+            | ShellControlKind::Label
+            | ShellControlKind::TextField
+            | ShellControlKind::Switch { .. }
+            | ShellControlKind::ListBoxChrome
+            | ShellControlKind::ListItem { .. } => Some(ShellRuntimeSound::ButtonClick),
+        }
     }
 
     /// Handles a click in the current shell screen.
-    pub(super) fn click_shell(&mut self, point_x: i32, point_y: i32) -> Option<MainMenuAction> {
+    pub(super) fn click_shell(&mut self, point_x: i32, point_y: i32) -> ShellRuntimeInteraction {
         let screen = current_screen(&self.model);
-        let control = screen.find_at_point(point_x, point_y)?;
-        let action = control.action()?;
+        let Some(control) = screen.find_at_point(point_x, point_y) else {
+            return ShellRuntimeInteraction::none();
+        };
+        let Some(action) = control.action() else {
+            return ShellRuntimeInteraction::none();
+        };
         if let Some(field) = slider_field(action, control.kind()) {
             self.active_slider = Some(field);
             let rect = screen_rect(&screen, control.rect());
-            self.update_slider_value(field, &rect, control.kind(), point_x);
-            return None;
+            if self.update_slider_value(field, &rect, control.kind(), point_x) {
+                return ShellRuntimeInteraction::sound(ShellRuntimeSound::SliderUp);
+            }
+            return ShellRuntimeInteraction::none();
         }
         self.active_slider = None;
         match self.model.apply_action(action) {
             ShellFlowOutcome::Continue => {
                 self.record_action_effect(action);
-                None
+                ShellRuntimeInteraction::none()
             }
-            ShellFlowOutcome::LaunchGame => Some(MainMenuAction::LaunchSinglePlayer),
-            ShellFlowOutcome::Quit => Some(MainMenuAction::Quit),
+            ShellFlowOutcome::LaunchGame => {
+                ShellRuntimeInteraction::action(MainMenuAction::LaunchSinglePlayer)
+            }
+            ShellFlowOutcome::Quit => ShellRuntimeInteraction::action(MainMenuAction::Quit),
         }
     }
 
     /// Handles pointer dragging for a captured slider.
-    pub(super) fn drag_shell(&mut self, point_x: i32, _point_y: i32) {
-        let Some(field) = self.active_slider else {
-            return;
-        };
+    pub(super) fn drag_shell(&mut self, point_x: i32, _point_y: i32) -> Option<ShellRuntimeSound> {
+        let field = self.active_slider?;
         let screen = current_screen(&self.model);
         let Some(control) = screen.controls().iter().find(|control| {
             control
@@ -125,15 +146,18 @@ impl ShellRuntimeState {
                 .is_some_and(|action| slider_field(action, control.kind()) == Some(field))
         }) else {
             self.active_slider = None;
-            return;
+            return None;
         };
         let rect = screen_rect(&screen, control.rect());
-        self.update_slider_value(field, &rect, control.kind(), point_x);
+        self.update_slider_value(field, &rect, control.kind(), point_x)
+            .then_some(ShellRuntimeSound::SliderUp)
     }
 
     /// Releases any captured pointer control.
-    pub(super) const fn release_pointer(&mut self) {
-        self.active_slider = None;
+    pub(super) fn release_pointer(&mut self) -> Option<ShellRuntimeSound> {
+        self.active_slider
+            .take()
+            .map(|_field| ShellRuntimeSound::SliderDown)
     }
 
     /// Applies text input to the shell model.
@@ -159,12 +183,21 @@ impl ShellRuntimeState {
         rect: &MenuRect,
         kind: ShellControlKind,
         point_x: i32,
-    ) {
+    ) -> bool {
+        let before = self.model.options().numeric(field);
         let value = slider_value_at(rect, kind, point_x);
         let updated = self.model.options_mut().set_numeric(field, value);
         debug_assert!(updated, "slider controls must target numeric options");
-        self.record_numeric_effect(field, value);
-        self.record_persisted_options();
+        let after = self.model.options().numeric(field);
+        if updated && before != after {
+            if let Some(effective_value) = after {
+                self.record_numeric_effect(field, effective_value);
+                self.record_persisted_options();
+            }
+            true
+        } else {
+            false
+        }
     }
 
     /// Takes and clears queued runtime effects.

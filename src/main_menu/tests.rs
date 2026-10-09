@@ -190,6 +190,40 @@ fn original_button_click_sound_is_resolved_from_original_game_assets() {
 }
 
 #[test]
+fn original_slider_sounds_are_resolved_from_original_game_assets() {
+    let summaries = runtime::slider_sound_summaries_for_test(std::path::Path::new("ctp2"))
+        .expect("slider sounds should load from original immutable CTP2 sound archive");
+
+    assert_eq!(
+        summaries.len(),
+        2_usize,
+        "C3Slider should provide separate up and down sound effects"
+    );
+    assert_eq!(
+        summaries[0].1, "cslideup.wav",
+        "GAMESOUNDS_SLIDERUP maps through SOUND_ID_SLIDERUP to CSLIDEUP.WAV"
+    );
+    assert_eq!(
+        summaries[1].1, "cslidedn.wav",
+        "GAMESOUNDS_SLIDERDOWN maps through SOUND_ID_SLIDERDOWN to CSLIDEDN.WAV"
+    );
+    for (archive, _entry, byte_len, riff_header) in summaries {
+        assert_eq!(
+            archive, "ctp2_data/default/sound/sound.zfs",
+            "slider sounds should come from the base CTP2 default sound archive"
+        );
+        assert!(
+            byte_len > 44,
+            "WAV data should include a header and payload"
+        );
+        assert_eq!(
+            riff_header, *b"RIFF",
+            "slider sound should be WAV/RIFF data"
+        );
+    }
+}
+
+#[test]
 fn original_button_art_assets_are_resolved_from_immutable_game_copy() {
     assert_eq!(
         runtime::button_asset_entry_name_for_test("upbt07aU.tga"),
@@ -371,6 +405,24 @@ fn shell_runtime_effect_helpers_match_original_option_scales() {
         runtime::parse_resolution_label_for_test("1024 x 768"),
         Some((1024_u32, 768_u32)),
         "resolution picker labels should be parsed into SDL window dimensions"
+    );
+    assert_eq!(
+        runtime::initial_music_track_for_test(2_usize, false, 0_u64),
+        2_usize,
+        "non-random startup should respect the persisted selected track"
+    );
+    assert_eq!(
+        runtime::initial_music_track_for_test(1_usize, true, 0_u64),
+        2_usize,
+        "random startup should not always replay the persisted first track"
+    );
+    assert!(
+        runtime::mixer_chunk_size_for_test() <= 512_i32,
+        "UI SFX should use a low-latency SDL_mixer chunk size"
+    );
+    assert!(
+        runtime::mixer_allocated_channels_for_test() >= 8_i32,
+        "UI SFX should have enough channels for overlapping click and slider sounds"
     );
     assert_eq!(
         runtime::option_volume_to_mixer_volume_for_test(5_i32),

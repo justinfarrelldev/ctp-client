@@ -28,7 +28,7 @@ fn menu_viewport_for_output_size(output_width: u32, output_height: u32) -> MenuR
 }
 
 /// Converts a window/output-space point into original 800x600 menu coordinates.
-pub(super) fn output_point_to_menu_point(
+pub(in crate::main_menu::runtime) fn output_point_to_menu_point(
     output_width: u32,
     output_height: u32,
     point_x: i32,

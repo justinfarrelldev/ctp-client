@@ -2,12 +2,13 @@
 
 use std::path::PathBuf;
 
+use super::sound::ShellRuntimeSound;
 use super::*;
 
 /// Clicks a shell point and ignores non-terminal navigation results.
 fn click(state: &mut ShellRuntimeState, _model: &MainMenuModel, x: i32, y: i32) {
     assert!(
-        state.click_shell(x, y).is_none(),
+        state.click_shell(x, y).action.is_none(),
         "shell setup clicks should not exit the menu loop"
     );
 }
@@ -70,8 +71,16 @@ fn graphics_unit_speed_slider_drags_after_pointer_capture() {
     click(&mut state, &model, 156_i32, 276_i32);
     click(&mut state, &model, 238_i32, 228_i32);
     click(&mut state, &model, 250_i32, 205_i32);
-    state.drag_shell(550_i32, 205_i32);
-    state.release_pointer();
+    assert_eq!(
+        state.drag_shell(550_i32, 205_i32),
+        Some(ShellRuntimeSound::SliderUp),
+        "value-changing slider drags should play the original slider-up sound"
+    );
+    assert_eq!(
+        state.release_pointer(),
+        Some(ShellRuntimeSound::SliderDown),
+        "releasing a captured C3Slider should play the original slider-down sound"
+    );
 
     assert_eq!(
         state.numeric_option_for_test(ShellOptionField::UnitSpeed),
