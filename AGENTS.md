@@ -155,6 +155,8 @@ You can fetch documentation here as needed:
 
 - **Allow attributes policy:** Do **not** use `#[allow(...)]` in normal flow. Prefer fixing the code or using `expect` with justification. If an `#[allow]` is absolutely unavoidable, it **must** include a `reason="..."` and be tightly scoped.
 
+- Always check the original source code when implementing new UI. You should ALWAYS make note of the original styling and placements of the elements on the screen - they need to match EXACTLY to the original game (with the exception that the game menu should fit the whole screen with only minimal black borders, and a couple of quality-of-life changes). The main menu right now is an excellent example of the quality bar. The main menu should stay largely intact.
+
 ## End-goal
 
 The end goal is to have near-perfect copies of the original games playable via this client. The server that the client should be integrated with is available if you `cd $CTPSERVER` - that server should be the authoritative single-source-of-truth when playing multiplayer online. The client should expose ALL prerequisite server options for logging in, for playing the games (switching gamemodes, customizations the server exposes, etc) and for allowing people to play multiplayer. Please note that the client should be built around the server's authoritativeness while playing in multiplayer, for now singleplayer should not be a target.
@@ -166,3 +168,24 @@ The CTP2 assets are available in the ctp2 folder and the source code from the or
 One of the most important parts of this project is testing - the UI should be extensively testable with fake button clicks, the ability to skip the intro video programmatically, etc. End-to-end testing that is based on accessible interactions (not coordinate-based clicking) is paramount.
 
 The game should be buildable primarily on Linux with the understanding that a Windows build is needed for the final product. Do not neglect Windows.
+
+# Integration With The Server
+
+The Open CTP Server can be found at $CTPSERVER if you `cd $CTPSERVER`. This client should have very tight integration with the server:
+
+- Singleplayer should use the server in the local mode that the server exposes (it should effectively be the same as multiplayer, but with just one player and all the rest being AIs)
+- Multiplayer should use the server in the non-local mode
+
+The game (including the UI, sound effects and all buttons) should be fully fleshed-out and present. You should be able to play the full, complete game from end-to-end.
+
+Aim to integrate singleplayer first since the singleplayer is very similar to multiplayer and is much easier for me to test locally.
+
+ALL UI from the original game should be present, even if they are not relevant. For example, even if loading happens instantly, the loading screen should still display (exactly as it is in the base game) since in multiplayer it may take some time.
+
+The options in the main menu should affect the actual games - for example, sound effects need to respect the volume set in the options, and if there are 5 empires selected in the menu, then 5 empires should be present in the game. Likewise, the leader name should be preserved. These need to be handed off to the server for the server options to be respected.
+
+If the local server is not running and you need it to be to continue, let me know the command to start it in local mode and I will do so for you (then you can continue).
+
+Do not actually call the local server in tests - instead, for tests, mock the calls (very accurately, checking the server code). This will prevent brittleness in the future.
+
+Do NOT EVER modify the server while working on this project. If you encounter a bug, then let me know what needs to be fixed. It is not your job to fix the server issues - it is your job to integrate the client with the server.
