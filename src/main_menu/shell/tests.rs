@@ -1,6 +1,7 @@
 //! Tests for the single-player shell model.
 
 use super::options_state::ShellOptionsState;
+use super::text_field::ShellTextFieldStyle;
 use super::*;
 
 /// Returns image metadata from a switch-like control for assertions.
@@ -9,8 +10,21 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         ShellControlKind::Switch { images, .. } => images,
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
+        | ShellControlKind::ListBoxChrome { .. }
+        | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
+/// Extracts original text-field style metadata from a control kind.
+const fn text_field_style(kind: ShellControlKind) -> Option<ShellTextFieldStyle> {
+    match kind {
+        ShellControlKind::TextField { style } => Some(style),
+        ShellControlKind::Button(_)
+        | ShellControlKind::Label { .. }
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
     }
@@ -187,9 +201,9 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
         .find_accessible("Leader Name Field")
         .expect("original tribe popup should include the editable leader name field");
     assert_eq!(
-        leader_field.kind(),
-        ShellControlKind::TextField,
-        "leader-name field should be modeled as an editable text field"
+        text_field_style(leader_field.kind()),
+        Some(ShellTextFieldStyle::popup_default()),
+        "leader-name field should be modeled as the original editable popup text field"
     );
     assert_eq!(
         leader_field.action(),
@@ -207,6 +221,24 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
     assert!(
         screen.find_accessible("Female").is_some(),
         "original tribe popup should include the female gender radio"
+    );
+}
+
+#[test]
+fn new_game_leader_name_uses_original_field_style() {
+    let screen = screen_for(
+        ShellScreenId::NewGame,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+    let leader_field = screen
+        .find_accessible("Leader Name")
+        .expect("new-game screen should include the editable leader name field");
+
+    assert_eq!(
+        text_field_style(leader_field.kind()),
+        Some(ShellTextFieldStyle::new_game_field()),
+        "new-game leader field should preserve the original FIELD bevel styling"
     );
 }
 

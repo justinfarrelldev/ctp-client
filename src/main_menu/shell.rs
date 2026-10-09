@@ -42,8 +42,11 @@ mod pickers;
 mod screens;
 /// Non-persisted new-game setup state.
 pub(in crate::main_menu) mod setup;
+/// Original CTP2 text-field style metadata.
+pub(in crate::main_menu) mod text_field;
 
 use setup::{CustomMapField, GameSetupField, GameSetupState};
+use text_field::ShellTextFieldStyle;
 
 /// Stable identifier for screens in the single-player shell flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -357,7 +360,10 @@ pub(super) enum ShellControlKind {
         layout: ShellLabelLayout,
     },
     /// Text-entry field.
-    TextField,
+    TextField {
+        /// Original CTP2 visual styling metadata.
+        style: ShellTextFieldStyle,
+    },
     /// Slider with a bounded integer range.
     Slider {
         /// Minimum selectable value.
@@ -549,7 +555,7 @@ impl ShellScreen {
         match control.kind {
             ShellControlKind::Button(style) => style.visual_style().rendered_rect(global_rect),
             ShellControlKind::Label { .. }
-            | ShellControlKind::TextField
+            | ShellControlKind::TextField { .. }
             | ShellControlKind::Slider { .. }
             | ShellControlKind::Switch { .. }
             | ShellControlKind::ListBoxChrome { .. }
@@ -603,6 +609,12 @@ impl SinglePlayerShellModel {
     /// Returns setup state.
     pub(super) const fn setup(&self) -> &GameSetupState {
         &self.setup
+    }
+
+    /// Returns current leader name.
+    #[cfg(test)]
+    pub(super) fn leader_name(&self) -> &str {
+        self.setup.leader_name()
     }
 
     /// Returns options state.

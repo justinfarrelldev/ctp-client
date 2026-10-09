@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 
 use super::builders::{
-    asset, field, image_switch_control, label, left_label, list_item, listbox_chrome,
+    asset, field_with_style, image_switch_control, label, left_label, list_item, listbox_chrome,
     popup_close_button,
 };
 use super::options_state::ShellOptionsState;
@@ -11,6 +11,7 @@ use super::picker_data::{
     BARBARIAN_RISKS, DIFFICULTIES, MAP_SIZES, MUSIC_TRACKS, NATION_LEADER_NAMES,
     NATION_PICKER_LABELS, NATION_VALUES, PLAYER_COUNTS, RESOLUTIONS, RULE_PRESETS, WORLD_SHAPES,
 };
+use super::text_field::ShellTextFieldStyle;
 use super::{
     GameSetupField, GameSetupState, MenuRect, ShellAction, ShellImageSet, ShellOptionField,
     ShellScreen, ShellScreenId,
@@ -212,7 +213,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             20,
             "spnewgamepopups.ldl:228",
         ),
-        field(
+        field_with_style(
             "leadernametextfield",
             setup.leader_name(),
             "Leader Name Field",
@@ -220,6 +221,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             405,
             180,
             30,
+            ShellTextFieldStyle::popup_default(),
             "spnewgamepopups.ldl:241",
         ),
         image_switch_control(
@@ -367,9 +369,9 @@ pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
         ),
         left_label(
             "FWLabel",
-            "No wrapping",
+            "No wrapping; map edges do not connect.",
             "Flat Description",
-            150,
+            190,
             116,
             250,
             42,

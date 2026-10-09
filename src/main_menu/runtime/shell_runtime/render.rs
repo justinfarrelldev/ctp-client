@@ -19,6 +19,7 @@ use super::super::{
 };
 use super::controls::{
     draw_disabled_button, draw_list_item, draw_slider, draw_switch, draw_text_field,
+    draw_text_field_text,
 };
 use super::listbox::draw_listbox_chrome;
 use super::screen_rect;
@@ -112,7 +113,9 @@ fn draw_shell_control_text(
         ShellControlKind::Label { layout } => {
             draw_label(canvas, font, &rect, control.label(), layout)
         }
-        ShellControlKind::TextField => draw_centered_text(canvas, font, &rect, control.label()),
+        ShellControlKind::TextField { style } => {
+            draw_text_field_text(canvas, font, &rect, style, control.label())
+        }
         ShellControlKind::Switch { .. } | ShellControlKind::ListItem { .. } => {
             draw_centered_text(canvas, font, &rect, control.label())
         }
@@ -266,7 +269,7 @@ fn draw_shell_control(
         ShellControlKind::Label { layout } => {
             draw_label(canvas, font, &rect, control.label(), layout)
         }
-        ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
+        ShellControlKind::TextField { style } => draw_text_field(canvas, &rect, style),
         ShellControlKind::ListBoxChrome {
             scroll_offset,
             item_count,

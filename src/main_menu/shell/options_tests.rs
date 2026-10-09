@@ -9,7 +9,7 @@ fn switch_enabled(kind: ShellControlKind) -> Option<bool> {
         ShellControlKind::Switch { enabled, .. } => Some(enabled),
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
@@ -22,7 +22,7 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
         ShellControlKind::Switch { images, .. } => images,
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
@@ -35,7 +35,7 @@ fn list_item_selected(kind: ShellControlKind) -> Option<bool> {
         ShellControlKind::ListItem { selected, .. } => Some(selected),
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
         | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. } => None,

@@ -569,7 +569,8 @@ pub(super) use testing::{
     music_track_relative_path_for_test, next_music_track_after_finish_for_test,
     option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
     prepared_canvas_state_for_test, render_headless_average_color_for_test,
-    shell_control_draw_order_for_test, slider_sound_summaries_for_test,
+    shell_control_draw_order_for_test, shell_left_top_text_color_for_test,
+    slider_sound_summaries_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

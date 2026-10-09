@@ -9,7 +9,7 @@ const fn slider_value(kind: ShellControlKind) -> Option<i32> {
         ShellControlKind::Slider { value, .. } => Some(value),
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
@@ -22,7 +22,7 @@ const fn switch_enabled_state(kind: ShellControlKind) -> Option<bool> {
         ShellControlKind::Switch { enabled, .. } => Some(enabled),
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
@@ -34,7 +34,7 @@ const fn label_layout(kind: ShellControlKind) -> Option<ShellLabelLayout> {
     match kind {
         ShellControlKind::Label { layout } => Some(layout),
         ShellControlKind::Button(_)
-        | ShellControlKind::TextField
+        | ShellControlKind::TextField { .. }
         | ShellControlKind::Slider { .. }
         | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. }
@@ -263,4 +263,37 @@ fn world_shape_rows_align_with_original_descriptions() {
             "{accessible_name} should keep the original aligned LDL y position"
         );
     }
+}
+
+#[test]
+fn flat_world_description_aligns_with_other_world_shape_explanations() {
+    let screen = screen_for(
+        ShellScreenId::WorldShapePicker,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for accessible_name in [
+        "East West Description",
+        "Doughnut Description",
+        "Flat Description",
+    ] {
+        let control = screen
+            .find_accessible(accessible_name)
+            .expect("world-shape description should exist");
+        assert_eq!(
+            control.rect().x,
+            190_i32,
+            "{accessible_name} should use the same left edge for all side explanations"
+        );
+    }
+
+    let flat = screen
+        .find_accessible("Flat Description")
+        .expect("flat-world explanation should exist");
+    assert_eq!(
+        flat.label(),
+        "No wrapping; map edges do not connect.",
+        "flat world should explain that no map edge wraps"
+    );
 }

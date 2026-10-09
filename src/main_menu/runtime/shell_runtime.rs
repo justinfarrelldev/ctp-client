@@ -115,7 +115,7 @@ impl ShellRuntimeState {
             ShellControlKind::Slider { .. } => None,
             ShellControlKind::Button(_)
             | ShellControlKind::Label { .. }
-            | ShellControlKind::TextField
+            | ShellControlKind::TextField { .. }
             | ShellControlKind::Switch { .. }
             | ShellControlKind::ListBoxChrome { .. }
             | ShellControlKind::ListItem { .. } => Some(ShellRuntimeSound::ButtonClick),
@@ -202,6 +202,12 @@ impl ShellRuntimeState {
     /// Applies a text backspace to the shell model.
     pub(super) fn handle_backspace(&mut self) {
         self.model.handle_backspace();
+    }
+
+    /// Returns the current leader name for runtime tests.
+    #[cfg(test)]
+    pub(super) fn leader_name_for_test(&self) -> &str {
+        self.model.leader_name()
     }
 
     /// Returns a numeric option for runtime tests.

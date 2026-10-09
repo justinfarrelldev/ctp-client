@@ -440,6 +440,15 @@ fn button_labels_use_original_dark_text_color() {
 }
 
 #[test]
+fn shell_left_top_descriptions_use_original_black_text_color() {
+    assert_eq!(
+        runtime::shell_left_top_text_color_for_test(),
+        runtime::button_label_text_color_for_test(),
+        "world-shape side descriptions should use black shell text, not the blue version-label color"
+    );
+}
+
+#[test]
 fn new_game_header_labels_draw_above_overlapping_button_art() {
     let draw_order = runtime::shell_control_draw_order_for_test(shell::ShellScreenId::NewGame);
     let difficulty_label_index = draw_order

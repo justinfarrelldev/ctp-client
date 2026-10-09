@@ -93,6 +93,23 @@ fn resolution_scrollbar_click_reveals_later_mode_and_queues_resize() {
 }
 
 #[test]
+fn leader_name_field_accepts_custom_text_after_click() {
+    let model = test_model();
+    let mut state = ShellRuntimeState::new();
+    state.open_single_player();
+
+    click(&mut state, &model, 644_i32, 246_i32);
+    click(&mut state, &model, 300_i32, 164_i32);
+    state.handle_text_input("Ninjaboy");
+
+    assert_eq!(
+        state.leader_name_for_test(),
+        "Ninjaboy",
+        "clicking the leader-name field should focus it and replace the default with custom text"
+    );
+}
+
+#[test]
 fn music_controls_queue_track_and_toggle_effects() {
     let model = test_model();
     let mut state = ShellRuntimeState::new();

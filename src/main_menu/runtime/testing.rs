@@ -214,6 +214,12 @@ pub(in crate::main_menu) const fn button_label_text_color_for_test() -> (u8, u8,
     BUTTON_LABEL_TEXT_COLOR
 }
 
+/// Returns the original dark left/top shell label color used by the renderer.
+#[cfg(test)]
+pub(in crate::main_menu) const fn shell_left_top_text_color_for_test() -> (u8, u8, u8) {
+    text::shell_left_top_text_color_for_test()
+}
+
 /// Returns the shell control draw order for one screen.
 #[cfg(test)]
 pub(in crate::main_menu) fn shell_control_draw_order_for_test(

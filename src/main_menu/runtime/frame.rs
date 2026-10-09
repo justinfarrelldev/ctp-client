@@ -8,7 +8,7 @@ use sdl2::video::{Window, WindowContext};
 
 use crate::main_menu::{ButtonStyleId, MainMenuError, MainMenuModel, MenuRect};
 
-use super::text::{draw_centered_text, draw_text_at};
+use super::text::{draw_centered_text, draw_version_text_at};
 use super::viewport::prepare_menu_canvas;
 use super::{MenuTextures, button_art, runtime_error, shell_runtime};
 
@@ -166,7 +166,7 @@ pub(super) fn draw_menu(
         draw_centered_text(canvas, font, &text_rect, button.label)?;
     }
 
-    draw_text_at(canvas, font, &model.version_rect, model.version_text)
+    draw_version_text_at(canvas, font, &model.version_rect, model.version_text)
 }
 
 /// Draws sharp text labels over the final physically scaled landing frame.
@@ -189,7 +189,7 @@ fn draw_menu_text_overlay(
         );
         draw_centered_text(canvas, font, &text_rect, button.label)?;
     }
-    draw_text_at(canvas, font, &model.version_rect, model.version_text)
+    draw_version_text_at(canvas, font, &model.version_rect, model.version_text)
 }
 
 /// Draws a simple fallback background when original ZFS assets are unavailable.

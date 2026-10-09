@@ -94,12 +94,13 @@ pub(super) fn draw_centered_text(
     copy_texture_at_physical_resolution(canvas, &texture, destination)
 }
 
-/// Draws text starting at the menu rectangle origin at physical output resolution.
-pub(super) fn draw_text_at(
+/// Draws left-aligned, vertically centered shell text inside a menu rectangle.
+pub(super) fn draw_left_centered_text(
     canvas: &mut Canvas<Window>,
     font: Option<&Font<'_, '_>>,
     rect: &MenuRect,
     text: &str,
+    inset_x: i32,
 ) -> Result<(), MainMenuError> {
     let Some(font) = font else {
         return Ok(());
@@ -107,7 +108,68 @@ pub(super) fn draw_text_at(
 
     let surface = font
         .render(text)
-        .blended(rgb_color(VERSION_TEXT_COLOR))
+        .blended(rgb_color(BUTTON_LABEL_TEXT_COLOR))
+        .map_err(|error| runtime_error(error.to_string()))?;
+    let texture_creator = canvas.texture_creator();
+    let texture = texture_creator
+        .create_texture_from_surface(&surface)
+        .map_err(|error| runtime_error(error.to_string()))?;
+    let physical_rect = physical_rect_for_menu_rect(canvas, rect)?;
+    let rect_height = i32::try_from(physical_rect.height).map_or(0_i32, |value| value);
+    let text_height = i32::try_from(surface.height()).map_or(0_i32, |value| value);
+    let offset_y = rect_height
+        .saturating_sub(text_height)
+        .checked_div(2_i32)
+        .map_or(0_i32, |value| value);
+    let output_size = canvas.output_size().map_err(runtime_error)?;
+    let viewport = menu_viewport_for_output_size(output_size.0, output_size.1);
+    let physical_inset_x =
+        scale_signed_axis(inset_x, viewport.width, super::super::MAIN_MENU_WIDTH);
+    let destination = SdlRect::new(
+        physical_rect.x.saturating_add(physical_inset_x),
+        physical_rect.y.saturating_add(offset_y),
+        surface.width(),
+        surface.height(),
+    );
+
+    copy_texture_at_physical_resolution(canvas, &texture, destination)
+}
+
+/// Draws shell text starting at the menu rectangle origin at physical output resolution.
+pub(super) fn draw_text_at(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    rect: &MenuRect,
+    text: &str,
+) -> Result<(), MainMenuError> {
+    draw_text_at_with_color(canvas, font, rect, text, BUTTON_LABEL_TEXT_COLOR)
+}
+
+/// Draws version text starting at the menu rectangle origin at physical output resolution.
+pub(super) fn draw_version_text_at(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    rect: &MenuRect,
+    text: &str,
+) -> Result<(), MainMenuError> {
+    draw_text_at_with_color(canvas, font, rect, text, VERSION_TEXT_COLOR)
+}
+
+/// Draws text starting at the menu rectangle origin using the supplied RGB color.
+fn draw_text_at_with_color(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    rect: &MenuRect,
+    text: &str,
+    color: (u8, u8, u8),
+) -> Result<(), MainMenuError> {
+    let Some(font) = font else {
+        return Ok(());
+    };
+
+    let surface = font
+        .render(text)
+        .blended(rgb_color(color))
         .map_err(|error| runtime_error(error.to_string()))?;
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator
@@ -188,6 +250,12 @@ fn scale_unsigned_axis(value: u32, viewport_extent: u32, menu_extent: u32) -> u3
         .checked_div(u64::from(menu_extent))
         .map_or(0_u64, |extent| extent);
     u32::try_from(scaled).map_or(u32::MAX, |extent| extent)
+}
+
+/// Returns the left/top shell label text color for tests.
+#[cfg(test)]
+pub(super) const fn shell_left_top_text_color_for_test() -> (u8, u8, u8) {
+    BUTTON_LABEL_TEXT_COLOR
 }
 
 /// Converts an RGB tuple into an SDL color.

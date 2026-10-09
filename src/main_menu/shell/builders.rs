@@ -2,6 +2,7 @@
 
 use alloc::string::String;
 
+use super::text_field::ShellTextFieldStyle;
 use super::{
     MenuAssetReference, MenuRect, SHELL_PICTURES_ARCHIVE, ShellAction, ShellControl,
     ShellControlKind, ShellImageSet, ShellLabelLayout, ShellOptionField, ShellSoundPolicy,
@@ -357,7 +358,7 @@ fn label_with_layout(
     }
 }
 
-/// Creates a text field.
+/// Creates a text field with the main setup screen `FIELD` styling.
 #[expect(
     clippy::too_many_arguments,
     reason = "Shell builder helpers preserve original LDL control geometry in one call."
@@ -372,6 +373,35 @@ pub(super) fn field(
     height: u32,
     source: &'static str,
 ) -> ShellControl {
+    field_with_style(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        ShellTextFieldStyle::new_game_field(),
+        source,
+    )
+}
+
+/// Creates a text field with explicit original CTP2 style metadata.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+pub(super) fn field_with_style(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    style: ShellTextFieldStyle,
+    source: &'static str,
+) -> ShellControl {
     let mut control = label(
         ldl_name,
         label_text,
@@ -382,7 +412,7 @@ pub(super) fn field(
         height,
         source,
     );
-    control.kind = ShellControlKind::TextField;
+    control.kind = ShellControlKind::TextField { style };
     control.action = Some(ShellAction::FocusLeaderName);
     control.sound = Some(ShellSoundPolicy::original_button());
     control

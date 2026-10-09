@@ -5,9 +5,11 @@ use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Canvas, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
+use crate::main_menu::shell::text_field::ShellTextFieldStyle;
 use crate::main_menu::shell::{ShellControl, ShellImageSet};
 use crate::main_menu::{MainMenuError, MainMenuModel, MenuRect};
 
+use super::super::text::draw_left_centered_text;
 use super::{create_texture_for_ldl_asset, draw_centered_text, runtime_error, to_sdl_rect};
 
 /// Draws a disabled button fallback.
@@ -24,18 +26,76 @@ pub(super) fn draw_disabled_button(
     draw_centered_text(canvas, font, rect, label)
 }
 
-/// Draws a simple text-entry field.
+/// Draws the original CTP2 text-entry bevel without covering the patterned background.
 pub(super) fn draw_text_field(
+    canvas: &mut Canvas<Window>,
+    rect: &MenuRect,
+    style: ShellTextFieldStyle,
+) -> Result<(), MainMenuError> {
+    let bevel_rect = expanded_text_field_rect(rect);
+    draw_inset_bevel(canvas, &bevel_rect, style.bevel_width())
+}
+
+/// Draws editable text inside an original CTP2 text-entry field.
+pub(super) fn draw_text_field_text(
     canvas: &mut Canvas<Window>,
     font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
+    style: ShellTextFieldStyle,
     text: &str,
 ) -> Result<(), MainMenuError> {
-    canvas.set_draw_color(Color::RGB(210, 200, 165));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(65, 55, 40));
-    canvas.draw_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    draw_centered_text(canvas, font, rect, text)
+    draw_left_centered_text(canvas, font, rect, text, style.text_inset_x())
+}
+
+/// Expands an LDL field rectangle to the outer bevel drawn by `ctp2_TextField::DrawThis`.
+const fn expanded_text_field_rect(rect: &MenuRect) -> MenuRect {
+    MenuRect::new(
+        rect.x.saturating_sub(2_i32),
+        rect.y.saturating_sub(2_i32),
+        rect.width.saturating_add(4_u32),
+        rect.height.saturating_add(4_u32),
+    )
+}
+
+/// Draws an inset CTP2-style bevel around a text field.
+fn draw_inset_bevel(
+    canvas: &mut Canvas<Window>,
+    rect: &MenuRect,
+    bevel_width: u32,
+) -> Result<(), MainMenuError> {
+    let levels = bevel_width.max(1_u32);
+    for level in 0_u32..levels {
+        let inset = i32::try_from(level).map_or(0_i32, |value| value);
+        let left = rect.x.saturating_add(inset);
+        let top = rect.y.saturating_add(inset);
+        let shrink = level.saturating_mul(2_u32);
+        let width = rect.width.saturating_sub(shrink);
+        let height = rect.height.saturating_sub(shrink);
+        if width == 0 || height == 0 {
+            continue;
+        }
+        canvas.set_draw_color(Color::RGB(42, 34, 24));
+        canvas
+            .fill_rect(SdlRect::new(left, top, width, 1_u32))
+            .map_err(runtime_error)?;
+        canvas
+            .fill_rect(SdlRect::new(left, top, 1_u32, height))
+            .map_err(runtime_error)?;
+        let bottom = top.saturating_add(
+            i32::try_from(height.saturating_sub(1_u32)).map_or(0_i32, |value| value),
+        );
+        let right = left.saturating_add(
+            i32::try_from(width.saturating_sub(1_u32)).map_or(0_i32, |value| value),
+        );
+        canvas.set_draw_color(Color::RGB(218, 202, 158));
+        canvas
+            .fill_rect(SdlRect::new(left, bottom, width, 1_u32))
+            .map_err(runtime_error)?;
+        canvas
+            .fill_rect(SdlRect::new(right, top, 1_u32, height))
+            .map_err(runtime_error)?;
+    }
+    Ok(())
 }
 
 /// Draws a functional slider approximation with original bounds.
