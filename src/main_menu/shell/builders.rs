@@ -4,7 +4,7 @@ use alloc::string::String;
 
 use super::{
     MenuAssetReference, MenuRect, SHELL_PICTURES_ARCHIVE, ShellAction, ShellControl,
-    ShellControlKind, ShellImageSet, ShellOptionField, ShellSoundPolicy,
+    ShellControlKind, ShellImageSet, ShellLabelLayout, ShellOptionField, ShellSoundPolicy,
 };
 use crate::main_menu::ButtonVisualStyle;
 
@@ -243,7 +243,7 @@ pub(super) fn list_item(
     control
 }
 
-/// Creates a static label.
+/// Creates a static centered label.
 #[expect(
     clippy::too_many_arguments,
     reason = "Shell builder helpers preserve original LDL control geometry in one call."
@@ -258,12 +258,98 @@ pub(super) fn label(
     height: u32,
     source: &'static str,
 ) -> ShellControl {
+    label_with_layout(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        ShellLabelLayout::centered(),
+        source,
+    )
+}
+
+/// Creates a centered label with a visual vertical offset.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+pub(super) fn raised_label(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    offset_y: i32,
+    source: &'static str,
+) -> ShellControl {
+    label_with_layout(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        ShellLabelLayout::centered_with_offset_y(offset_y),
+        source,
+    )
+}
+
+/// Creates a static label rendered from the left/top LDL anchor.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+pub(super) fn left_label(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    source: &'static str,
+) -> ShellControl {
+    label_with_layout(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        ShellLabelLayout::left_top(),
+        source,
+    )
+}
+
+/// Creates a static label using explicit text-layout metadata.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+fn label_with_layout(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    layout: ShellLabelLayout,
+    source: &'static str,
+) -> ShellControl {
     ShellControl {
         ldl_name,
         label: label_text.to_owned(),
         accessible_name: accessible_name.to_owned(),
         rect: MenuRect::new(x, y, width, height),
-        kind: ShellControlKind::Label,
+        kind: ShellControlKind::Label { layout },
         enabled: true,
         action: None,
         sound: None,

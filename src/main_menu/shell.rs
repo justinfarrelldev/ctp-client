@@ -281,13 +281,81 @@ impl ShellImageSet {
     }
 }
 
+/// Text anchoring behavior for shell labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ShellTextAlignment {
+    /// Center text horizontally and vertically in the label rectangle.
+    Center,
+    /// Draw text from the label rectangle's top-left origin.
+    LeftTop,
+}
+
+/// Visual text-layout metadata for a static shell label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ShellLabelLayout {
+    /// Text anchoring mode for the label.
+    alignment: ShellTextAlignment,
+    /// Visual vertical offset applied only while drawing text.
+    offset_y: i32,
+}
+
+impl ShellLabelLayout {
+    /// Returns the default centered label layout.
+    pub(super) const fn centered() -> Self {
+        Self {
+            alignment: ShellTextAlignment::Center,
+            offset_y: 0,
+        }
+    }
+
+    /// Returns a centered label layout with a visual vertical offset.
+    pub(super) const fn centered_with_offset_y(offset_y: i32) -> Self {
+        Self {
+            alignment: ShellTextAlignment::Center,
+            offset_y,
+        }
+    }
+
+    /// Returns a top-left anchored label layout.
+    pub(super) const fn left_top() -> Self {
+        Self {
+            alignment: ShellTextAlignment::LeftTop,
+            offset_y: 0,
+        }
+    }
+
+    /// Returns the alignment mode.
+    pub(super) const fn alignment(self) -> ShellTextAlignment {
+        self.alignment
+    }
+
+    /// Returns the visual vertical offset.
+    #[cfg(test)]
+    pub(super) const fn offset_y(self) -> i32 {
+        self.offset_y
+    }
+
+    /// Returns the rectangle to use for text rendering.
+    pub(super) const fn text_rect(self, rect: MenuRect) -> MenuRect {
+        MenuRect::new(
+            rect.x,
+            rect.y.saturating_add(self.offset_y),
+            rect.width,
+            rect.height,
+        )
+    }
+}
+
 /// Visual/control family for one shell element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ShellControlKind {
     /// Original CTP2 button with three-piece shell art.
     Button(ButtonStyleId),
     /// Static text label.
-    Label,
+    Label {
+        /// Rendering alignment and visual offset for the label text.
+        layout: ShellLabelLayout,
+    },
     /// Text-entry field.
     TextField,
     /// Slider with a bounded integer range.
@@ -480,7 +548,7 @@ impl ShellScreen {
         );
         match control.kind {
             ShellControlKind::Button(style) => style.visual_style().rendered_rect(global_rect),
-            ShellControlKind::Label
+            ShellControlKind::Label { .. }
             | ShellControlKind::TextField
             | ShellControlKind::Slider { .. }
             | ShellControlKind::Switch { .. }

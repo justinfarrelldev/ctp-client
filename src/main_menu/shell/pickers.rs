@@ -3,7 +3,8 @@
 use alloc::vec::Vec;
 
 use super::builders::{
-    asset, field, image_switch_control, label, list_item, listbox_chrome, popup_close_button,
+    asset, field, image_switch_control, label, left_label, list_item, listbox_chrome,
+    popup_close_button,
 };
 use super::options_state::ShellOptionsState;
 use super::picker_data::{
@@ -344,7 +345,7 @@ pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
         MenuRect::new(150, 225, 500, 150),
     );
     controls.extend([
-        label(
+        left_label(
             "EWLabel",
             "East and West edges of the map connect.",
             "East West Description",
@@ -354,7 +355,7 @@ pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
             42,
             "spnewgamepopups.ldl:675",
         ),
-        label(
+        left_label(
             "DWLabel",
             "East/West and North/South edges of the map connect.",
             "Doughnut Description",
@@ -364,7 +365,7 @@ pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
             42,
             "spnewgamepopups.ldl:685",
         ),
-        label(
+        left_label(
             "FWLabel",
             "No wrapping",
             "Flat Description",

@@ -69,7 +69,7 @@ mod shell_runtime;
 mod viewport;
 
 use assets::{create_texture_from_rgba, load_rim_rgba, load_rim_rgba_entry};
-use audio::SdlMenuMusicBackend;
+use audio::{SdlMenuMusicBackend, advance_audio_after_frame, apply_audio_effects};
 #[cfg(test)]
 use audio::{music_track_relative_path, option_volume_to_mixer_volume};
 use event_sound::{play_menu_sound, sound_before_menu_event};
@@ -298,6 +298,7 @@ fn run_sdl_event_loop_with_options_and_audio(
             audio_backend.as_deref_mut(),
             &shell_state.take_effects(),
         )?;
+        advance_audio_after_frame(audio_backend.as_deref_mut(), &model.installation_root);
 
         let mouse_state = event_pump.mouse_state();
         let draw_output_size = canvas
@@ -356,34 +357,6 @@ fn apply_shell_runtime_effects(
     }
 
     Ok(())
-}
-
-/// Applies shell effects to the `SDL_mixer` backend.
-fn apply_audio_effects(
-    backend: &mut SdlMenuMusicBackend,
-    model: &MainMenuModel,
-    effects: &shell_runtime::ShellRuntimeEffects,
-) {
-    if let Some(volume) = effects.sfx_volume.or(effects.voice_volume) {
-        SdlMenuMusicBackend::set_channel_volume(volume);
-    }
-    if let Some(volume) = effects.music_volume {
-        SdlMenuMusicBackend::set_music_volume(volume);
-    }
-    if let Some(track) = effects.music_track {
-        if let Err(error) = backend.play_track_number(&model.installation_root, track) {
-            log::warn!("Music track {track} could not be played: {error}");
-        }
-    }
-    if let Some(enabled) = effects.music_enabled {
-        SdlMenuMusicBackend::set_music_enabled(enabled);
-    }
-    if let Some(enabled) = effects.auto_repeat {
-        backend.set_auto_repeat(enabled);
-    }
-    if let Some(enabled) = effects.random_order {
-        backend.set_random_order(enabled);
-    }
 }
 
 /// Persists CTP2 options after a shell interaction.
@@ -780,9 +753,10 @@ pub(super) use testing::{
     disabled_button_layer_render_plan_for_test, initial_music_track_for_test,
     listbox_scrollbar_arrow_glyph_plan_for_test, menu_texture_format_for_test,
     mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
-    music_track_relative_path_for_test, option_volume_to_mixer_volume_for_test,
-    parse_resolution_label_for_test, render_headless_average_color_for_test,
-    shell_control_draw_order_for_test, slider_sound_summaries_for_test,
+    music_track_relative_path_for_test, next_music_track_after_finish_for_test,
+    option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
+    render_headless_average_color_for_test, shell_control_draw_order_for_test,
+    slider_sound_summaries_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

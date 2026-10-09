@@ -1,9 +1,12 @@
 //! New-game setup screen builder.
 
 use super::MenuRect;
-use super::builders::{asset, button, field, label};
+use super::builders::{asset, button, field, label, raised_label};
 use super::{GameSetupField, GameSetupState, ShellAction, ShellScreen, ShellScreenId};
 use crate::main_menu::ButtonVisualStyle;
+
+/// Visual offset that keeps setup headers clear of native-height button art.
+const SETUP_HEADER_OFFSET_Y: i32 = -10;
 
 /// Builds the original new-game setup screen.
 #[expect(
@@ -22,7 +25,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             21,
             "spnewgame.ldl:559",
         ),
-        label(
+        raised_label(
             "CivilizationLabel",
             "EMPIRE",
             "Civilization Label",
@@ -30,6 +33,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             70,
             180,
             20,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:371",
         ),
         button(
@@ -64,7 +68,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             20,
             "spnewgame.ldl:389",
         ),
-        label(
+        raised_label(
             "DifficultyLabel",
             "DIFFICULTY",
             "Difficulty Label",
@@ -72,6 +76,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             192,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:397",
         ),
         button(
@@ -86,7 +91,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::OpenPicker(GameSetupField::Difficulty),
             "spnewgame.ldl:402",
         ),
-        label(
+        raised_label(
             "PlayersLabel",
             "# EMPIRES",
             "Players Label",
@@ -94,6 +99,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             258,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:447",
         ),
         button(
@@ -108,7 +114,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::OpenPicker(GameSetupField::Players),
             "spnewgame.ldl:453",
         ),
-        label(
+        raised_label(
             "RulesLabel",
             "RULES",
             "Rules Label",
@@ -116,6 +122,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             322,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:435",
         ),
         button(
@@ -130,7 +137,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::OpenPicker(GameSetupField::Rules),
             "spnewgame.ldl:441",
         ),
-        label(
+        raised_label(
             "WorldShapeLabel",
             "WORLD SHAPE",
             "World Shape Label",
@@ -138,6 +145,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             192,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:423",
         ),
         button(
@@ -152,7 +160,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::OpenPicker(GameSetupField::WorldShape),
             "spnewgame.ldl:429",
         ),
-        label(
+        raised_label(
             "MapSizeLabel",
             "MAP SIZE",
             "Map Size Label",
@@ -160,6 +168,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             258,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:409",
         ),
         button(
@@ -174,7 +183,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::OpenPicker(GameSetupField::MapSize),
             "spnewgame.ldl:415",
         ),
-        label(
+        raised_label(
             "MapButtonLabel",
             "CUSTOMIZE MAP",
             "World Type Label",
@@ -182,6 +191,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             322,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:459",
         ),
         button(
@@ -196,7 +206,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             ShellAction::Navigate(ShellScreenId::CustomMap),
             "spnewgame.ldl:465 + spnewgamescreen.cpp:389 custommapscreen_displayMyWindow",
         ),
-        label(
+        raised_label(
             "EditorButtonLabel",
             "SCENARIO EDITOR",
             "Editor Label",
@@ -204,6 +214,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             388,
             180,
             18,
+            SETUP_HEADER_OFFSET_Y,
             "spnewgame.ldl:471",
         ),
         button(

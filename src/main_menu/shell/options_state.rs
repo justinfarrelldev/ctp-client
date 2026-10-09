@@ -112,7 +112,7 @@ impl Default for ShellOptionsState {
             mouse_speed: 5,
             resolution: "800 x 600".to_owned(),
             enabled_option_flags: DEFAULT_OPTION_FLAGS,
-            music_track: 2,
+            music_track: 1,
             resolution_scroll_offset: 0,
             music_track_scroll_offset: 0,
             keyboard_category: Ctp2KeyboardCategory::Basic,

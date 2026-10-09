@@ -13,6 +13,7 @@ use sdl2::rwops::RWops;
 use unciv::ZfsFile;
 
 use crate::config::ctp2_options::Ctp2Options;
+use crate::main_menu::runtime::shell_runtime::ShellRuntimeEffects;
 use crate::main_menu::{MainMenuError, MainMenuModel, MainMenuMusicBackend, MenuMusicPolicy};
 
 /// Audio frequency requested from `SDL_mixer` for menu music.
@@ -27,8 +28,10 @@ const MIXER_MAX_VOLUME: i32 = 128;
 const MUSIC_TRACK_MIN: usize = 1;
 /// Last one-based CTP2 music track number.
 const MUSIC_TRACK_MAX: usize = 10;
-/// Number of available CTP2 menu music tracks.
+/// Number of available CTP2 menu music picker rows.
 const MUSIC_TRACK_COUNT_U64: u64 = 10;
+/// Offset from one-based picker rows to original CD/file track numbers.
+const MUSIC_FILE_TRACK_OFFSET: usize = 1;
 /// Archive containing original CTP2 UI sound effects.
 const MENU_SOUND_ARCHIVE: &str = "ctp2_data/default/sound/sound.zfs";
 /// WAV entry used by `SOUND_ID_BUTTONCLICK` / `GAMESOUNDS_BUTTONCLICK` in the original source.
@@ -41,6 +44,17 @@ const SLIDER_DOWN_SOUND_ENTRY: &str = "CSLIDEDN.WAV";
 /// Test summary for one original sound asset: archive, entry, byte length, and RIFF header.
 #[cfg(test)]
 pub(in crate::main_menu) type SoundAssetSummary = (String, String, usize, [u8; 4]);
+
+/// Original CTP2 music playback style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MusicPlaybackStyle {
+    /// Sequential playlist playback.
+    Playlist,
+    /// Random-order playback.
+    Random,
+    /// One explicitly selected user track.
+    User,
+}
 
 /// SDL_mixer-backed menu music player.
 pub(super) struct SdlMenuMusicBackend {
@@ -58,10 +72,16 @@ pub(super) struct SdlMenuMusicBackend {
     slider_up: Option<Chunk>,
     /// Original CTP2 slider-down sound, kept alive for slider release.
     slider_down: Option<Chunk>,
-    /// Whether selected music should loop continuously.
+    /// Whether playlist/user playback repeats according to original CTP2 rules.
     auto_repeat: bool,
-    /// Whether playlist ordering should be randomized when playlist support is expanded.
+    /// Whether playlist ordering should be randomized.
     random_order: bool,
+    /// Current original music playback style.
+    playback_style: MusicPlaybackStyle,
+    /// Current one-based music picker row being played.
+    current_track: Option<usize>,
+    /// Whether music is enabled rather than paused.
+    music_enabled: bool,
 }
 
 impl SdlMenuMusicBackend {
@@ -109,6 +129,9 @@ impl SdlMenuMusicBackend {
             slider_down,
             auto_repeat: false,
             random_order: false,
+            playback_style: MusicPlaybackStyle::Playlist,
+            current_track: None,
+            music_enabled: true,
         })
     }
 
@@ -118,6 +141,7 @@ impl SdlMenuMusicBackend {
         Self::set_music_volume(options.sound.music_volume);
         self.set_auto_repeat(options.music.auto_repeat);
         self.set_random_order(options.music.random_order);
+        self.music_enabled = options.music.music_enabled;
 
         if !options.music.music_enabled {
             return;
@@ -140,13 +164,30 @@ impl SdlMenuMusicBackend {
         installation_root: &Path,
         track_number: usize,
     ) -> Result<(), MainMenuError> {
-        let relative_path = music_track_relative_path(track_number);
+        let bounded_track = bounded_music_track(track_number);
+        let relative_path = music_track_relative_path(bounded_track);
         let policy = MenuMusicPolicy {
             autoplay: true,
             relative_path: relative_path.clone(),
-            loops: if self.auto_repeat { -1_i32 } else { 0_i32 },
+            loops: self.current_loop_count(),
         };
-        self.play_music(&policy, installation_root.join(relative_path))
+        self.play_music(&policy, installation_root.join(relative_path))?;
+        self.current_track = Some(bounded_track);
+        Ok(())
+    }
+
+    /// Plays a user-selected numbered CTP2 music track.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MainMenuError::Music`] when loading or playback fails.
+    pub(super) fn play_user_track_number(
+        &mut self,
+        installation_root: &Path,
+        track_number: usize,
+    ) -> Result<(), MainMenuError> {
+        self.playback_style = MusicPlaybackStyle::User;
+        self.play_track_number(installation_root, track_number)
     }
 
     /// Plays the original CTP2 button-click sound once.
@@ -172,14 +213,57 @@ impl SdlMenuMusicBackend {
     /// Records random-order behavior for playlist expansion.
     pub(super) const fn set_random_order(&mut self, enabled: bool) {
         self.random_order = enabled;
+        if !matches!(self.playback_style, MusicPlaybackStyle::User) {
+            self.playback_style = if enabled {
+                MusicPlaybackStyle::Random
+            } else {
+                MusicPlaybackStyle::Playlist
+            };
+        }
     }
 
     /// Pauses or resumes current music playback.
-    pub(super) fn set_music_enabled(enabled: bool) {
+    pub(super) fn set_music_enabled(&mut self, enabled: bool) {
+        self.music_enabled = enabled;
         if enabled {
             Music::resume();
         } else {
             Music::pause();
+        }
+    }
+
+    /// Advances to the next original CTP2 track after natural playback completion.
+    pub(super) fn advance_after_finished(&mut self, installation_root: &Path) {
+        if !self.music_enabled || self.music.is_none() || Music::is_playing() || Music::is_paused()
+        {
+            return;
+        }
+        let Some(current_track) = self.current_track else {
+            return;
+        };
+        let next = next_music_track_after_finish(
+            current_track,
+            self.auto_repeat,
+            matches!(self.playback_style, MusicPlaybackStyle::Random),
+            matches!(self.playback_style, MusicPlaybackStyle::User),
+            random_music_seed(),
+        );
+        if let Some(track) = next {
+            if let Err(error) = self.play_track_number(installation_root, track) {
+                log::warn!("Music track {track} could not be advanced to: {error}");
+            }
+        } else {
+            self.current_track = None;
+            self.music = None;
+        }
+    }
+
+    /// Returns the `SDL_mixer` loop count for the current playback style.
+    const fn current_loop_count(&self) -> i32 {
+        if matches!(self.playback_style, MusicPlaybackStyle::User) && self.auto_repeat {
+            -1_i32
+        } else {
+            0_i32
         }
     }
 
@@ -191,6 +275,44 @@ impl SdlMenuMusicBackend {
     /// Applies SFX/voice channel volume using the original 0-10 option scale.
     pub(super) fn set_channel_volume(value: i32) {
         mixer::Channel::all().set_volume(option_volume_to_mixer_volume(value));
+    }
+}
+
+/// Advances SDL music after one event-loop frame when a track naturally ended.
+pub(super) fn advance_audio_after_frame(
+    audio_backend: Option<&mut SdlMenuMusicBackend>,
+    installation_root: &Path,
+) {
+    if let Some(backend) = audio_backend {
+        backend.advance_after_finished(installation_root);
+    }
+}
+
+/// Applies shell effects to the `SDL_mixer` backend.
+pub(super) fn apply_audio_effects(
+    backend: &mut SdlMenuMusicBackend,
+    model: &MainMenuModel,
+    effects: &ShellRuntimeEffects,
+) {
+    if let Some(volume) = effects.sfx_volume.or(effects.voice_volume) {
+        SdlMenuMusicBackend::set_channel_volume(volume);
+    }
+    if let Some(volume) = effects.music_volume {
+        SdlMenuMusicBackend::set_music_volume(volume);
+    }
+    if let Some(track) = effects.music_track {
+        if let Err(error) = backend.play_user_track_number(&model.installation_root, track) {
+            log::warn!("Music track {track} could not be played: {error}");
+        }
+    }
+    if let Some(enabled) = effects.music_enabled {
+        backend.set_music_enabled(enabled);
+    }
+    if let Some(enabled) = effects.auto_repeat {
+        backend.set_auto_repeat(enabled);
+    }
+    if let Some(enabled) = effects.random_order {
+        backend.set_random_order(enabled);
     }
 }
 
@@ -227,12 +349,11 @@ pub(super) fn option_volume_to_mixer_volume(value: i32) -> i32 {
         .map_or(0_i32, |scaled| scaled)
 }
 
-/// Returns the relative path for a one-based CTP2 music track number.
+/// Returns the relative path for a one-based CTP2 music picker row.
 pub(super) fn music_track_relative_path(track_number: usize) -> PathBuf {
     let bounded_track = bounded_music_track(track_number);
-    PathBuf::from(format!(
-        "ctp2_program/ctp/music/Track{bounded_track:02}.ogg"
-    ))
+    let file_track = bounded_track.saturating_add(MUSIC_FILE_TRACK_OFFSET);
+    PathBuf::from(format!("ctp2_program/ctp/music/Track{file_track:02}.ogg"))
 }
 
 /// Returns the startup music track for persisted CTP2 music options.
@@ -288,12 +409,49 @@ const fn bounded_music_track(track_number: usize) -> usize {
     }
 }
 
+/// Returns the next one-based CTP2 picker row after natural track completion.
+pub(super) fn next_music_track_after_finish(
+    current_track: usize,
+    auto_repeat: bool,
+    random_order: bool,
+    user_selected: bool,
+    seed: u64,
+) -> Option<usize> {
+    let current = bounded_music_track(current_track);
+    if user_selected {
+        return auto_repeat.then_some(current);
+    }
+    if random_order {
+        return Some(random_music_track_after(current, seed));
+    }
+    let next = next_music_track(current);
+    if next == MUSIC_TRACK_MIN && !auto_repeat {
+        None
+    } else {
+        Some(next)
+    }
+}
+
 /// Returns the next one-based CTP2 track number, wrapping at the end.
 const fn next_music_track(track_number: usize) -> usize {
     if track_number >= MUSIC_TRACK_MAX {
         MUSIC_TRACK_MIN
     } else {
         track_number.saturating_add(1_usize)
+    }
+}
+
+/// Returns a deterministic random-order successor, avoiding an immediate replay when possible.
+fn random_music_track_after(current_track: usize, seed: u64) -> usize {
+    let slot = seed % MUSIC_TRACK_COUNT_U64;
+    let candidate = usize::try_from(slot).map_or(MUSIC_TRACK_MIN, |value| {
+        value.saturating_add(MUSIC_TRACK_MIN)
+    });
+    let bounded_candidate = bounded_music_track(candidate);
+    if bounded_candidate == current_track {
+        next_music_track(bounded_candidate)
+    } else {
+        bounded_candidate
     }
 }
 

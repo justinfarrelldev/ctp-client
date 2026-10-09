@@ -8,7 +8,7 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
     match kind {
         ShellControlKind::Switch { images, .. } => images,
         ShellControlKind::Button(_)
-        | ShellControlKind::Label
+        | ShellControlKind::Label { .. }
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
         | ShellControlKind::ListBoxChrome { .. }

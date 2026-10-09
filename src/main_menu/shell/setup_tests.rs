@@ -8,7 +8,7 @@ const fn slider_value(kind: ShellControlKind) -> Option<i32> {
     match kind {
         ShellControlKind::Slider { value, .. } => Some(value),
         ShellControlKind::Button(_)
-        | ShellControlKind::Label
+        | ShellControlKind::Label { .. }
         | ShellControlKind::TextField
         | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. }
@@ -21,9 +21,22 @@ const fn switch_enabled_state(kind: ShellControlKind) -> Option<bool> {
     match kind {
         ShellControlKind::Switch { enabled, .. } => Some(enabled),
         ShellControlKind::Button(_)
-        | ShellControlKind::Label
+        | ShellControlKind::Label { .. }
         | ShellControlKind::TextField
         | ShellControlKind::Slider { .. }
+        | ShellControlKind::ListBoxChrome { .. }
+        | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
+/// Returns label layout metadata for assertions.
+const fn label_layout(kind: ShellControlKind) -> Option<ShellLabelLayout> {
+    match kind {
+        ShellControlKind::Label { layout } => Some(layout),
+        ShellControlKind::Button(_)
+        | ShellControlKind::TextField
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::Switch { .. }
         | ShellControlKind::ListBoxChrome { .. }
         | ShellControlKind::ListItem { .. } => None,
     }
@@ -152,6 +165,75 @@ fn setup_picker_defaults_match_original_base_profile() {
             switch_enabled_state(control.kind()),
             Some(true),
             "{accessible_name} should be selected by default on {screen_id:?}"
+        );
+    }
+}
+
+#[test]
+fn new_game_header_text_is_raised_clear_of_native_button_art() {
+    let screen = screen_for(
+        ShellScreenId::NewGame,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for (label_name, button_name) in [
+        ("Civilization Label", "Nation"),
+        ("Difficulty Label", "Difficulty"),
+        ("Players Label", "Players"),
+        ("Rules Label", "Rules"),
+        ("World Shape Label", "World Shape"),
+        ("Map Size Label", "Map Size"),
+        ("World Type Label", "World Type"),
+        ("Editor Label", "Editor"),
+    ] {
+        let label_control = screen
+            .find_accessible(label_name)
+            .expect("new-game setup header should exist");
+        let button_control = screen
+            .find_accessible(button_name)
+            .expect("new-game setup button should exist");
+        let layout = label_layout(label_control.kind()).expect("setup header should be a label");
+        let visual_bottom = label_control
+            .rect()
+            .y
+            .saturating_add(layout.offset_y())
+            .saturating_add(
+                i32::try_from(label_control.rect().height).expect("label height should fit i32"),
+            );
+
+        assert_eq!(
+            layout,
+            ShellLabelLayout::centered_with_offset_y(-10_i32),
+            "{label_name} should have the shared visual raise used for setup headers"
+        );
+        assert!(
+            visual_bottom <= button_control.rect().y,
+            "{label_name} should visually clear the button art for {button_name}"
+        );
+    }
+}
+
+#[test]
+fn world_shape_side_descriptions_use_left_top_text_layout() {
+    let screen = screen_for(
+        ShellScreenId::WorldShapePicker,
+        &GameSetupState::default(),
+        &ShellOptionsState::default(),
+    );
+
+    for accessible_name in [
+        "East West Description",
+        "Doughnut Description",
+        "Flat Description",
+    ] {
+        let control = screen
+            .find_accessible(accessible_name)
+            .expect("world-shape side description should exist");
+        assert_eq!(
+            label_layout(control.kind()),
+            Some(ShellLabelLayout::left_top()),
+            "{accessible_name} should render from its LDL left/top anchor instead of centered"
         );
     }
 }

@@ -126,7 +126,7 @@ pub struct Ctp2MusicOptions {
 impl Default for Ctp2MusicOptions {
     fn default() -> Self {
         Self {
-            selected_track: 2,
+            selected_track: 1,
             music_enabled: true,
             auto_repeat: false,
             random_order: false,

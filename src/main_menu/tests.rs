@@ -493,9 +493,43 @@ fn shell_runtime_effect_helpers_match_original_option_scales() {
         "shell volume should clamp to SDL_mixer maximum"
     );
     assert!(
-        runtime::music_track_relative_path_for_test(3_usize)
-            .ends_with("ctp2_program/ctp/music/Track03.ogg"),
-        "music picker track 3 should map to original Track03.ogg"
+        runtime::music_track_relative_path_for_test(1_usize)
+            .ends_with("ctp2_program/ctp/music/Track02.ogg"),
+        "music picker row 1 (A Fortiori) should map to original CD track/file Track02"
+    );
+    assert!(
+        runtime::music_track_relative_path_for_test(10_usize)
+            .ends_with("ctp2_program/ctp/music/Track11.ogg"),
+        "music picker row 10 should map to the final original CD track/file Track11"
+    );
+}
+
+#[test]
+fn music_completion_matches_original_auto_repeat_semantics() {
+    assert_eq!(
+        runtime::next_music_track_after_finish_for_test(3_usize, false, true, false, 0_u64),
+        Some(1_usize),
+        "Random Order should continue to another track after Amaethon even when Auto Repeat is off"
+    );
+    assert_eq!(
+        runtime::next_music_track_after_finish_for_test(10_usize, false, false, false, 0_u64),
+        None,
+        "playlist playback should stop at the final row when Auto Repeat is off"
+    );
+    assert_eq!(
+        runtime::next_music_track_after_finish_for_test(10_usize, true, false, false, 0_u64),
+        Some(1_usize),
+        "playlist playback should wrap at the final row when Auto Repeat is on"
+    );
+    assert_eq!(
+        runtime::next_music_track_after_finish_for_test(1_usize, false, false, true, 0_u64),
+        None,
+        "a user-picked track should play once when Auto Repeat is off"
+    );
+    assert_eq!(
+        runtime::next_music_track_after_finish_for_test(1_usize, true, false, true, 0_u64),
+        Some(1_usize),
+        "a user-picked track should repeat the same row when Auto Repeat is on"
     );
 }
 

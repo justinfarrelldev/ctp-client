@@ -112,7 +112,7 @@ impl ShellRuntimeState {
         match control.kind() {
             ShellControlKind::Slider { .. } => None,
             ShellControlKind::Button(_)
-            | ShellControlKind::Label
+            | ShellControlKind::Label { .. }
             | ShellControlKind::TextField
             | ShellControlKind::Switch { .. }
             | ShellControlKind::ListBoxChrome { .. }

@@ -296,6 +296,24 @@ pub(in crate::main_menu) fn music_track_relative_path_for_test(track_number: usi
     music_track_relative_path(track_number)
 }
 
+/// Returns the next track after natural completion using original CTP2 music rules.
+#[cfg(test)]
+pub(in crate::main_menu) fn next_music_track_after_finish_for_test(
+    current_track: usize,
+    auto_repeat: bool,
+    random_order: bool,
+    user_selected: bool,
+    seed: u64,
+) -> Option<usize> {
+    audio::next_music_track_after_finish(
+        current_track,
+        auto_repeat,
+        random_order,
+        user_selected,
+        seed,
+    )
+}
+
 /// Returns the low-latency mixer chunk size for tests.
 #[cfg(test)]
 pub(in crate::main_menu) const fn mixer_chunk_size_for_test() -> i32 {

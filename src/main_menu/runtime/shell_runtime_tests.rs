@@ -108,7 +108,7 @@ fn music_controls_queue_track_and_toggle_effects() {
     assert_eq!(
         effects.music_track,
         Some(3_usize),
-        "selecting the third music row should queue Track03 playback"
+        "selecting the third music row should queue the Amaethon picker row for playback"
     );
     assert_eq!(
         effects.music_enabled,

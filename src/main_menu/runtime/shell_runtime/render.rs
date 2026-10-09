@@ -5,12 +5,14 @@ use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
-use crate::main_menu::shell::{ShellControl, ShellControlKind, ShellScreen};
+use crate::main_menu::shell::{
+    ShellControl, ShellControlKind, ShellLabelLayout, ShellScreen, ShellTextAlignment,
+};
 use crate::main_menu::{MainMenuError, MainMenuModel, MenuAssetReference, MenuRect};
 
 use super::super::{
     MenuTextures, button_art, create_texture_from_rgba, draw_centered_text,
-    draw_fallback_background, draw_fallback_button, load_rim_rgba, runtime_error,
+    draw_fallback_background, draw_fallback_button, draw_text_at, load_rim_rgba, runtime_error,
     textures_for_style, to_sdl_rect,
 };
 use super::controls::{
@@ -99,7 +101,7 @@ pub(super) fn control_draw_order_for_test(screen: &ShellScreen) -> alloc::vec::V
 
 /// Returns whether a control belongs in the final text-overlay pass.
 const fn draws_in_text_overlay_pass(control: &ShellControl) -> bool {
-    matches!(control.kind(), ShellControlKind::Label)
+    matches!(control.kind(), ShellControlKind::Label { .. })
 }
 
 /// Draws either the screen background or the single-player hub underlay for popups.
@@ -180,7 +182,9 @@ fn draw_shell_control(
                 draw_disabled_button(canvas, font, &interaction_rect, control.label())
             }
         }
-        ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
+        ShellControlKind::Label { layout } => {
+            draw_label(canvas, font, &rect, control.label(), layout)
+        }
         ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
         ShellControlKind::ListBoxChrome {
             scroll_offset,
@@ -226,6 +230,21 @@ fn draw_shell_control(
             images,
             selected,
         ),
+    }
+}
+
+/// Draws label text according to the modeled LDL text layout.
+fn draw_label(
+    canvas: &mut Canvas<Window>,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+    rect: &MenuRect,
+    label: &str,
+    layout: ShellLabelLayout,
+) -> Result<(), MainMenuError> {
+    let text_rect = layout.text_rect(*rect);
+    match layout.alignment() {
+        ShellTextAlignment::Center => draw_centered_text(canvas, font, &text_rect, label),
+        ShellTextAlignment::LeftTop => draw_text_at(canvas, font, &text_rect, label),
     }
 }
 
