@@ -116,7 +116,18 @@ fn draw_shell_background(
         entry_name: "upsg002.rim",
     });
     match create_texture_for_asset(texture_creator, model, &background) {
-        Ok(texture) => canvas.copy(&texture, None, None).map_err(runtime_error),
+        Ok(texture) => canvas
+            .copy(
+                &texture,
+                None,
+                SdlRect::new(
+                    0,
+                    0,
+                    super::super::super::MAIN_MENU_WIDTH,
+                    super::super::super::MAIN_MENU_HEIGHT,
+                ),
+            )
+            .map_err(runtime_error),
         Err(_) => draw_fallback_background(canvas),
     }
 }

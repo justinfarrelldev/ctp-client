@@ -65,6 +65,8 @@ mod button_art;
 mod event_sound;
 /// Single-player shell runtime rendering and navigation.
 mod shell_runtime;
+/// High-resolution text rendering helpers.
+mod text;
 /// Resolution-independent viewport mapping helpers.
 mod viewport;
 
@@ -73,7 +75,10 @@ use audio::{SdlMenuMusicBackend, advance_audio_after_frame, apply_audio_effects}
 #[cfg(test)]
 use audio::{music_track_relative_path, option_volume_to_mixer_volume};
 use event_sound::{play_menu_sound, sound_before_menu_event};
-use viewport::{output_point_to_menu_point, prepare_menu_canvas};
+use text::{MenuFontCache, draw_centered_text, draw_text_at};
+use viewport::{
+    output_point_to_menu_point, prepare_menu_canvas, scaled_font_point_size_for_output_size,
+};
 
 /// Event-loop settings used by production and headless smoke tests.
 struct RuntimeLoopOptions {
@@ -249,11 +254,7 @@ fn run_sdl_event_loop_with_options_and_audio(
     let textures = load_menu_textures(&texture_creator, model);
     let ttf_context = sdl2::ttf::init().ok();
     let font_path = find_existing_font();
-    let font = ttf_context.as_ref().and_then(|context| {
-        font_path
-            .as_ref()
-            .and_then(|path| context.load_font(path, BUTTON_FONT_POINT_SIZE).ok())
-    });
+    let mut font_cache = MenuFontCache::new(ttf_context.as_ref(), font_path);
 
     let event_subsystem = sdl.event().map_err(runtime_error)?;
     for event in options.initial_events {
@@ -266,11 +267,7 @@ fn run_sdl_event_loop_with_options_and_audio(
     let mut rendered_frames = 0_u32;
 
     while selected_action.is_none() {
-        let event_output_size = canvas
-            .output_size()
-            .map_or((super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT), |size| {
-                size
-            });
+        let event_output_size = canvas_output_size(&canvas);
         for event in event_pump.poll_iter() {
             if let Some(sound) =
                 sound_before_menu_event(&event, model, &shell_state, event_output_size)
@@ -301,11 +298,7 @@ fn run_sdl_event_loop_with_options_and_audio(
         advance_audio_after_frame(audio_backend.as_deref_mut(), &model.installation_root);
 
         let mouse_state = event_pump.mouse_state();
-        let draw_output_size = canvas
-            .output_size()
-            .map_or((super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT), |size| {
-                size
-            });
+        let draw_output_size = canvas_output_size(&canvas);
         let (mouse_x, mouse_y) = output_point_to_menu_point(
             draw_output_size.0,
             draw_output_size.1,
@@ -313,6 +306,12 @@ fn run_sdl_event_loop_with_options_and_audio(
             mouse_state.y(),
         )
         .map_or((-1_i32, -1_i32), |point| point);
+        let font_point_size = scaled_font_point_size_for_output_size(
+            draw_output_size.0,
+            draw_output_size.1,
+            BUTTON_FONT_POINT_SIZE,
+        );
+        let frame_font = font_cache.font_for_point_size(font_point_size);
         draw_current_menu(
             &mut canvas,
             &texture_creator,
@@ -321,7 +320,7 @@ fn run_sdl_event_loop_with_options_and_audio(
             &shell_state,
             mouse_x,
             mouse_y,
-            font.as_ref(),
+            frame_font,
         )?;
         rendered_frames = rendered_frames.saturating_add(1);
         if options
@@ -335,6 +334,15 @@ fn run_sdl_event_loop_with_options_and_audio(
     }
 
     selected_action.ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))
+}
+
+/// Returns the physical renderer output size, falling back to the original menu size.
+fn canvas_output_size(canvas: &Canvas<Window>) -> (u32, u32) {
+    canvas
+        .output_size()
+        .map_or((super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT), |size| {
+            size
+        })
 }
 
 /// Applies any queued shell runtime side effects.
@@ -377,7 +385,7 @@ fn persist_ctp2_options(options: &crate::config::ctp2_options::Ctp2Options) {
 #[cfg(test)]
 const fn persist_ctp2_options(_options: &crate::config::ctp2_options::Ctp2Options) {}
 
-/// Applies a requested window resolution without scaling original 800x600 shell art.
+/// Applies a requested physical window resolution for the scaled shell renderer.
 fn apply_resolution(
     canvas: &mut Canvas<Window>,
     width: u32,
@@ -546,7 +554,13 @@ fn draw_menu(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), MainMenuError> {
     match textures.background.as_ref() {
-        Some(texture) => canvas.copy(texture, None, None).map_err(runtime_error)?,
+        Some(texture) => canvas
+            .copy(
+                texture,
+                None,
+                SdlRect::new(0, 0, super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT),
+            )
+            .map_err(runtime_error)?,
         None => draw_fallback_background(canvas)?,
     }
 
@@ -572,7 +586,14 @@ fn draw_menu(
 /// Draws a simple fallback background when original ZFS assets are unavailable.
 fn draw_fallback_background(canvas: &mut Canvas<Window>) -> Result<(), MainMenuError> {
     canvas.set_draw_color(Color::RGB(4, 9, 20));
-    canvas.clear();
+    canvas
+        .fill_rect(SdlRect::new(
+            0,
+            0,
+            super::MAIN_MENU_WIDTH,
+            super::MAIN_MENU_HEIGHT,
+        ))
+        .map_err(runtime_error)?;
     canvas.set_draw_color(Color::RGB(18, 28, 44));
     canvas
         .fill_rect(SdlRect::new(0, 430, super::MAIN_MENU_WIDTH, 170))
@@ -606,83 +627,9 @@ fn draw_fallback_button(
     canvas.draw_rect(sdl_rect).map_err(runtime_error)
 }
 
-/// Draws centered text inside a rectangle when a system font is available.
-fn draw_centered_text(
-    canvas: &mut Canvas<Window>,
-    font: Option<&Font<'_, '_>>,
-    rect: &MenuRect,
-    text: &str,
-) -> Result<(), MainMenuError> {
-    let Some(font) = font else {
-        return Ok(());
-    };
-
-    let surface = font
-        .render(text)
-        .blended(rgb_color(BUTTON_LABEL_TEXT_COLOR))
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let texture_creator = canvas.texture_creator();
-    let texture = texture_creator
-        .create_texture_from_surface(&surface)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let rect_width = i32::try_from(rect.width).map_or(0_i32, |value| value);
-    let rect_height = i32::try_from(rect.height).map_or(0_i32, |value| value);
-    let text_width = i32::try_from(surface.width()).map_or(0_i32, |value| value);
-    let text_height = i32::try_from(surface.height()).map_or(0_i32, |value| value);
-    let offset_x = rect_width
-        .saturating_sub(text_width)
-        .checked_div(2)
-        .map_or(0_i32, |value| value);
-    let offset_y = rect_height
-        .saturating_sub(text_height)
-        .checked_div(2)
-        .map_or(0_i32, |value| value);
-    let destination = SdlRect::new(
-        rect.x.saturating_add(offset_x),
-        rect.y.saturating_add(offset_y),
-        surface.width(),
-        surface.height(),
-    );
-
-    canvas
-        .copy(&texture, None, destination)
-        .map_err(runtime_error)
-}
-
-/// Draws text starting at the rectangle origin when a system font is available.
-fn draw_text_at(
-    canvas: &mut Canvas<Window>,
-    font: Option<&Font<'_, '_>>,
-    rect: &MenuRect,
-    text: &str,
-) -> Result<(), MainMenuError> {
-    let Some(font) = font else {
-        return Ok(());
-    };
-
-    let surface = font
-        .render(text)
-        .blended(rgb_color(VERSION_TEXT_COLOR))
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let texture_creator = canvas.texture_creator();
-    let texture = texture_creator
-        .create_texture_from_surface(&surface)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let destination = SdlRect::new(rect.x, rect.y, surface.width(), surface.height());
-
-    canvas
-        .copy(&texture, None, destination)
-        .map_err(runtime_error)
-}
-
 /// Converts a menu rectangle into an SDL rectangle.
 fn to_sdl_rect(rect: &MenuRect) -> SdlRect {
     SdlRect::new(rect.x, rect.y, rect.width, rect.height)
-}
-
-/// Converts an RGB tuple into an SDL color.
-const fn rgb_color((red, green, blue): (u8, u8, u8)) -> Color {
-    Color::RGB(red, green, blue)
 }
 
 /// Parses an original resolution label such as `1024 x 768`.
@@ -755,8 +702,8 @@ pub(super) use testing::{
     mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
     music_track_relative_path_for_test, next_music_track_after_finish_for_test,
     option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
-    render_headless_average_color_for_test, shell_control_draw_order_for_test,
-    slider_sound_summaries_for_test,
+    prepared_canvas_state_for_test, render_headless_average_color_for_test,
+    shell_control_draw_order_for_test, slider_sound_summaries_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

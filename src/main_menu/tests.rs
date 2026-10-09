@@ -544,6 +544,26 @@ fn headless_sdl_smoke_renders_menu_and_processes_quit_event() {
 }
 
 #[test]
+fn high_resolution_menu_preparation_keeps_physical_mouse_coordinates() {
+    let temp_dir = TempDir::new().expect("temp directory should be created");
+
+    let state = run_with_headless_sdl_environment(temp_dir.path().to_path_buf(), |model| {
+        runtime::prepared_canvas_state_for_test(model, (1920_u32, 1080_u32))
+    })
+    .expect("headless renderer state should be readable");
+
+    assert_eq!(
+        state.logical_size,
+        (0_u32, 0_u32),
+        "renderer logical size must stay disabled so SDL does not rewrite mouse coordinates before menu hit-testing"
+    );
+    assert_eq!(
+        state.viewport.height, state.output_size.1,
+        "the prepared renderer should fill the usable physical output height instead of drawing through an 800x600 logical renderer"
+    );
+}
+
+#[test]
 fn headless_sdl_shell_options_back_and_quit_flow_exits_cleanly() {
     let temp_dir = TempDir::new().expect("temp directory should be created");
     let model = MainMenuModel::ctp2_landing(temp_dir.path().to_path_buf());

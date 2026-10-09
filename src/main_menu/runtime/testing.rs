@@ -15,6 +15,17 @@ pub(in crate::main_menu) type SoundAssetSummary = audio::SoundAssetSummary;
 /// Named button layer render plan rows: layer, entry, width, height, and tiled flag.
 type ButtonLayerRenderPlan = Vec<(String, String, u32, u32, bool)>;
 
+/// Renderer state captured immediately after menu-canvas preparation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::main_menu) struct PreparedCanvasState {
+    /// Physical output size reported by the renderer.
+    pub(in crate::main_menu) output_size: (u32, u32),
+    /// SDL logical size reported by the renderer.
+    pub(in crate::main_menu) logical_size: (u32, u32),
+    /// Physical viewport that receives the scaled menu frame.
+    pub(in crate::main_menu) viewport: MenuRect,
+}
+
 /// Computes average RGB color for a rendered headless menu frame.
 #[cfg(test)]
 pub(in crate::main_menu) fn render_headless_average_color_for_test(
@@ -42,6 +53,39 @@ pub(in crate::main_menu) fn render_headless_average_color_for_test(
             .read_pixels(None, MENU_TEXTURE_FORMAT)
             .map_err(runtime_error)?;
         average_rgba_pixels(&pixels)
+    })
+}
+
+/// Captures renderer state after preparing a scaled menu frame.
+#[cfg(test)]
+pub(in crate::main_menu) fn prepared_canvas_state_for_test(
+    _model: &MainMenuModel,
+    output_size: (u32, u32),
+) -> Result<PreparedCanvasState, MainMenuError> {
+    with_sdl_test_lock(|| {
+        let sdl = sdl2::init().map_err(runtime_error)?;
+        let video = sdl.video().map_err(runtime_error)?;
+        let window = video
+            .window("Call to Power II", output_size.0, output_size.1)
+            .position_centered()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let mut canvas = window
+            .into_canvas()
+            .software()
+            .build()
+            .map_err(|error| runtime_error(error.to_string()))?;
+
+        prepare_menu_canvas(&mut canvas)?;
+        let actual_output_size = canvas.output_size().map_err(runtime_error)?;
+        Ok(PreparedCanvasState {
+            output_size: actual_output_size,
+            logical_size: canvas.logical_size(),
+            viewport: viewport::menu_viewport_for_output_size(
+                actual_output_size.0,
+                actual_output_size.1,
+            ),
+        })
     })
 }
 

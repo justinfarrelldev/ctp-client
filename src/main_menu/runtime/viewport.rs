@@ -1,6 +1,7 @@
 //! Viewport mapping for proportional 800x600 shell rendering in resized SDL windows.
 
 use sdl2::pixels::Color;
+use sdl2::rect::Rect as SdlRect;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
@@ -9,7 +10,10 @@ use crate::main_menu::{MainMenuError, MenuRect};
 use super::runtime_error;
 
 /// Computes the largest proportional 800x600 menu viewport for a window size.
-fn menu_viewport_for_output_size(output_width: u32, output_height: u32) -> MenuRect {
+pub(in crate::main_menu::runtime) fn menu_viewport_for_output_size(
+    output_width: u32,
+    output_height: u32,
+) -> MenuRect {
     let menu_width = super::super::MAIN_MENU_WIDTH;
     let menu_height = super::super::MAIN_MENU_HEIGHT;
     if output_width == 0 || output_height == 0 {
@@ -90,21 +94,66 @@ fn scale_viewport_axis(
     i32::try_from(scaled).ok()
 }
 
+/// Returns the font point size that matches the physical scaled viewport.
+pub(in crate::main_menu::runtime) fn scaled_font_point_size_for_output_size(
+    output_width: u32,
+    output_height: u32,
+    base_point_size: u16,
+) -> u16 {
+    let viewport = menu_viewport_for_output_size(output_width, output_height);
+    let base = u64::from(base_point_size.max(1_u16));
+    let scaled = base
+        .saturating_mul(u64::from(viewport.height.max(1_u32)))
+        .saturating_add(u64::from(
+            super::super::MAIN_MENU_HEIGHT
+                .checked_div(2_u32)
+                .map_or(0_u32, |half| half),
+        ))
+        .checked_div(u64::from(super::super::MAIN_MENU_HEIGHT))
+        .map_or(base, |value| value.max(1_u64));
+    u16::try_from(scaled).map_or(u16::MAX, |value| value)
+}
+
 /// Prepares a frame by clearing letterbox space and enabling proportional menu scaling.
 pub(super) fn prepare_menu_canvas(canvas: &mut Canvas<Window>) -> Result<(), MainMenuError> {
+    let (output_width, output_height) = canvas.output_size().map_err(runtime_error)?;
+    let viewport = menu_viewport_for_output_size(output_width, output_height);
     canvas
         .set_logical_size(0, 0)
         .map_err(|error| runtime_error(error.to_string()))?;
-    canvas.set_scale(1.0, 1.0).map_err(runtime_error)?;
+    canvas.set_scale(1.0_f32, 1.0_f32).map_err(runtime_error)?;
     canvas.set_viewport(None);
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
+    if viewport.width == 0 || viewport.height == 0 {
+        return Ok(());
+    }
+    canvas.set_viewport(Some(sdl_rect_from_menu_rect(&viewport)));
     canvas
-        .set_logical_size(
-            super::super::MAIN_MENU_WIDTH,
-            super::super::MAIN_MENU_HEIGHT,
+        .set_scale(
+            renderer_scale_factor(viewport.width, super::super::MAIN_MENU_WIDTH),
+            renderer_scale_factor(viewport.height, super::super::MAIN_MENU_HEIGHT),
         )
-        .map_err(|error| runtime_error(error.to_string()))
+        .map_err(runtime_error)
+}
+
+/// Converts a menu rectangle into an SDL rectangle for viewport setup.
+fn sdl_rect_from_menu_rect(rect: &MenuRect) -> SdlRect {
+    SdlRect::new(rect.x, rect.y, rect.width, rect.height)
+}
+
+/// Converts an integer scale ratio into the floating-point value required by SDL.
+#[expect(
+    clippy::float_arithmetic,
+    reason = "SDL render scaling requires floating-point scale factors."
+)]
+fn renderer_scale_factor(viewport_extent: u32, menu_extent: u32) -> f32 {
+    if menu_extent == 0 {
+        return 1.0_f32;
+    }
+    let viewport = f32::from(u16::try_from(viewport_extent).map_or(u16::MAX, |value| value));
+    let menu = f32::from(u16::try_from(menu_extent).map_or(u16::MAX, |value| value));
+    viewport / menu
 }
 
 #[cfg(test)]
@@ -167,6 +216,25 @@ mod tests {
             output_point_to_menu_point(1280_u32, 1024_u32, 640_i32, 0_i32),
             None,
             "letterbox space should not activate controls"
+        );
+    }
+
+    #[test]
+    fn high_resolution_font_size_uses_physical_viewport_scale() {
+        assert_eq!(
+            scaled_font_point_size_for_output_size(800_u32, 600_u32, 10_u16),
+            10_u16,
+            "native 800x600 output should use the original point size"
+        );
+        assert_eq!(
+            scaled_font_point_size_for_output_size(1024_u32, 768_u32, 10_u16),
+            13_u16,
+            "4:3 high-resolution output should render text at physical pixels, not upscale a 10pt texture"
+        );
+        assert_eq!(
+            scaled_font_point_size_for_output_size(1920_u32, 1080_u32, 10_u16),
+            18_u16,
+            "16:9 high-resolution output should use the scaled viewport height for crisp text"
         );
     }
 }
