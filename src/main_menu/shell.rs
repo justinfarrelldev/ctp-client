@@ -20,6 +20,8 @@ const BUTTON_EXECUTE_SOUND: &str = "AUI_SOUNDBASE_SOUND_EXECUTE";
 
 /// Control builder helpers.
 mod builders;
+/// Custom-map popup builder.
+mod custom_map;
 /// Gameplay options screen builder.
 mod gameplay;
 /// Single-player hub screen builder.
@@ -38,6 +40,10 @@ mod picker_data;
 mod pickers;
 /// Original shell screen dispatcher.
 mod screens;
+/// Non-persisted new-game setup state.
+pub(in crate::main_menu) mod setup;
+
+use setup::{CustomMapField, GameSetupField, GameSetupState};
 
 /// Stable identifier for screens in the single-player shell flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,23 +84,6 @@ pub(super) enum ShellScreenId {
     RulesPicker,
     /// `CustomMapWindow` opened from `SPNewGameWindow.MapButton`.
     CustomMap,
-}
-
-/// Configurable game-setup field shown on the new-game screen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GameSetupField {
-    /// Player nation/civilisation.
-    Nation,
-    /// Difficulty level.
-    Difficulty,
-    /// Map size.
-    MapSize,
-    /// World shape.
-    WorldShape,
-    /// Number of computer opponents.
-    Players,
-    /// Rule preset.
-    Rules,
 }
 
 /// Configurable option field from the original pre-game options screens.
@@ -167,6 +156,8 @@ pub(super) enum ShellAction {
     OpenPicker(GameSetupField),
     /// Open an option picker/control.
     OpenOption(ShellOptionField),
+    /// Adjust one custom-map generation slider.
+    AdjustCustomMap(CustomMapField),
     /// Select one option by index for the active picker and close it.
     SelectGameSetup(GameSetupField, usize),
     /// Select one option by index while keeping the active picker open.
@@ -499,122 +490,6 @@ impl ShellScreen {
     }
 }
 
-/// Current game setup selections before pressing Launch.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct GameSetupState {
-    /// Selected nation label.
-    nation: String,
-    /// Selected leader name.
-    leader_name: String,
-    /// Selected difficulty label.
-    difficulty: String,
-    /// Selected map size.
-    map_size: String,
-    /// Selected world shape.
-    world_shape: String,
-    /// Selected player count.
-    players: String,
-    /// Selected rules preset.
-    rules: String,
-    /// Whether the leader-name field is focused for text input.
-    leader_name_focused: bool,
-    /// Whether the next leader-name text input replaces the current contents.
-    leader_name_replace_on_input: bool,
-}
-
-impl Default for GameSetupState {
-    fn default() -> Self {
-        Self {
-            nation: "ROMANS".to_owned(),
-            leader_name: "Julius Caesar".to_owned(),
-            difficulty: "Medium".to_owned(),
-            map_size: "Regular".to_owned(),
-            world_shape: "Earth World".to_owned(),
-            players: "4".to_owned(),
-            rules: "Bloodlust - Off".to_owned(),
-            leader_name_focused: false,
-            leader_name_replace_on_input: false,
-        }
-    }
-}
-
-impl GameSetupState {
-    /// Returns the selected value for a setup field.
-    pub(super) fn selected(&self, field: GameSetupField) -> &str {
-        match field {
-            GameSetupField::Nation => self.nation.as_str(),
-            GameSetupField::Difficulty => self.difficulty.as_str(),
-            GameSetupField::MapSize => self.map_size.as_str(),
-            GameSetupField::WorldShape => self.world_shape.as_str(),
-            GameSetupField::Players => self.players.as_str(),
-            GameSetupField::Rules => self.rules.as_str(),
-        }
-    }
-
-    /// Applies a setup selection by field and index.
-    pub(super) fn select(&mut self, field: GameSetupField, index: usize) -> bool {
-        let Some(value) = pickers::setup_options(field).get(index) else {
-            return false;
-        };
-        match field {
-            GameSetupField::Nation => {
-                (*value).clone_into(&mut self.nation);
-                if let Some(leader_name) = pickers::leader_name_for_nation_index(index) {
-                    leader_name.clone_into(&mut self.leader_name);
-                }
-            }
-            GameSetupField::Difficulty => (*value).clone_into(&mut self.difficulty),
-            GameSetupField::MapSize => (*value).clone_into(&mut self.map_size),
-            GameSetupField::WorldShape => (*value).clone_into(&mut self.world_shape),
-            GameSetupField::Players => (*value).clone_into(&mut self.players),
-            GameSetupField::Rules => (*value).clone_into(&mut self.rules),
-        }
-        true
-    }
-
-    /// Returns selected leader name.
-    pub(super) fn leader_name(&self) -> &str {
-        self.leader_name.as_str()
-    }
-
-    /// Focuses or unfocuses the leader-name field.
-    pub(super) const fn set_leader_name_focused(&mut self, focused: bool) {
-        self.leader_name_focused = focused;
-        self.leader_name_replace_on_input = focused;
-    }
-
-    /// Returns whether leader-name text input is focused.
-    pub(super) const fn leader_name_focused(&self) -> bool {
-        self.leader_name_focused
-    }
-
-    /// Appends editable leader-name text, enforcing original `FIELD.maxfieldlen`.
-    pub(super) fn input_leader_name(&mut self, text: &str) {
-        const MAX_LEADER_NAME_LEN: usize = 23;
-        if self.leader_name_replace_on_input {
-            self.leader_name.clear();
-            self.leader_name_replace_on_input = false;
-        }
-        let current_length = self.leader_name.chars().count();
-        let remaining = MAX_LEADER_NAME_LEN.saturating_sub(current_length);
-        self.leader_name.extend(text.chars().take(remaining));
-    }
-
-    /// Removes one character from the editable leader-name field.
-    pub(super) fn backspace_leader_name(&mut self) {
-        if self.leader_name_replace_on_input {
-            self.leader_name.clear();
-            self.leader_name_replace_on_input = false;
-            return;
-        }
-        let removed = self.leader_name.pop();
-        debug_assert!(
-            removed.is_some() || self.leader_name.is_empty(),
-            "backspace should either remove a character or leave an empty leader name"
-        );
-    }
-}
-
 /// Full single-player shell state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SinglePlayerShellModel {
@@ -670,6 +545,16 @@ impl SinglePlayerShellModel {
     /// Returns mutable option state.
     pub(super) const fn options_mut(&mut self) -> &mut options_state::ShellOptionsState {
         &mut self.options
+    }
+
+    /// Returns one custom-map setup value.
+    pub(super) const fn custom_map_value(&self, field: CustomMapField) -> i32 {
+        self.setup.custom_map_value(field)
+    }
+
+    /// Sets one custom-map setup value.
+    pub(super) fn set_custom_map_value(&mut self, field: CustomMapField, value: i32) -> bool {
+        self.setup.set_custom_map_value(field, value)
     }
 
     /// Activates a control by accessible name for non-coordinate tests.
@@ -728,7 +613,7 @@ impl SinglePlayerShellModel {
             }
             ShellAction::LaunchGame => return ShellFlowOutcome::LaunchGame,
             ShellAction::Quit => return ShellFlowOutcome::Quit,
-            ShellAction::Disabled => {}
+            ShellAction::AdjustCustomMap(_) | ShellAction::Disabled => {}
         }
         ShellFlowOutcome::Continue
     }
@@ -794,7 +679,19 @@ pub(super) fn screen_for(
     screens::screen_for(id, setup, options)
 }
 
+/// Builds a screen with default setup/options for runtime tests.
+#[cfg(test)]
+pub(super) fn screen_for_test_defaults(id: ShellScreenId) -> ShellScreen {
+    screen_for(
+        id,
+        &GameSetupState::default(),
+        &options_state::ShellOptionsState::default(),
+    )
+}
+
 #[cfg(test)]
 mod options_tests;
+#[cfg(test)]
+mod setup_tests;
 #[cfg(test)]
 mod tests;

@@ -170,3 +170,39 @@ fn sound_slider_click_queues_volume_and_persistence_effects() {
         "SFX volume should be included in persisted CTP2 options"
     );
 }
+
+#[test]
+fn custom_map_sliders_update_independent_non_persisted_setup_values() {
+    let model = test_model();
+    let mut state = ShellRuntimeState::new();
+    state.open_single_player();
+
+    click(&mut state, &model, 644_i32, 246_i32);
+    click(&mut state, &model, 500_i32, 345_i32);
+    click(&mut state, &model, 500_i32, 400_i32);
+    assert_eq!(
+        state.drag_shell(525_i32, 400_i32),
+        Some(ShellRuntimeSound::SliderUp),
+        "dragging a custom-map slider should use normal C3Slider audio"
+    );
+    assert_eq!(
+        state.release_pointer(),
+        Some(ShellRuntimeSound::SliderDown),
+        "releasing a custom-map slider should use normal C3Slider release audio"
+    );
+
+    assert_eq!(
+        state.custom_map_value_for_test(CustomMapField::GoodCount),
+        10_i32,
+        "GoodCountSlider should update its own custom-map value"
+    );
+    assert_eq!(
+        state.custom_map_value_for_test(CustomMapField::WetDry),
+        5_i32,
+        "moving GoodCountSlider should not mutate WetDry"
+    );
+    assert!(
+        state.take_effects().persisted_options.is_none(),
+        "custom-map sliders affect only the game being built and should not queue persisted options"
+    );
+}

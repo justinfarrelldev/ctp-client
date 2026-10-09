@@ -82,17 +82,60 @@ pub(super) fn disabled_button(
 pub(super) fn popup_close_button(screen_width: u32, screen_height: u32) -> ShellControl {
     let x = i32::try_from(screen_width.saturating_sub(87_u32)).map_or(0_i32, |value| value);
     let y = i32::try_from(screen_height.saturating_sub(41_u32)).map_or(0_i32, |value| value);
-    button(
+    popup_button(
         "c3_PopupClose",
         "Close",
         "Close",
         x,
         y,
+        ShellAction::Back,
+        "c3_popupwindow.cpp:AddClose",
+    )
+}
+
+/// Creates a standard `c3_PopupWindow::AddOk` button.
+pub(super) fn popup_ok_button(
+    label_text: &str,
+    accessible_name: &str,
+    screen_width: u32,
+    screen_height: u32,
+    action: ShellAction,
+    source: &'static str,
+) -> ShellControl {
+    let x = i32::try_from(screen_width.saturating_sub(87_u32)).map_or(0_i32, |value| value);
+    let y = i32::try_from(screen_height.saturating_sub(41_u32)).map_or(0_i32, |value| value);
+    popup_button(
+        "c3_PopupOk",
+        label_text,
+        accessible_name,
+        x,
+        y,
+        action,
+        source,
+    )
+}
+
+/// Creates a reusable small popup button at an already computed position.
+fn popup_button(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    action: ShellAction,
+    source: &'static str,
+) -> ShellControl {
+    button(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
         70,
         24,
         ButtonVisualStyle::ctp2_small(),
-        ShellAction::Back,
-        "c3_popupwindow.cpp:AddClose",
+        action,
+        source,
     )
 }
 
@@ -278,6 +321,41 @@ pub(super) fn slider(
     field: ShellOptionField,
     source: &'static str,
 ) -> ShellControl {
+    slider_with_action(
+        ldl_name,
+        label_text,
+        accessible_name,
+        x,
+        y,
+        width,
+        height,
+        min,
+        max,
+        value,
+        ShellAction::OpenOption(field),
+        source,
+    )
+}
+
+/// Creates a slider control with an explicit shell action.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Shell builder helpers preserve original LDL control geometry in one call."
+)]
+pub(super) fn slider_with_action(
+    ldl_name: &'static str,
+    label_text: &str,
+    accessible_name: &str,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    min: i32,
+    max: i32,
+    value: i32,
+    action: ShellAction,
+    source: &'static str,
+) -> ShellControl {
     ShellControl {
         ldl_name,
         label: label_text.to_owned(),
@@ -285,7 +363,7 @@ pub(super) fn slider(
         rect: MenuRect::new(x, y, width, height),
         kind: ShellControlKind::Slider { min, max, value },
         enabled: true,
-        action: Some(ShellAction::OpenOption(field)),
+        action: Some(action),
         sound: Some(ShellSoundPolicy::original_button()),
         source,
     }

@@ -782,7 +782,7 @@ pub(super) use testing::{
     mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
     music_track_relative_path_for_test, option_volume_to_mixer_volume_for_test,
     parse_resolution_label_for_test, render_headless_average_color_for_test,
-    slider_sound_summaries_for_test,
+    shell_control_draw_order_for_test, slider_sound_summaries_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

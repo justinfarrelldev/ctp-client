@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use sdl2::pixels::PixelFormatEnum;
 
 use crate::main_menu::ButtonAssetTriplet;
+use crate::main_menu::shell;
 
 use super::*;
 
@@ -105,6 +106,15 @@ pub(in crate::main_menu) fn button_asset_entry_name_for_test(ldl_asset_name: &st
 #[cfg(test)]
 pub(in crate::main_menu) const fn button_label_text_color_for_test() -> (u8, u8, u8) {
     BUTTON_LABEL_TEXT_COLOR
+}
+
+/// Returns the shell control draw order for one screen.
+#[cfg(test)]
+pub(in crate::main_menu) fn shell_control_draw_order_for_test(
+    screen_id: shell::ShellScreenId,
+) -> Vec<&'static str> {
+    let screen = shell::screen_for_test_defaults(screen_id);
+    shell_runtime::control_draw_order_for_test(&screen)
 }
 
 /// Returns visible scrollbar arrow overlay rectangles for tests.

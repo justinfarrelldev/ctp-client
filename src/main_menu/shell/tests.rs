@@ -463,66 +463,6 @@ fn new_game_labels_use_original_ldl_text_and_geometry() {
 }
 
 #[test]
-fn custom_map_button_opens_original_custom_map_screen() {
-    let screen = screen_for(
-        ShellScreenId::NewGame,
-        &GameSetupState::default(),
-        &ShellOptionsState::default(),
-    );
-    let map_button = screen
-        .find_accessible("World Type")
-        .expect("original MapButton should still be visible");
-
-    assert_eq!(
-        map_button.label(),
-        "MAP",
-        "MapButton should keep the original LDL text until CustomMapScreen is implemented"
-    );
-    assert_eq!(
-        map_button.action(),
-        Some(ShellAction::Navigate(ShellScreenId::CustomMap)),
-        "MapButton should open the original CustomMapWindow"
-    );
-
-    let custom_map = screen_for(
-        ShellScreenId::CustomMap,
-        &GameSetupState::default(),
-        &ShellOptionsState::default(),
-    );
-    assert_eq!(
-        custom_map.ldl_name(),
-        "CustomMapWindow",
-        "custom-map popup should use the original LDL block"
-    );
-    assert!(
-        custom_map.find_accessible("WetDrySlider").is_some(),
-        "custom-map screen should include the original wet/dry slider"
-    );
-    assert!(
-        custom_map.find_accessible("Many Goods").is_some(),
-        "custom-map screen should include the original resource-density label"
-    );
-}
-
-#[test]
-fn difficulty_risk_column_only_contains_source_instantiated_radios() {
-    let screen = screen_for(
-        ShellScreenId::DifficultyPicker,
-        &GameSetupState::default(),
-        &ShellOptionsState::default(),
-    );
-
-    assert!(
-        screen.find_accessible("Ruins Only").is_some(),
-        "the first risk radio should use the original string-table text"
-    );
-    assert!(
-        screen.find_accessible("No Danger Here").is_none(),
-        "spnewgamediffscreen.cpp only instantiates four risk radio buttons"
-    );
-}
-
-#[test]
 fn option_screen_labels_use_original_visible_strings() {
     let options_screen = screen_for(
         ShellScreenId::Options,

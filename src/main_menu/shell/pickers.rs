@@ -3,8 +3,7 @@
 use alloc::vec::Vec;
 
 use super::builders::{
-    asset, button, field, image_switch_control, label, list_item, listbox_chrome,
-    popup_close_button, slider,
+    asset, field, image_switch_control, label, list_item, listbox_chrome, popup_close_button,
 };
 use super::options_state::ShellOptionsState;
 use super::picker_data::{
@@ -34,6 +33,7 @@ pub(super) const fn setup_options(field: GameSetupField) -> &'static [&'static s
     match field {
         GameSetupField::Nation => NATION_VALUES,
         GameSetupField::Difficulty => DIFFICULTIES,
+        GameSetupField::BarbarianRisk => BARBARIAN_RISKS,
         GameSetupField::MapSize => MAP_SIZES,
         GameSetupField::WorldShape => WORLD_SHAPES,
         GameSetupField::Players => PLAYER_COUNTS,
@@ -45,7 +45,9 @@ pub(super) const fn setup_options(field: GameSetupField) -> &'static [&'static s
 pub(super) const fn picker_screen_for(field: GameSetupField) -> ShellScreenId {
     match field {
         GameSetupField::Nation => ShellScreenId::NationPicker,
-        GameSetupField::Difficulty => ShellScreenId::DifficultyPicker,
+        GameSetupField::Difficulty | GameSetupField::BarbarianRisk => {
+            ShellScreenId::DifficultyPicker
+        }
         GameSetupField::MapSize => ShellScreenId::MapSizePicker,
         GameSetupField::WorldShape => ShellScreenId::WorldShapePicker,
         GameSetupField::Players => ShellScreenId::PlayersPicker,
@@ -154,82 +156,6 @@ pub(super) fn music_track_screen(options: &ShellOptionsState) -> ShellScreen {
     }
 }
 
-/// Builds the original custom-map popup.
-pub(super) fn custom_map_screen() -> ShellScreen {
-    let mut controls = popup_base_controls(
-        ShellScreenId::CustomMap,
-        "CustomMapWindow",
-        "Map",
-        MenuRect::new(175, 145, 450, 310),
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "WetDrySlider",
-        "Wet",
-        "Dry",
-        40,
-        ShellOptionField::UnitSpeed,
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "WarmColdSlider",
-        "Warm",
-        "Cold",
-        80,
-        ShellOptionField::UnitSpeed,
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "OceanLandSlider",
-        "Ocean",
-        "Land",
-        120,
-        ShellOptionField::UnitSpeed,
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "IslandContinentSlider",
-        "Island",
-        "Continent",
-        160,
-        ShellOptionField::UnitSpeed,
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "HomoDiverseSlider",
-        "Uniform",
-        "Diverse",
-        200,
-        ShellOptionField::UnitSpeed,
-    );
-    append_custom_map_slider(
-        &mut controls,
-        "GoodCountSlider",
-        "Few Goods",
-        "Many Goods",
-        240,
-        ShellOptionField::UnitSpeed,
-    );
-    controls.push(button(
-        "BackButton",
-        "BACK",
-        "Back",
-        370,
-        275,
-        40,
-        20,
-        crate::main_menu::ButtonVisualStyle::blue_large(),
-        ShellAction::Back,
-        "custommap.ldl:52",
-    ));
-    screen_with_controls(
-        ShellScreenId::CustomMap,
-        "CustomMapWindow",
-        MenuRect::new(175, 145, 450, 310),
-        controls,
-    )
-}
-
 /// Builds the original CTP2 tribe popup.
 pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
     let mut controls = vec![label(
@@ -335,7 +261,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
 }
 
 /// Builds the original CTP2 difficulty popup.
-pub(super) fn difficulty_picker_screen() -> ShellScreen {
+pub(super) fn difficulty_picker_screen(setup: &GameSetupState) -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::DifficultyPicker,
         "SPNewGameDiffScreen",
@@ -371,14 +297,17 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
         40,
         60,
         GameSetupField::Difficulty,
+        setup,
         "spnewgamepopups.ldl:381",
     );
-    append_disabled_radio_column(
+    append_radio_column(
         &mut controls,
         "Risk",
         BARBARIAN_RISKS,
         210,
         60,
+        GameSetupField::BarbarianRisk,
+        setup,
         "spnewgamepopups.ldl:428",
     );
     controls.push(popup_close_button(400, 270));
@@ -391,7 +320,7 @@ pub(super) fn difficulty_picker_screen() -> ShellScreen {
 }
 
 /// Builds the original CTP2 map-size popup.
-pub(super) fn map_size_picker_screen() -> ShellScreen {
+pub(super) fn map_size_picker_screen(setup: &GameSetupState) -> ShellScreen {
     radio_popup_screen(
         ShellScreenId::MapSizePicker,
         "SPNewGameMapSizeScreen",
@@ -401,12 +330,13 @@ pub(super) fn map_size_picker_screen() -> ShellScreen {
         125,
         45,
         GameSetupField::MapSize,
+        setup,
         "spnewgamepopups.ldl:596",
     )
 }
 
 /// Builds the original CTP2 map-shape popup.
-pub(super) fn world_shape_picker_screen() -> ShellScreen {
+pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
     let mut controls = popup_base_controls(
         ShellScreenId::WorldShapePicker,
         "SPNewGameMapShapeScreen",
@@ -445,13 +375,14 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
             "spnewgamepopups.ldl:695",
         ),
     ]);
-    append_radio_column(
+    append_radio_rows(
         &mut controls,
         "MapShape",
         WORLD_SHAPES,
         20,
-        45,
+        &[45_i32, 80_i32, 115_i32],
         GameSetupField::WorldShape,
+        setup,
         "spnewgamepopups.ldl:708",
     );
     controls.push(popup_close_button(500, 150));
@@ -464,7 +395,7 @@ pub(super) fn world_shape_picker_screen() -> ShellScreen {
 }
 
 /// Builds the original CTP2 player-count popup.
-pub(super) fn players_picker_screen() -> ShellScreen {
+pub(super) fn players_picker_screen(setup: &GameSetupState) -> ShellScreen {
     radio_popup_screen(
         ShellScreenId::PlayersPicker,
         "SPNewGamePlayersScreen",
@@ -474,6 +405,7 @@ pub(super) fn players_picker_screen() -> ShellScreen {
         125,
         45,
         GameSetupField::Players,
+        setup,
         "spnewgamepopups.ldl:821",
     )
 }
@@ -488,26 +420,26 @@ pub(super) fn rules_picker_screen(setup: &GameSetupState) -> ShellScreen {
     );
     controls.push(image_switch_control(
         "RuleOne",
-        RULE_PRESETS[0],
-        RULE_PRESETS[0],
+        setup.rule_label(0),
+        setup.rule_label(0),
         50,
         50,
         160,
         24,
-        setup.selected(GameSetupField::Rules) == RULE_PRESETS[0],
+        setup.rule_enabled(0),
         ShellImageSet::popup_checkbox(),
         ShellAction::SelectGameSetupInPlace(GameSetupField::Rules, 0),
         "spnewgamepopups.ldl:899",
     ));
     controls.push(image_switch_control(
         "RuleTwo",
-        RULE_PRESETS[1],
-        RULE_PRESETS[1],
+        setup.rule_label(1),
+        setup.rule_label(1),
         50,
         80,
         160,
         24,
-        setup.selected(GameSetupField::Rules) == RULE_PRESETS[1],
+        setup.rule_enabled(1),
         ShellImageSet::popup_checkbox(),
         ShellAction::SelectGameSetupInPlace(GameSetupField::Rules, 1),
         "spnewgamepopups.ldl:908",
@@ -638,51 +570,6 @@ fn selected_music_track_label(options: &ShellOptionsState) -> Option<&'static st
         .and_then(|index| MUSIC_TRACKS.get(index).copied())
 }
 
-/// Appends one original custom-map slider and its left/right labels.
-fn append_custom_map_slider(
-    controls: &mut Vec<super::ShellControl>,
-    ldl_name: &'static str,
-    left_label: &'static str,
-    right_label: &'static str,
-    y: i32,
-    field: ShellOptionField,
-) {
-    controls.push(slider(
-        ldl_name,
-        ldl_name,
-        ldl_name,
-        100,
-        y,
-        250,
-        40,
-        0,
-        10,
-        5,
-        field,
-        "custommap.ldl:slider",
-    ));
-    controls.push(label(
-        left_label,
-        left_label,
-        left_label,
-        10,
-        y.saturating_add(10),
-        80,
-        20,
-        "custommap.ldl:label-left",
-    ));
-    controls.push(label(
-        right_label,
-        right_label,
-        right_label,
-        360,
-        y.saturating_add(10),
-        80,
-        20,
-        "custommap.ldl:label-right",
-    ));
-}
-
 /// Creates common title controls for popup screens.
 fn popup_base_controls(
     _id: ShellScreenId,
@@ -729,6 +616,7 @@ fn radio_popup_screen(
     option_x: i32,
     option_y: i32,
     field: GameSetupField,
+    setup: &GameSetupState,
     source: &'static str,
 ) -> ShellScreen {
     let mut controls = popup_base_controls(id, ldl_name, title, rect);
@@ -739,6 +627,7 @@ fn radio_popup_screen(
         option_x,
         option_y,
         field,
+        setup,
         source,
     );
     controls.push(popup_close_button(rect.width, rect.height));
@@ -746,6 +635,10 @@ fn radio_popup_screen(
 }
 
 /// Appends an original popup radio column to a control list.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Radio columns preserve original LDL geometry plus selected setup state."
+)]
 fn append_radio_column(
     controls: &mut Vec<super::ShellControl>,
     ldl_prefix: &'static str,
@@ -753,55 +646,74 @@ fn append_radio_column(
     x: i32,
     y: i32,
     field: GameSetupField,
+    setup: &GameSetupState,
     source: &'static str,
 ) {
     for (index, value) in values.iter().enumerate() {
         let row_y = y.saturating_add(
             i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(POPUP_RADIO_ROW_STEP)),
         );
-        controls.push(image_switch_control(
-            ldl_prefix,
-            value,
-            value,
-            x,
-            row_y,
-            146,
-            24,
-            false,
-            ShellImageSet::popup_checkbox(),
-            ShellAction::SelectGameSetup(field, index),
-            source,
-        ));
+        append_radio_control(
+            controls, ldl_prefix, value, x, row_y, field, index, setup, source,
+        );
     }
 }
 
-/// Appends disabled original popup radio controls for non-functional companion columns.
-fn append_disabled_radio_column(
+/// Appends popup radio controls at explicit LDL row positions.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Explicit row radio helpers preserve original LDL geometry."
+)]
+fn append_radio_rows(
     controls: &mut Vec<super::ShellControl>,
     ldl_prefix: &'static str,
     values: &'static [&'static str],
     x: i32,
-    y: i32,
+    row_y_values: &[i32],
+    field: GameSetupField,
+    setup: &GameSetupState,
     source: &'static str,
 ) {
     for (index, value) in values.iter().enumerate() {
-        let row_y = y.saturating_add(
-            i32::try_from(index).map_or(0_i32, |row| row.saturating_mul(POPUP_RADIO_ROW_STEP)),
+        let row_y = row_y_values
+            .get(index)
+            .copied()
+            .map_or(0_i32, |row_y| row_y);
+        append_radio_control(
+            controls, ldl_prefix, value, x, row_y, field, index, setup, source,
         );
-        controls.push(image_switch_control(
-            ldl_prefix,
-            value,
-            value,
-            x,
-            row_y,
-            146,
-            24,
-            false,
-            ShellImageSet::popup_checkbox(),
-            ShellAction::Disabled,
-            source,
-        ));
     }
+}
+
+/// Appends one selectable original popup radio control.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Original radio controls require geometry, selected state, and action metadata."
+)]
+fn append_radio_control(
+    controls: &mut Vec<super::ShellControl>,
+    ldl_prefix: &'static str,
+    value: &'static str,
+    x: i32,
+    y: i32,
+    field: GameSetupField,
+    index: usize,
+    setup: &GameSetupState,
+    source: &'static str,
+) {
+    controls.push(image_switch_control(
+        ldl_prefix,
+        value,
+        value,
+        x,
+        y,
+        146,
+        24,
+        setup.selected(field) == value,
+        ShellImageSet::popup_checkbox(),
+        ShellAction::SelectGameSetup(field, index),
+        source,
+    ));
 }
 
 /// Creates a shell screen with the supplied popup controls.

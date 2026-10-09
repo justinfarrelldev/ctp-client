@@ -1,6 +1,5 @@
 //! SDL rendering and interaction for CTP2 shell screens below the landing page.
 
-use sdl2::pixels::Color;
 use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
@@ -8,29 +7,26 @@ use sdl2::video::{Window, WindowContext};
 #[cfg(not(test))]
 use crate::config::AppConfig;
 use crate::config::ctp2_options::Ctp2Options;
+use crate::main_menu::shell::setup::CustomMapField;
 use crate::main_menu::shell::{
-    self, ShellAction, ShellControl, ShellControlKind, ShellFlowOutcome, ShellOptionField,
-    ShellScreen, ShellScreenId, SinglePlayerShellModel,
+    self, ShellAction, ShellControlKind, ShellFlowOutcome, ShellOptionField, ShellScreen,
+    ShellScreenId, SinglePlayerShellModel,
 };
-use crate::main_menu::{
-    MainMenuAction, MainMenuError, MainMenuModel, MenuAssetReference, MenuRect,
-};
+use crate::main_menu::{MainMenuAction, MainMenuError, MainMenuModel, MenuRect};
 
 use super::{
-    BUTTON_CHROMA_KEY, MenuTextures, SHELL_ART_ARCHIVE, button_art, create_texture_from_rgba,
-    draw_centered_text, draw_fallback_background, draw_fallback_button, load_rim_rgba,
-    load_rim_rgba_entry, parse_resolution_label, runtime_error, textures_for_style, to_sdl_rect,
+    BUTTON_CHROMA_KEY, MenuTextures, SHELL_ART_ARCHIVE, create_texture_from_rgba,
+    draw_centered_text, load_rim_rgba_entry, parse_resolution_label, runtime_error, to_sdl_rect,
 };
 
 /// Individual shell control drawing helpers.
 mod controls;
 /// Original listbox chrome drawing helpers.
 pub(in crate::main_menu::runtime) mod listbox;
+/// Shell screen rendering helpers.
+mod render;
 /// Immediate shell UI sound types.
 pub(super) mod sound;
-
-use controls::{draw_disabled_button, draw_list_item, draw_slider, draw_switch, draw_text_field};
-use listbox::draw_listbox_chrome;
 use sound::{ShellRuntimeInteraction, ShellRuntimeSound};
 
 /// Runtime state for the navigable single-player shell.
@@ -40,9 +36,18 @@ pub(super) struct ShellRuntimeState {
     /// Runtime effects queued by shell interactions.
     pending_effects: ShellRuntimeEffects,
     /// Numeric slider currently captured by pointer dragging.
-    active_slider: Option<ShellOptionField>,
+    active_slider: Option<ActiveSlider>,
     /// Scrollable option list currently captured by pointer dragging.
     active_listbox_scroll: Option<ShellOptionField>,
+}
+
+/// Captured slider target while the pointer is dragging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ActiveSlider {
+    /// Persisted shell option slider.
+    Option(ShellOptionField),
+    /// Non-persisted custom-map setup slider.
+    CustomMap(CustomMapField),
 }
 
 /// SDL/audio effects requested by shell controls.
@@ -127,10 +132,10 @@ impl ShellRuntimeState {
         let Some(action) = control.action() else {
             return ShellRuntimeInteraction::none();
         };
-        if let Some(field) = slider_field(action, control.kind()) {
-            self.active_slider = Some(field);
+        if let Some(target) = slider_target(action, control.kind()) {
+            self.active_slider = Some(target);
             let rect = screen_rect(&screen, control.rect());
-            if self.update_slider_value(field, &rect, control.kind(), point_x) {
+            if self.update_slider_value(target, &rect, control.kind(), point_x) {
                 return ShellRuntimeInteraction::sound(ShellRuntimeSound::SliderUp);
             }
             return ShellRuntimeInteraction::none();
@@ -164,18 +169,18 @@ impl ShellRuntimeState {
         if self.update_active_listbox_scroll(point_y) {
             return None;
         }
-        let field = self.active_slider?;
+        let target = self.active_slider?;
         let screen = current_screen(&self.model);
         let Some(control) = screen.controls().iter().find(|control| {
             control
                 .action()
-                .is_some_and(|action| slider_field(action, control.kind()) == Some(field))
+                .is_some_and(|action| slider_target(action, control.kind()) == Some(target))
         }) else {
             self.active_slider = None;
             return None;
         };
         let rect = screen_rect(&screen, control.rect());
-        self.update_slider_value(field, &rect, control.kind(), point_x)
+        self.update_slider_value(target, &rect, control.kind(), point_x)
             .then_some(ShellRuntimeSound::SliderUp)
     }
 
@@ -201,6 +206,12 @@ impl ShellRuntimeState {
     #[cfg(test)]
     pub(super) const fn numeric_option_for_test(&self, field: ShellOptionField) -> Option<i32> {
         self.model.options().numeric(field)
+    }
+
+    /// Returns a custom-map setup value for runtime tests.
+    #[cfg(test)]
+    pub(super) const fn custom_map_value_for_test(&self, field: CustomMapField) -> i32 {
+        self.model.custom_map_value(field)
     }
 
     /// Handles a press on a listbox scrollbar and captures thumb dragging.
@@ -267,24 +278,42 @@ impl ShellRuntimeState {
     /// Updates a slider value from a pointer X coordinate.
     fn update_slider_value(
         &mut self,
-        field: ShellOptionField,
+        target: ActiveSlider,
         rect: &MenuRect,
         kind: ShellControlKind,
         point_x: i32,
     ) -> bool {
-        let before = self.model.options().numeric(field);
+        let before = self.slider_value(target);
         let value = slider_value_at(rect, kind, point_x);
-        let updated = self.model.options_mut().set_numeric(field, value);
-        debug_assert!(updated, "slider controls must target numeric options");
-        let after = self.model.options().numeric(field);
+        let updated = self.set_slider_value(target, value);
+        debug_assert!(updated, "slider controls must target numeric state");
+        let after = self.slider_value(target);
         if updated && before != after {
             if let Some(effective_value) = after {
-                self.record_numeric_effect(field, effective_value);
-                self.record_persisted_options();
+                if let ActiveSlider::Option(field) = target {
+                    self.record_numeric_effect(field, effective_value);
+                    self.record_persisted_options();
+                }
             }
             true
         } else {
             false
+        }
+    }
+
+    /// Returns the current value for a slider target.
+    const fn slider_value(&self, target: ActiveSlider) -> Option<i32> {
+        match target {
+            ActiveSlider::Option(field) => self.model.options().numeric(field),
+            ActiveSlider::CustomMap(field) => Some(self.model.custom_map_value(field)),
+        }
+    }
+
+    /// Sets one slider target value.
+    fn set_slider_value(&mut self, target: ActiveSlider, value: i32) -> bool {
+        match target {
+            ActiveSlider::Option(field) => self.model.options_mut().set_numeric(field, value),
+            ActiveSlider::CustomMap(field) => self.model.set_custom_map_value(field, value),
         }
     }
 
@@ -357,6 +386,7 @@ impl ShellRuntimeState {
             ShellAction::Navigate(_)
             | ShellAction::OpenPicker(_)
             | ShellAction::OpenOption(_)
+            | ShellAction::AdjustCustomMap(_)
             | ShellAction::SelectGameSetup(_, _)
             | ShellAction::SelectGameSetupInPlace(_, _)
             | ShellAction::SelectOption(_, _)
@@ -390,7 +420,7 @@ impl ShellRuntimeState {
         font: Option<&sdl2::ttf::Font<'_, '_>>,
     ) -> Result<(), MainMenuError> {
         let screen = current_screen(&self.model);
-        draw_shell_screen(
+        render::draw_shell_screen(
             canvas,
             texture_creator,
             textures,
@@ -499,167 +529,10 @@ fn load_persisted_options() -> Ctp2Options {
     }
 }
 
-/// Draws one modeled CTP2 shell screen.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "The renderer keeps SDL objects borrowed separately to avoid hidden ownership."
-)]
-fn draw_shell_screen(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    textures: &MenuTextures<'_>,
-    model: &MainMenuModel,
-    screen: &ShellScreen,
-    mouse_x: i32,
-    mouse_y: i32,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-) -> Result<(), MainMenuError> {
-    draw_shell_background(canvas, texture_creator, model, screen)?;
-    draw_shell_pattern(canvas, texture_creator, model, screen)?;
-
-    for control in screen.controls() {
-        draw_shell_control(
-            canvas,
-            texture_creator,
-            textures,
-            model,
-            screen,
-            control,
-            mouse_x,
-            mouse_y,
-            font,
-        )?;
-    }
-
-    canvas.present();
-    Ok(())
-}
-
-/// Draws either the screen background or the single-player hub underlay for popups.
-fn draw_shell_background(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    screen: &ShellScreen,
-) -> Result<(), MainMenuError> {
-    let background = screen.background().unwrap_or(MenuAssetReference {
-        archive_relative_path: "ctp2_data/default/graphics/pictures/pic565.zfs",
-        entry_name: "upsg002.rim",
-    });
-    match create_texture_for_asset(texture_creator, model, &background) {
-        Ok(texture) => canvas.copy(&texture, None, None).map_err(runtime_error),
-        Err(_) => draw_fallback_background(canvas),
-    }
-}
-
-/// Draws the screen's tiled popup pattern when one exists.
-fn draw_shell_pattern(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    screen: &ShellScreen,
-) -> Result<(), MainMenuError> {
-    let Some(pattern) = screen.pattern() else {
-        return Ok(());
-    };
-    let destination = screen.rect();
-    if let Ok(texture) = create_texture_for_asset(texture_creator, model, &pattern) {
-        tile_texture(canvas, &texture, destination)
-    } else {
-        canvas.set_draw_color(Color::RGB(160, 145, 108));
-        canvas
-            .fill_rect(to_sdl_rect(&destination))
-            .map_err(runtime_error)
-    }
-}
-
-/// Draws one shell control in screen coordinates.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Control rendering needs SDL texture resources and current mouse state."
-)]
-fn draw_shell_control(
-    canvas: &mut Canvas<Window>,
-    texture_creator: &TextureCreator<WindowContext>,
-    textures: &MenuTextures<'_>,
-    model: &MainMenuModel,
-    screen: &ShellScreen,
-    control: &ShellControl,
-    mouse_x: i32,
-    mouse_y: i32,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
-) -> Result<(), MainMenuError> {
-    let rect = screen_rect(screen, control.rect());
-    match control.kind() {
-        ShellControlKind::Button(style) => {
-            let enabled = control.enabled();
-            let interaction_rect = style.visual_style().rendered_rect(rect);
-            let hovered = enabled && interaction_rect.contains_point(mouse_x, mouse_y);
-            if enabled {
-                if let Some(button_textures) = textures_for_style(textures, style) {
-                    button_art::draw_styled_button(canvas, &rect, button_textures, hovered)?;
-                    let text_rect =
-                        button_art::styled_button_text_rect(&rect, button_textures, hovered);
-                    draw_centered_text(canvas, font, &text_rect, control.label())
-                } else {
-                    draw_fallback_button(canvas, &interaction_rect, style, hovered)?;
-                    draw_centered_text(canvas, font, &interaction_rect, control.label())
-                }
-            } else if let Some(button_textures) = textures_for_style(textures, style) {
-                button_art::draw_disabled_styled_button(canvas, &rect, button_textures)?;
-                let text_rect = button_art::disabled_button_text_rect(&rect, button_textures);
-                draw_centered_text(canvas, font, &text_rect, control.label())
-            } else {
-                draw_disabled_button(canvas, font, &interaction_rect, control.label())
-            }
-        }
-        ShellControlKind::Label => draw_centered_text(canvas, font, &rect, control.label()),
-        ShellControlKind::TextField => draw_text_field(canvas, font, &rect, control.label()),
-        ShellControlKind::ListBoxChrome {
-            scroll_offset,
-            item_count,
-            visible_rows,
-        } => draw_listbox_chrome(
-            canvas,
-            texture_creator,
-            model,
-            &rect,
-            scroll_offset,
-            item_count,
-            visible_rows,
-        ),
-        ShellControlKind::Slider { min, max, value } => draw_slider(
-            canvas,
-            texture_creator,
-            model,
-            font,
-            &rect,
-            control.label(),
-            min,
-            max,
-            value,
-        ),
-        ShellControlKind::Switch { enabled, images } => draw_switch(
-            canvas,
-            texture_creator,
-            model,
-            font,
-            &rect,
-            control.label(),
-            enabled,
-            images,
-        ),
-        ShellControlKind::ListItem { images, selected } => draw_list_item(
-            canvas,
-            texture_creator,
-            model,
-            font,
-            &rect,
-            control,
-            images,
-            selected,
-        ),
-    }
+/// Returns modeled control drawing order for tests.
+#[cfg(test)]
+pub(super) fn control_draw_order_for_test(screen: &ShellScreen) -> alloc::vec::Vec<&'static str> {
+    render::control_draw_order_for_test(screen)
 }
 
 /// Converts a control rectangle to screen-space.
@@ -673,10 +546,15 @@ const fn screen_rect(screen: &ShellScreen, rect: MenuRect) -> MenuRect {
     )
 }
 
-/// Returns the numeric option controlled by a slider action.
-const fn slider_field(action: ShellAction, kind: ShellControlKind) -> Option<ShellOptionField> {
+/// Returns the state target controlled by a slider action.
+const fn slider_target(action: ShellAction, kind: ShellControlKind) -> Option<ActiveSlider> {
     match (action, kind) {
-        (ShellAction::OpenOption(field), ShellControlKind::Slider { .. }) => Some(field),
+        (ShellAction::OpenOption(field), ShellControlKind::Slider { .. }) => {
+            Some(ActiveSlider::Option(field))
+        }
+        (ShellAction::AdjustCustomMap(field), ShellControlKind::Slider { .. }) => {
+            Some(ActiveSlider::CustomMap(field))
+        }
         (
             ShellAction::Navigate(_)
             | ShellAction::OpenPicker(_)
@@ -692,7 +570,8 @@ const fn slider_field(action: ShellAction, kind: ShellControlKind) -> Option<She
             | ShellAction::Back
             | ShellAction::Quit
             | ShellAction::Disabled
-            | ShellAction::OpenOption(_),
+            | ShellAction::OpenOption(_)
+            | ShellAction::AdjustCustomMap(_),
             _,
         ) => None,
     }
@@ -711,16 +590,6 @@ fn slider_value_at(rect: &MenuRect, kind: ShellControlKind, point_x: i32) -> i32
         .checked_div(width)
         .map_or(0_i32, |value| value);
     min.saturating_add(scaled).clamp(min, max)
-}
-
-/// Creates a texture for a menu asset.
-fn create_texture_for_asset<'texture>(
-    texture_creator: &'texture TextureCreator<WindowContext>,
-    model: &MainMenuModel,
-    asset: &MenuAssetReference,
-) -> Result<Texture<'texture>, MainMenuError> {
-    let image = load_rim_rgba(&model.installation_root, asset)?;
-    create_texture_from_rgba(texture_creator, &image)
 }
 
 /// Creates a texture for one LDL image name from the original shell archive.

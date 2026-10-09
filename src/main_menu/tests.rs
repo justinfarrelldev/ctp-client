@@ -440,6 +440,24 @@ fn button_labels_use_original_dark_text_color() {
 }
 
 #[test]
+fn new_game_header_labels_draw_above_overlapping_button_art() {
+    let draw_order = runtime::shell_control_draw_order_for_test(shell::ShellScreenId::NewGame);
+    let difficulty_label_index = draw_order
+        .iter()
+        .position(|name| *name == "DifficultyLabel")
+        .expect("DifficultyLabel should be drawn");
+    let difficulty_button_index = draw_order
+        .iter()
+        .position(|name| *name == "DifficultyButton")
+        .expect("DifficultyButton should be drawn");
+
+    assert!(
+        difficulty_label_index > difficulty_button_index,
+        "header labels should render after overlapping native-height button art so their text is not clipped"
+    );
+}
+
+#[test]
 fn shell_runtime_effect_helpers_match_original_option_scales() {
     assert_eq!(
         runtime::parse_resolution_label_for_test("1024 x 768"),

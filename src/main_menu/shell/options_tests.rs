@@ -194,11 +194,11 @@ fn rules_picker_toggles_in_place_and_reflects_selected_state() {
     let rules = screen_for(ShellScreenId::RulesPicker, model.setup(), model.options());
     let pollution = rules
         .find_accessible("Pollution - Off")
-        .expect("pollution switch should exist");
+        .expect("pollution switch should exist after toggling off");
     assert_eq!(
         switch_enabled(pollution.kind()),
-        Some(true),
-        "selected rule switch should render selected state"
+        Some(false),
+        "pollution should render off after toggling from the base-game default on state"
     );
 }
 
