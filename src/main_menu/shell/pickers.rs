@@ -369,7 +369,7 @@ pub(super) fn world_shape_picker_screen(setup: &GameSetupState) -> ShellScreen {
         ),
         left_label(
             "FWLabel",
-            "No wrapping; map edges do not connect.",
+            "No wrapping",
             "Flat Description",
             190,
             116,

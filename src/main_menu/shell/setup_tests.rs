@@ -293,7 +293,7 @@ fn flat_world_description_aligns_with_other_world_shape_explanations() {
         .expect("flat-world explanation should exist");
     assert_eq!(
         flat.label(),
-        "No wrapping; map edges do not connect.",
-        "flat world should explain that no map edge wraps"
+        "No wrapping",
+        "flat world should use the original base-game LDL string exactly"
     );
 }
