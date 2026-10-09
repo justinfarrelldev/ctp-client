@@ -1,4 +1,4 @@
-//! Viewport mapping for crisp 800x600 shell rendering in resized SDL windows.
+//! Viewport mapping for proportional 800x600 shell rendering in resized SDL windows.
 
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
@@ -6,25 +6,45 @@ use sdl2::video::Window;
 
 use crate::main_menu::{MainMenuError, MenuRect};
 
-use super::{runtime_error, to_sdl_rect};
+use super::runtime_error;
 
-/// Computes the crisp, unscaled 800x600 menu viewport for a window size.
+/// Computes the largest proportional 800x600 menu viewport for a window size.
 fn menu_viewport_for_output_size(output_width: u32, output_height: u32) -> MenuRect {
-    let width = super::super::MAIN_MENU_WIDTH.min(output_width);
-    let height = super::super::MAIN_MENU_HEIGHT.min(output_height);
-    let x = output_width
-        .saturating_sub(width)
-        .checked_div(2)
-        .map_or(0_i32, |value| {
-            i32::try_from(value).map_or(0_i32, |converted| converted)
-        });
-    let y = output_height
-        .saturating_sub(height)
-        .checked_div(2)
-        .map_or(0_i32, |value| {
-            i32::try_from(value).map_or(0_i32, |converted| converted)
-        });
+    let menu_width = super::super::MAIN_MENU_WIDTH;
+    let menu_height = super::super::MAIN_MENU_HEIGHT;
+    if output_width == 0 || output_height == 0 {
+        return MenuRect::new(0, 0, 0, 0);
+    }
+
+    let output_scaled_by_height = u64::from(output_width).saturating_mul(u64::from(menu_height));
+    let output_scaled_by_width = u64::from(output_height).saturating_mul(u64::from(menu_width));
+    let (width, height) = if output_scaled_by_height <= output_scaled_by_width {
+        let computed_height = u64::from(output_width)
+            .saturating_mul(u64::from(menu_height))
+            .checked_div(u64::from(menu_width))
+            .and_then(|value| u32::try_from(value).ok())
+            .map_or(output_height, |value| value.min(output_height));
+        (output_width, computed_height)
+    } else {
+        let computed_width = u64::from(output_height)
+            .saturating_mul(u64::from(menu_width))
+            .checked_div(u64::from(menu_height))
+            .and_then(|value| u32::try_from(value).ok())
+            .map_or(output_width, |value| value.min(output_width));
+        (computed_width, output_height)
+    };
+    let x = centered_offset(output_width, width);
+    let y = centered_offset(output_height, height);
     MenuRect::new(x, y, width, height)
+}
+
+/// Returns the centered offset for an extent inside an output dimension.
+fn centered_offset(output_extent: u32, viewport_extent: u32) -> i32 {
+    output_extent
+        .saturating_sub(viewport_extent)
+        .checked_div(2)
+        .and_then(|value| i32::try_from(value).ok())
+        .map_or(0_i32, |value| value)
 }
 
 /// Converts a window/output-space point into original 800x600 menu coordinates.
@@ -70,15 +90,21 @@ fn scale_viewport_axis(
     i32::try_from(scaled).ok()
 }
 
-/// Prepares a frame by clearing letterbox space and centering the menu viewport.
+/// Prepares a frame by clearing letterbox space and enabling proportional menu scaling.
 pub(super) fn prepare_menu_canvas(canvas: &mut Canvas<Window>) -> Result<(), MainMenuError> {
-    let (output_width, output_height) = canvas.output_size().map_err(runtime_error)?;
-    let viewport = menu_viewport_for_output_size(output_width, output_height);
+    canvas
+        .set_logical_size(0, 0)
+        .map_err(|error| runtime_error(error.to_string()))?;
+    canvas.set_scale(1.0, 1.0).map_err(runtime_error)?;
     canvas.set_viewport(None);
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    canvas.set_viewport(Some(to_sdl_rect(&viewport)));
-    Ok(())
+    canvas
+        .set_logical_size(
+            super::super::MAIN_MENU_WIDTH,
+            super::super::MAIN_MENU_HEIGHT,
+        )
+        .map_err(|error| runtime_error(error.to_string()))
 }
 
 #[cfg(test)]
@@ -88,21 +114,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn output_points_are_translated_from_centered_resolution_viewport() {
+    fn output_points_are_translated_from_scaled_resolution_viewport() {
         assert_eq!(
-            output_point_to_menu_point(1024_u32, 768_u32, 112_i32, 84_i32),
-            Some((0_i32, 0_i32)),
-            "1024x768 should center the 800x600 menu at a 112,84 offset"
-        );
-        assert_eq!(
-            output_point_to_menu_point(1024_u32, 768_u32, 268_i32, 360_i32),
-            Some((156_i32, 276_i32)),
-            "post-resize click coordinates should map back to original menu coordinates"
+            menu_viewport_for_output_size(1024_u32, 768_u32),
+            MenuRect::new(0, 0, 1024, 768),
+            "4:3 outputs should fill the entire window instead of leaving black on all sides"
         );
         assert_eq!(
             output_point_to_menu_point(1024_u32, 768_u32, 0_i32, 0_i32),
+            Some((0_i32, 0_i32)),
+            "the scaled viewport origin should map to original menu coordinates"
+        );
+        assert_eq!(
+            output_point_to_menu_point(1024_u32, 768_u32, 512_i32, 384_i32),
+            Some((400_i32, 300_i32)),
+            "scaled center clicks should map back to the original 800x600 center"
+        );
+    }
+
+    #[test]
+    fn widescreen_outputs_use_side_pillarbox_only() {
+        assert_eq!(
+            menu_viewport_for_output_size(1920_u32, 1080_u32),
+            MenuRect::new(240, 0, 1440, 1080),
+            "16:9 outputs should fill height and leave black bars only on the sides"
+        );
+        assert_eq!(
+            output_point_to_menu_point(1920_u32, 1080_u32, 240_i32, 0_i32),
+            Some((0_i32, 0_i32)),
+            "left edge of the scaled viewport should be active"
+        );
+        assert_eq!(
+            output_point_to_menu_point(1920_u32, 1080_u32, 0_i32, 540_i32),
             None,
-            "letterbox space outside the centered menu must not activate controls"
+            "pillarbox space should not activate controls"
+        );
+    }
+
+    #[test]
+    fn tall_outputs_use_top_bottom_letterbox_only() {
+        assert_eq!(
+            menu_viewport_for_output_size(1280_u32, 1024_u32),
+            MenuRect::new(0, 32, 1280, 960),
+            "tall outputs should fill width and leave black bars only at top/bottom"
+        );
+        assert_eq!(
+            output_point_to_menu_point(1280_u32, 1024_u32, 0_i32, 32_i32),
+            Some((0_i32, 0_i32)),
+            "top edge of the scaled viewport should be active"
+        );
+        assert_eq!(
+            output_point_to_menu_point(1280_u32, 1024_u32, 640_i32, 0_i32),
+            None,
+            "letterbox space should not activate controls"
         );
     }
 }
