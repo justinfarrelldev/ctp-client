@@ -22,8 +22,7 @@ use sdl2::video::{Window, WindowContext};
 use crate::config::GameInstallation;
 
 use super::{
-    ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel,
-    MainMenuMusicBackend, MenuRect,
+    ButtonStyleId, ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel, MenuRect,
 };
 
 /// Delay between menu frames.
@@ -77,15 +76,18 @@ use viewport::{output_point_to_menu_point, prepare_menu_canvas};
 struct RuntimeLoopOptions {
     /// Events pushed into SDL's queue immediately after window creation.
     initial_events: Vec<Event>,
+    /// Initial SDL window size matching persisted application options.
+    initial_window_size: (u32, u32),
     /// Optional maximum number of frames rendered before returning an error.
     frame_limit: Option<u32>,
 }
 
 impl RuntimeLoopOptions {
     /// Creates unbounded interactive event-loop options.
-    const fn interactive() -> Self {
+    const fn interactive(initial_window_size: (u32, u32)) -> Self {
         Self {
             initial_events: Vec::new(),
+            initial_window_size,
             frame_limit: None,
         }
     }
@@ -95,6 +97,7 @@ impl RuntimeLoopOptions {
     fn headless_smoke() -> Self {
         Self {
             initial_events: vec![Event::Quit { timestamp: 0 }],
+            initial_window_size: (super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT),
             frame_limit: Some(3),
         }
     }
@@ -123,21 +126,34 @@ pub(super) fn run_sdl_main_menu(
 ) -> Result<MainMenuAction, MainMenuError> {
     let model = MainMenuModel::ctp2_landing(installation.path.clone());
 
-    let mut music_backend = match SdlMenuMusicBackend::new() {
-        Ok(audio) => Some(audio),
+    let ctp2_options = load_ctp2_options_for_runtime();
+    let mut music_backend = match SdlMenuMusicBackend::new(&installation.path) {
+        Ok(mut audio) => {
+            audio.apply_initial_options(&model, &ctp2_options);
+            Some(audio)
+        }
         Err(error) => {
             log::warn!("Main menu music backend is unavailable: {error}");
             None
         }
     };
 
-    if let Some(backend) = music_backend.as_mut() {
-        if let Err(error) = backend.play_music(&model.music, model.music_path()) {
-            log::warn!("Main menu music could not be started: {error}");
-        }
-    }
+    let initial_window_size = (
+        ctp2_options.graphics.resolution.width,
+        ctp2_options.graphics.resolution.height,
+    );
+    run_sdl_event_loop_with_audio(&model, music_backend.as_mut(), initial_window_size)
+}
 
-    run_sdl_event_loop_with_audio(&model, music_backend.as_mut())
+/// Loads persisted CTP2 options for runtime startup.
+fn load_ctp2_options_for_runtime() -> crate::config::ctp2_options::Ctp2Options {
+    crate::config::AppConfig::load().map_or_else(
+        |error| {
+            log::warn!("Could not load CTP2 options; using defaults: {error}");
+            crate::config::ctp2_options::Ctp2Options::default()
+        },
+        |config| config.ctp2_options,
+    )
 }
 
 /// Runs a real SDL menu frame in headless mode for tests.
@@ -161,6 +177,7 @@ pub(super) fn run_headless_events_for_test(
             model,
             RuntimeLoopOptions {
                 initial_events,
+                initial_window_size: (super::MAIN_MENU_WIDTH, super::MAIN_MENU_HEIGHT),
                 frame_limit: Some(30_u32),
             },
         )
@@ -184,10 +201,11 @@ fn with_sdl_test_lock<T>(
 fn run_sdl_event_loop_with_audio(
     model: &MainMenuModel,
     audio_backend: Option<&mut SdlMenuMusicBackend>,
+    initial_window_size: (u32, u32),
 ) -> Result<MainMenuAction, MainMenuError> {
     run_sdl_event_loop_with_options_and_audio(
         model,
-        RuntimeLoopOptions::interactive(),
+        RuntimeLoopOptions::interactive(initial_window_size),
         audio_backend,
     )
 }
@@ -211,7 +229,11 @@ fn run_sdl_event_loop_with_options_and_audio(
     let video = sdl.video().map_err(runtime_error)?;
     video.text_input().start();
     let window = video
-        .window("Call to Power II", model.width, model.height)
+        .window(
+            "Call to Power II",
+            options.initial_window_size.0,
+            options.initial_window_size.1,
+        )
         .position_centered()
         .build()
         .map_err(|error| runtime_error(error.to_string()))?;
@@ -247,13 +269,18 @@ fn run_sdl_event_loop_with_options_and_audio(
                 size
             });
         for event in event_pump.poll_iter() {
-            handle_menu_event(
+            let play_click = handle_menu_event(
                 &event,
                 model,
                 &mut shell_state,
                 &mut selected_action,
                 event_output_size,
             );
+            if play_click {
+                if let Some(backend) = audio_backend.as_deref_mut() {
+                    backend.play_button_click();
+                }
+            }
         }
 
         apply_shell_runtime_effects(
@@ -315,6 +342,10 @@ fn apply_shell_runtime_effects(
         apply_audio_effects(backend, model, effects);
     }
 
+    if let Some(options) = effects.persisted_options.as_ref() {
+        persist_ctp2_options(options);
+    }
+
     Ok(())
 }
 
@@ -338,7 +369,31 @@ fn apply_audio_effects(
     if let Some(enabled) = effects.music_enabled {
         SdlMenuMusicBackend::set_music_enabled(enabled);
     }
+    if let Some(enabled) = effects.auto_repeat {
+        backend.set_auto_repeat(enabled);
+    }
+    if let Some(enabled) = effects.random_order {
+        backend.set_random_order(enabled);
+    }
 }
+
+/// Persists CTP2 options after a shell interaction.
+#[cfg(not(test))]
+fn persist_ctp2_options(options: &crate::config::ctp2_options::Ctp2Options) {
+    match crate::config::AppConfig::load() {
+        Ok(mut config) => {
+            config.ctp2_options = options.clone();
+            if let Err(error) = config.save() {
+                log::warn!("Could not save CTP2 options: {error}");
+            }
+        }
+        Err(error) => log::warn!("Could not load config for CTP2 option save: {error}"),
+    }
+}
+
+/// Test-only persistence shim that prevents unit tests from touching real config files.
+#[cfg(test)]
+const fn persist_ctp2_options(_options: &crate::config::ctp2_options::Ctp2Options) {}
 
 /// Applies a requested window resolution without scaling original 800x600 shell art.
 fn apply_resolution(
@@ -359,36 +414,50 @@ fn apply_resolution(
 }
 
 /// Applies one SDL event to the menu action state.
+#[expect(
+    clippy::too_many_lines,
+    reason = "central event dispatch keeps shell action handling colocated"
+)]
 fn handle_menu_event(
     event: &Event,
     model: &MainMenuModel,
     shell_state: &mut shell_runtime::ShellRuntimeState,
     selected_action: &mut Option<MainMenuAction>,
     output_size: (u32, u32),
-) {
+) -> bool {
     match event.clone() {
         Event::Quit { .. }
         | Event::KeyDown {
             keycode: Some(Keycode::Escape),
             repeat: false,
             ..
-        } => *selected_action = Some(MainMenuAction::Quit),
+        } => {
+            *selected_action = Some(MainMenuAction::Quit);
+            false
+        }
         Event::MouseButtonDown { x, y, .. } => {
-            if let Some((menu_x, menu_y)) =
+            let Some((menu_x, menu_y)) =
                 output_point_to_menu_point(output_size.0, output_size.1, x, y)
-            {
-                if shell_state.is_landing() {
-                    if let Some(action) = model.activate_at_point(menu_x, menu_y) {
-                        if action == MainMenuAction::SinglePlayer {
-                            shell_state.open_single_player();
-                        } else {
-                            *selected_action = Some(action);
-                        }
+            else {
+                return false;
+            };
+            if shell_state.is_landing() {
+                if let Some(action) = model.activate_at_point(menu_x, menu_y) {
+                    if action == MainMenuAction::SinglePlayer {
+                        shell_state.open_single_player();
+                    } else {
+                        *selected_action = Some(action);
                     }
-                } else if let Some(action) = shell_state.click_shell(menu_x, menu_y) {
+                    return true;
+                }
+            } else {
+                let play_click = shell_state.click_has_sound(menu_x, menu_y);
+                if let Some(action) = shell_state.click_shell(menu_x, menu_y) {
                     *selected_action = Some(action);
                 }
+                return play_click;
             }
+            false
         }
         Event::MouseMotion { x, y, .. } => {
             if let Some((menu_x, menu_y)) =
@@ -396,14 +465,24 @@ fn handle_menu_event(
             {
                 shell_state.drag_shell(menu_x, menu_y);
             }
+            false
         }
-        Event::MouseButtonUp { .. } => shell_state.release_pointer(),
-        Event::TextInput { text, .. } => shell_state.handle_text_input(&text),
+        Event::MouseButtonUp { .. } => {
+            shell_state.release_pointer();
+            false
+        }
+        Event::TextInput { text, .. } => {
+            shell_state.handle_text_input(&text);
+            false
+        }
         Event::KeyDown {
             keycode: Some(Keycode::Backspace),
             repeat: false,
             ..
-        } => shell_state.handle_backspace(),
+        } => {
+            shell_state.handle_backspace();
+            false
+        }
         Event::KeyDown { .. }
         | Event::KeyUp { .. }
         | Event::MouseWheel { .. }
@@ -448,7 +527,7 @@ fn handle_menu_event(
         | Event::RenderTargetsReset { .. }
         | Event::RenderDeviceReset { .. }
         | Event::User { .. }
-        | Event::Unknown { .. } => {}
+        | Event::Unknown { .. } => false,
     }
 }
 
@@ -693,12 +772,12 @@ fn load_background_texture<'texture>(
 pub(super) mod testing;
 #[cfg(test)]
 pub(super) use testing::{
-    button_asset_entry_name_for_test, button_label_text_color_for_test,
-    button_layer_render_plan_for_test, button_style_asset_summaries_for_test,
-    button_triplet_render_plan_for_test, disabled_button_layer_render_plan_for_test,
-    menu_texture_format_for_test, music_track_relative_path_for_test,
-    option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
-    render_headless_average_color_for_test,
+    button_asset_entry_name_for_test, button_click_sound_summary_for_test,
+    button_label_text_color_for_test, button_layer_render_plan_for_test,
+    button_style_asset_summaries_for_test, button_triplet_render_plan_for_test,
+    disabled_button_layer_render_plan_for_test, menu_texture_format_for_test,
+    music_track_relative_path_for_test, option_volume_to_mixer_volume_for_test,
+    parse_resolution_label_for_test, render_headless_average_color_for_test,
 };
 
 /// Finds an installed font suitable for button labels.

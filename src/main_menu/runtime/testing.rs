@@ -41,6 +41,14 @@ pub(in crate::main_menu) fn render_headless_average_color_for_test(
     })
 }
 
+/// Returns a summary for the original button-click sound asset.
+#[cfg(test)]
+pub(in crate::main_menu) fn button_click_sound_summary_for_test(
+    installation_root: &Path,
+) -> Result<(String, String, usize, [u8; 4]), MainMenuError> {
+    audio::button_click_sound_summary_for_test(installation_root)
+}
+
 /// Returns summaries for original button art entries used by a style.
 #[cfg(test)]
 pub(in crate::main_menu) fn button_style_asset_summaries_for_test(

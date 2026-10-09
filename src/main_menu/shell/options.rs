@@ -50,7 +50,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
+                ShellAction::Navigate(ShellScreenId::Gameplay),
                 "options.ldl:94",
             ),
             button(
@@ -98,7 +98,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
+                ShellAction::Navigate(ShellScreenId::Keyboard),
                 "options.ldl:133",
             ),
             label(
@@ -155,7 +155,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 ButtonVisualStyle::blue_large(),
                 "options.ldl:187 + optionswindow.cpp:DisableButtons",
             ),
-            button(
+            disabled_button(
                 "MapEditorButton",
                 "CHEAT MODE",
                 "Cheat Mode",
@@ -164,8 +164,7 @@ pub(super) fn options_screen() -> ShellScreen {
                 146,
                 24,
                 ButtonVisualStyle::blue_large(),
-                ShellAction::Disabled,
-                "options.ldl:205",
+                "options.ldl:205 + unavailable in pre-game shell",
             ),
             popup_close_button(380, 365),
         ],

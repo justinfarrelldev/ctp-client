@@ -10,6 +10,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+/// Persisted CTP2 options module.
+pub mod ctp2_options;
+
+use ctp2_options::Ctp2Options;
+
 /// Represents a Call to Power game installation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[non_exhaustive]
@@ -91,6 +96,9 @@ pub struct AppConfig {
     pub installations: HashMap<String, GameInstallation>,
     /// User's preferred language setting.
     pub language: Language,
+    /// Persisted CTP2 shell options.
+    #[serde(default)]
+    pub ctp2_options: Ctp2Options,
 }
 
 /// Implementation of `AppConfig` functionality.
@@ -111,6 +119,7 @@ impl AppConfig {
             version: Self::CONFIG_VERSION,
             installations: HashMap::new(),
             language: Translator::detect_system_language(),
+            ctp2_options: Ctp2Options::default(),
         }
     }
 
@@ -238,6 +247,9 @@ impl Default for AppConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ctp2_options::{
+        Ctp2KeyBinding, Ctp2KeyboardCategory, Ctp2Resolution, Ctp2Toggle,
+    };
     use tempfile::TempDir;
 
     #[test]
@@ -245,6 +257,79 @@ mod tests {
         let config = AppConfig::new();
         assert_eq!(config.version, AppConfig::CONFIG_VERSION);
         assert!(config.installations.is_empty());
+        assert_eq!(
+            config.ctp2_options.graphics.resolution,
+            Ctp2Resolution {
+                width: 800,
+                height: 600,
+            },
+            "new configs should persist the default application-sized CTP2 resolution"
+        );
+    }
+
+    #[test]
+    fn test_ctp2_options_round_trip_every_options_group() {
+        let mut config = AppConfig::new();
+        config.ctp2_options.sound.sound_volume = 3_i32;
+        config.ctp2_options.sound.voice_volume = 4_i32;
+        config.ctp2_options.sound.music_volume = 7_i32;
+        config.ctp2_options.graphics.unit_speed = 9_i32;
+        config.ctp2_options.graphics.grid = Ctp2Toggle::new(true);
+        config.ctp2_options.graphics.resolution = Ctp2Resolution {
+            width: 1920,
+            height: 1200,
+        };
+        config.ctp2_options.music.selected_track = 6_usize;
+        config.ctp2_options.music.auto_repeat = true;
+        config.ctp2_options.gameplay.auto_cycle_turns = Ctp2Toggle::new(false);
+        config.ctp2_options.gameplay.mouse_speed = 12_i32;
+        config.ctp2_options.keyboard.selected_category = Ctp2KeyboardCategory::Game;
+        config.ctp2_options.keyboard.bindings.push(Ctp2KeyBinding {
+            action: "Open Options Screen".to_owned(),
+            key: "Ctrl + O".to_owned(),
+        });
+
+        let serialized = toml::to_string(&config).expect("CTP2 options should serialize");
+        assert!(
+            serialized.contains("ctp2_options"),
+            "serialized config should include the CTP2 options table"
+        );
+        assert!(
+            serialized.contains("auto_cycle_turns"),
+            "gameplay options should be persisted by name"
+        );
+        assert!(
+            serialized.contains("1920"),
+            "resolution width should be persisted"
+        );
+
+        let deserialized: AppConfig =
+            toml::from_str(&serialized).expect("CTP2 options should deserialize");
+        assert_eq!(
+            deserialized.ctp2_options, config.ctp2_options,
+            "all CTP2 option groups should round-trip through TOML"
+        );
+    }
+
+    #[test]
+    fn test_ctp2_options_default_when_missing_from_old_config() {
+        let content = r#"
+version = 1
+language = "English"
+installations = {}
+"#;
+
+        let config: AppConfig =
+            toml::from_str(content).expect("old configs without CTP2 options should load");
+
+        assert_eq!(
+            config.ctp2_options.sound.sound_volume, 5_i32,
+            "missing sound options should default without rejecting old configs"
+        );
+        assert!(
+            config.ctp2_options.gameplay.auto_cycle_turns.enabled(),
+            "missing gameplay options should use the modeled default"
+        );
     }
 
     #[test]

@@ -11,6 +11,32 @@ use super::VideoResult;
 use super::input::SkipEventListener;
 use super::types::{ProcessExit, SkipTrigger, to_process_exit};
 
+/// Window size requested for external intro-video players.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PlaybackWindowSize {
+    /// Requested video window width in pixels.
+    width: u32,
+    /// Requested video window height in pixels.
+    height: u32,
+}
+
+impl PlaybackWindowSize {
+    /// Creates a playback window size.
+    pub(super) const fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
+    }
+
+    /// Returns the width clamped to an external-player-safe non-zero value.
+    const fn width(self) -> u32 {
+        if self.width == 0 { 1 } else { self.width }
+    }
+
+    /// Returns the height clamped to an external-player-safe non-zero value.
+    const fn height(self) -> u32 {
+        if self.height == 0 { 1 } else { self.height }
+    }
+}
+
 /// Abstraction over a launched external video player process.
 pub(super) trait PlaybackProcess {
     /// Attempts to poll the playback process for completion without blocking.
@@ -173,28 +199,17 @@ pub(super) fn run_process_with_skip(
 /// # Parameters
 ///
 /// * `file_path` - Path to the video file to play.
-/// * `fullscreen` - Whether the player should launch in fullscreen mode.
+/// * `window_size` - Requested player window size matching the application window.
 ///
 /// # Errors
 ///
 /// Returns an error string when the process cannot be launched.
 pub(super) fn spawn_ffplay(
     file_path: &str,
-    fullscreen: bool,
+    window_size: PlaybackWindowSize,
 ) -> Result<ExternalPlaybackProcess, String> {
-    let mut command = Command::new("ffplay");
-    command
-        .arg("-autoexit")
-        .arg("-noborder")
-        .arg("-window_title")
-        .arg("CTP Intro Video");
-
-    if fullscreen {
-        command.arg("-fs");
-    }
-
-    let child = command
-        .arg(file_path)
+    let child = Command::new("ffplay")
+        .args(ffplay_arguments(file_path, window_size))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -209,17 +224,17 @@ pub(super) fn spawn_ffplay(
 /// # Parameters
 ///
 /// * `file_path` - Path to the video file to play.
+/// * `window_size` - Requested player window size matching the application window.
 ///
 /// # Errors
 ///
 /// Returns an error string when the process cannot be launched.
-pub(super) fn spawn_vlc(file_path: &str) -> Result<ExternalPlaybackProcess, String> {
+pub(super) fn spawn_vlc(
+    file_path: &str,
+    window_size: PlaybackWindowSize,
+) -> Result<ExternalPlaybackProcess, String> {
     let child = Command::new("vlc")
-        .arg("--intf=dummy")
-        .arg("--play-and-exit")
-        .arg("--fullscreen")
-        .arg("--quiet")
-        .arg(file_path)
+        .args(vlc_arguments(file_path, window_size))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -227,4 +242,52 @@ pub(super) fn spawn_vlc(file_path: &str) -> Result<ExternalPlaybackProcess, Stri
         .map_err(|e| format!("Failed to launch VLC: {e}"))?;
 
     Ok(ExternalPlaybackProcess::new(child))
+}
+
+/// Builds `ffplay` arguments for an application-sized intro window.
+fn ffplay_arguments(file_path: &str, window_size: PlaybackWindowSize) -> Vec<String> {
+    vec![
+        "-autoexit".to_owned(),
+        "-noborder".to_owned(),
+        "-window_title".to_owned(),
+        "CTP Intro Video".to_owned(),
+        "-x".to_owned(),
+        window_size.width().to_string(),
+        "-y".to_owned(),
+        window_size.height().to_string(),
+        file_path.to_owned(),
+    ]
+}
+
+/// Builds VLC arguments for an application-sized intro window.
+fn vlc_arguments(file_path: &str, window_size: PlaybackWindowSize) -> Vec<String> {
+    vec![
+        "--intf=dummy".to_owned(),
+        "--play-and-exit".to_owned(),
+        "--no-video-deco".to_owned(),
+        "--width".to_owned(),
+        window_size.width().to_string(),
+        "--height".to_owned(),
+        window_size.height().to_string(),
+        "--quiet".to_owned(),
+        file_path.to_owned(),
+    ]
+}
+
+/// Returns `ffplay` arguments for sizing tests.
+#[cfg(test)]
+pub(super) fn ffplay_arguments_for_test(
+    file_path: &str,
+    window_size: PlaybackWindowSize,
+) -> Vec<String> {
+    ffplay_arguments(file_path, window_size)
+}
+
+/// Returns VLC arguments for sizing tests.
+#[cfg(test)]
+pub(super) fn vlc_arguments_for_test(
+    file_path: &str,
+    window_size: PlaybackWindowSize,
+) -> Vec<String> {
+    vlc_arguments(file_path, window_size)
 }

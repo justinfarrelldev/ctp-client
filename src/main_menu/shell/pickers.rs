@@ -51,6 +51,7 @@ pub(super) const fn option_screen_for(field: ShellOptionField) -> ShellScreenId 
         | ShellOptionField::VoiceVolume
         | ShellOptionField::MusicVolume
         | ShellOptionField::UnitSpeed
+        | ShellOptionField::MouseSpeed
         | ShellOptionField::UnitAnimation
         | ShellOptionField::AnimatedTradeRoutes
         | ShellOptionField::WonderMovies
@@ -61,7 +62,17 @@ pub(super) const fn option_screen_for(field: ShellOptionField) -> ShellScreenId 
         | ShellOptionField::Grid
         | ShellOptionField::MusicEnabled
         | ShellOptionField::AutoRepeat
-        | ShellOptionField::RandomOrder => ShellScreenId::Options,
+        | ShellOptionField::RandomOrder
+        | ShellOptionField::TutorialAdvice
+        | ShellOptionField::AutoCycleTurns
+        | ShellOptionField::AutoCycleUnits
+        | ShellOptionField::BattleView
+        | ShellOptionField::EnemyMoves
+        | ShellOptionField::AutoCenter
+        | ShellOptionField::AutoTabSelect
+        | ShellOptionField::ShowAllBattles
+        | ShellOptionField::AutoSave
+        | ShellOptionField::LeftHandedMouse => ShellScreenId::Options,
     }
 }
 
@@ -925,8 +936,29 @@ const WORLD_SHAPES: &[&str] = &["Earth World", "Doughnut World", "Flat World"];
 const PLAYER_COUNTS: &[&str] = &["3", "4", "5", "6", "7", "8"];
 /// Rule toggles surfaced by the original shell rules popup.
 const RULE_PRESETS: &[&str] = &["Bloodlust - Off", "Pollution - Off"];
-/// Resolution choices used by the original resolution picker flow.
-pub(super) const RESOLUTIONS: &[&str] = &["640 x 480", "800 x 600", "1024 x 768"];
+/// Legal base-game resolution choices: `display_DisplayModeCallback` accepts 800x600 plus
+/// display modes at least 1024x768 and rejects 640x480.
+pub(super) const RESOLUTIONS: &[&str] = &[
+    "800 x 600",
+    "1024 x 768",
+    "1152 x 864",
+    "1280 x 720",
+    "1280 x 768",
+    "1280 x 800",
+    "1280 x 960",
+    "1280 x 1024",
+    "1360 x 768",
+    "1366 x 768",
+    "1440 x 900",
+    "1600 x 900",
+    "1600 x 1200",
+    "1680 x 1050",
+    "1920 x 1080",
+    "1920 x 1200",
+    "2560 x 1440",
+    "2560 x 1600",
+    "3840 x 2160",
+];
 /// Music tracks listed by `MusicTrackScreen.TrackNames`.
 pub(super) const MUSIC_TRACKS: &[&str] = &[
     "A Fortiori",

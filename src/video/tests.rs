@@ -3,7 +3,10 @@ extern crate alloc;
 use super::input::{HotplugAction, SkipEventListener};
 use super::overlay::SkipOverlayLayout;
 use super::player::{IntroVideoBackend, find_intro_video, play_intro_video_with_backend};
-use super::process::{PlaybackProcess, monitor_playback};
+use super::process::{
+    PlaybackProcess, PlaybackWindowSize, ffplay_arguments_for_test, monitor_playback,
+    vlc_arguments_for_test,
+};
 use super::types::{ProcessExit, SkipTrigger};
 use super::{VideoPlayer, VideoResult};
 use crate::config::{GameInstallation, GameVersion};
@@ -76,6 +79,39 @@ fn video_path_construction_respects_game_version() {
 fn video_player_new_returns_ok() {
     let result = VideoPlayer::new();
     assert!(result.is_ok());
+}
+
+#[test]
+fn intro_player_arguments_use_application_sized_window() {
+    let size = PlaybackWindowSize::new(1024, 768);
+
+    let ffplay_args = ffplay_arguments_for_test("/tmp/gm001.avi", size);
+    assert!(
+        ffplay_args.windows(2).any(|pair| pair == ["-x", "1024"]),
+        "ffplay should receive the configured application width"
+    );
+    assert!(
+        ffplay_args.windows(2).any(|pair| pair == ["-y", "768"]),
+        "ffplay should receive the configured application height"
+    );
+    assert!(
+        !ffplay_args.iter().any(|arg| arg == "-fs"),
+        "intro playback should not force fullscreen because it must match the app window size"
+    );
+
+    let vlc_args = vlc_arguments_for_test("/tmp/gm001.avi", size);
+    assert!(
+        vlc_args.windows(2).any(|pair| pair == ["--width", "1024"]),
+        "VLC fallback should receive the configured application width"
+    );
+    assert!(
+        vlc_args.windows(2).any(|pair| pair == ["--height", "768"]),
+        "VLC fallback should receive the configured application height"
+    );
+    assert!(
+        !vlc_args.iter().any(|arg| arg == "--fullscreen"),
+        "VLC fallback should also avoid fullscreen playback"
+    );
 }
 
 /// Mock backend that records resolved intro paths without launching external players.

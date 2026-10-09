@@ -166,6 +166,30 @@ fn menu_music_autoplays_expected_ctp2_track_once() {
 }
 
 #[test]
+fn original_button_click_sound_is_resolved_from_original_game_assets() {
+    let (archive, entry, byte_len, riff_header) =
+        runtime::button_click_sound_summary_for_test(std::path::Path::new("ctp2"))
+            .expect("button click sound should load from original immutable CTP2 sound archive");
+
+    assert_eq!(
+        archive, "ctp2_data/default/sound/sound.zfs",
+        "button click should come from the base CTP2 default sound archive"
+    );
+    assert_eq!(
+        entry, "cclick1.wav",
+        "AUI execute click maps through SOUND_ID_BUTTONCLICK to CCLICK1.WAV"
+    );
+    assert!(
+        byte_len > 44,
+        "WAV data should include a header and payload"
+    );
+    assert_eq!(
+        riff_header, *b"RIFF",
+        "button click should be WAV/RIFF data"
+    );
+}
+
+#[test]
 fn original_button_art_assets_are_resolved_from_immutable_game_copy() {
     assert_eq!(
         runtime::button_asset_entry_name_for_test("upbt07aU.tga"),

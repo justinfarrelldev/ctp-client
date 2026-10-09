@@ -20,8 +20,12 @@ const BUTTON_EXECUTE_SOUND: &str = "AUI_SOUNDBASE_SOUND_EXECUTE";
 
 /// Control builder helpers.
 mod builders;
+/// Gameplay options screen builder.
+mod gameplay;
 /// Single-player hub screen builder.
 mod hub;
+/// Keyboard mapping screen builder.
+mod keyboard;
 /// New-game screen builder.
 mod new_game;
 /// Options screen builders.
@@ -44,6 +48,8 @@ pub(super) enum ShellScreenId {
     NewGame,
     /// `OptionsWindow` root options popup.
     Options,
+    /// `GamePlayOptionsWindow` gameplay options popup.
+    Gameplay,
     /// `GraphicsWindow` options popup.
     Graphics,
     /// `ScreenResScreen` resolution picker.
@@ -54,6 +60,8 @@ pub(super) enum ShellScreenId {
     Music,
     /// `MusicTrackScreen` track picker popup.
     MusicTrack,
+    /// `KmScreen` keyboard mapping popup.
+    Keyboard,
     /// Nation selection popup opened from `TribeButton`.
     NationPicker,
     /// Difficulty selection popup opened from `DifficultyButton`.
@@ -124,6 +132,28 @@ pub(super) enum ShellOptionField {
     RandomOrder,
     /// User music track.
     MusicTrack,
+    /// Tutorial/advice prompt toggle.
+    TutorialAdvice,
+    /// Automatic turn cycling toggle.
+    AutoCycleTurns,
+    /// Automatic unit cycling toggle.
+    AutoCycleUnits,
+    /// Zoomed battle view toggle.
+    BattleView,
+    /// Enemy movement display toggle.
+    EnemyMoves,
+    /// Automatic map-centering toggle.
+    AutoCenter,
+    /// Automatic tab-selection toggle.
+    AutoTabSelect,
+    /// Always-show battle view toggle.
+    ShowAllBattles,
+    /// Autosave toggle.
+    AutoSave,
+    /// Left-handed mouse toggle.
+    LeftHandedMouse,
+    /// Mouse speed slider.
+    MouseSpeed,
 }
 
 /// Action emitted by a shell control.
@@ -143,6 +173,10 @@ pub(super) enum ShellAction {
     SelectOption(ShellOptionField, usize),
     /// Toggle one boolean option.
     ToggleOption(ShellOptionField),
+    /// Select a keyboard-mapping category.
+    SelectKeyboardCategory(crate::config::ctp2_options::Ctp2KeyboardCategory),
+    /// Reset keyboard mappings to defaults.
+    ResetKeyboardDefaults,
     /// Focus the editable leader-name field.
     FocusLeaderName,
     /// Start the single-player game using the selected setup.
@@ -347,6 +381,11 @@ impl ShellControl {
     /// Returns the activation action.
     pub(super) const fn action(&self) -> Option<ShellAction> {
         self.action
+    }
+
+    /// Returns whether this control has an original sound policy.
+    pub(super) const fn has_sound(&self) -> bool {
+        self.sound.is_some()
     }
 
     /// Returns original sound policy.
@@ -577,6 +616,18 @@ impl Default for SinglePlayerShellModel {
 }
 
 impl SinglePlayerShellModel {
+    /// Creates a shell model from persisted CTP2 options.
+    pub(super) fn with_persisted_options(
+        options: &crate::config::ctp2_options::Ctp2Options,
+    ) -> Self {
+        Self {
+            current: ShellScreenId::Landing,
+            history: Vec::new(),
+            setup: GameSetupState::default(),
+            options: options_state::ShellOptionsState::from_persisted(options),
+        }
+    }
+
     /// Returns current screen id.
     pub(super) const fn current(&self) -> ShellScreenId {
         self.current
@@ -633,6 +684,10 @@ impl SinglePlayerShellModel {
                     self.back();
                 }
             }
+            ShellAction::SelectKeyboardCategory(category) => {
+                self.options.select_keyboard_category(category);
+            }
+            ShellAction::ResetKeyboardDefaults => self.options.reset_keyboard_defaults(),
             ShellAction::ToggleOption(field) => {
                 let toggled = self.options.toggle(field);
                 if !toggled {
@@ -712,5 +767,7 @@ pub(super) fn screen_for(
     screens::screen_for(id, setup, options)
 }
 
+#[cfg(test)]
+mod options_tests;
 #[cfg(test)]
 mod tests;

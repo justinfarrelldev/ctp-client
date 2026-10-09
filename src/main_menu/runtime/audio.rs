@@ -1,11 +1,18 @@
 //! SDL_mixer-backed CTP2 menu music and option-volume helpers.
 
+use std::fs::File;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use sdl2::AudioSubsystem;
-use sdl2::mixer::{self, DEFAULT_CHANNELS, DEFAULT_FORMAT, InitFlag, Music, Sdl2MixerContext};
+use sdl2::mixer::{
+    self, Chunk, DEFAULT_CHANNELS, DEFAULT_FORMAT, InitFlag, LoaderRWops, Music, Sdl2MixerContext,
+};
+use sdl2::rwops::RWops;
+use unciv::ZfsFile;
 
-use crate::main_menu::{MainMenuError, MainMenuMusicBackend, MenuMusicPolicy};
+use crate::config::ctp2_options::Ctp2Options;
+use crate::main_menu::{MainMenuError, MainMenuModel, MainMenuMusicBackend, MenuMusicPolicy};
 
 /// Audio frequency requested from `SDL_mixer` for menu music.
 const MIXER_FREQUENCY: i32 = 44_100;
@@ -13,6 +20,10 @@ const MIXER_FREQUENCY: i32 = 44_100;
 const MIXER_CHUNK_SIZE: i32 = 1_024;
 /// Maximum `SDL_mixer` volume value.
 const MIXER_MAX_VOLUME: i32 = 128;
+/// Archive containing the original CTP2 UI click sound.
+const BUTTON_CLICK_SOUND_ARCHIVE: &str = "ctp2_data/default/sound/sound.zfs";
+/// WAV entry used by `SOUND_ID_BUTTONCLICK` / `GAMESOUNDS_BUTTONCLICK` in the original source.
+const BUTTON_CLICK_SOUND_ENTRY: &str = "CCLICK1.WAV";
 
 /// SDL_mixer-backed menu music player.
 pub(super) struct SdlMenuMusicBackend {
@@ -24,6 +35,12 @@ pub(super) struct SdlMenuMusicBackend {
     _mixer_context: Sdl2MixerContext,
     /// Currently loaded music, kept alive while playback continues.
     music: Option<Music<'static>>,
+    /// Original CTP2 button-click sound, kept alive for repeated UI clicks.
+    button_click: Option<Chunk>,
+    /// Whether selected music should loop continuously.
+    auto_repeat: bool,
+    /// Whether playlist ordering should be randomized when playlist support is expanded.
+    random_order: bool,
 }
 
 impl SdlMenuMusicBackend {
@@ -32,7 +49,7 @@ impl SdlMenuMusicBackend {
     /// # Errors
     ///
     /// Returns [`MainMenuError::Music`] when SDL audio or mixer setup fails.
-    pub(super) fn new() -> Result<Self, MainMenuError> {
+    pub(super) fn new(installation_root: &Path) -> Result<Self, MainMenuError> {
         let sdl = sdl2::init().map_err(|message| MainMenuError::Music { message })?;
         let audio = sdl
             .audio()
@@ -48,12 +65,44 @@ impl SdlMenuMusicBackend {
         .map_err(|message| MainMenuError::Music { message })?;
         mixer::allocate_channels(4);
 
+        let button_click = match load_button_click_chunk(installation_root) {
+            Ok(chunk) => Some(chunk),
+            Err(error) => {
+                log::warn!("Button click sound is unavailable: {error}");
+                None
+            }
+        };
+
         Ok(Self {
             _sdl: sdl,
             _audio: audio,
             _mixer_context: mixer_context,
             music: None,
+            button_click,
+            auto_repeat: false,
+            random_order: false,
         })
+    }
+
+    /// Applies persisted audio options before the first runtime frame.
+    pub(super) fn apply_initial_options(&mut self, model: &MainMenuModel, options: &Ctp2Options) {
+        Self::set_channel_volume(options.sound.sound_volume);
+        Self::set_music_volume(options.sound.music_volume);
+        self.set_auto_repeat(options.music.auto_repeat);
+        self.set_random_order(options.music.random_order);
+
+        if !options.music.music_enabled {
+            return;
+        }
+
+        let result = if options.music.selected_track == 2_usize {
+            self.play_music(&model.music, model.music_path())
+        } else {
+            self.play_track_number(&model.installation_root, options.music.selected_track)
+        };
+        if let Err(error) = result {
+            log::warn!("Main menu music could not be started: {error}");
+        }
     }
 
     /// Plays a numbered CTP2 music track from the installation.
@@ -70,9 +119,29 @@ impl SdlMenuMusicBackend {
         let policy = MenuMusicPolicy {
             autoplay: true,
             relative_path: relative_path.clone(),
-            loops: -1_i32,
+            loops: if self.auto_repeat { -1_i32 } else { 0_i32 },
         };
         self.play_music(&policy, installation_root.join(relative_path))
+    }
+
+    /// Plays the original CTP2 button-click sound once.
+    pub(super) fn play_button_click(&self) {
+        let Some(chunk) = self.button_click.as_ref() else {
+            return;
+        };
+        if let Err(error) = mixer::Channel::all().play(chunk, 0_i32) {
+            log::warn!("Button click sound could not be played: {error}");
+        }
+    }
+
+    /// Applies auto-repeat behavior for subsequently selected tracks.
+    pub(super) const fn set_auto_repeat(&mut self, enabled: bool) {
+        self.auto_repeat = enabled;
+    }
+
+    /// Records random-order behavior for playlist expansion.
+    pub(super) const fn set_random_order(&mut self, enabled: bool) {
+        self.random_order = enabled;
     }
 
     /// Pauses or resumes current music playback.
@@ -133,5 +202,74 @@ pub(super) fn music_track_relative_path(track_number: usize) -> PathBuf {
     let bounded_track = track_number.clamp(1_usize, 10_usize);
     PathBuf::from(format!(
         "ctp2_program/ctp/music/Track{bounded_track:02}.ogg"
+    ))
+}
+
+/// Loads the original CTP2 button-click WAV into an SDL chunk.
+fn load_button_click_chunk(installation_root: &Path) -> Result<Chunk, MainMenuError> {
+    let (_entry_name, bytes) = load_button_click_wav_bytes(installation_root)?;
+    let rwops = RWops::from_bytes(bytes.as_slice()).map_err(|message| MainMenuError::Music {
+        message: format!("failed to create RWops for {BUTTON_CLICK_SOUND_ENTRY}: {message}"),
+    })?;
+    rwops.load_wav().map_err(|message| MainMenuError::Music {
+        message: format!("failed to decode {BUTTON_CLICK_SOUND_ENTRY}: {message}"),
+    })
+}
+
+/// Loads the original CTP2 button-click WAV bytes from the immutable game archive.
+fn load_button_click_wav_bytes(
+    installation_root: &Path,
+) -> Result<(String, Vec<u8>), MainMenuError> {
+    let archive_path = installation_root.join(BUTTON_CLICK_SOUND_ARCHIVE);
+    let file = File::open(&archive_path).map_err(|error| MainMenuError::Music {
+        message: format!("failed to open {}: {error}", archive_path.display()),
+    })?;
+    let mut reader = BufReader::new(file);
+    let zfs = ZfsFile::from_stream(&mut reader).map_err(|error| MainMenuError::Music {
+        message: format!("failed to parse {}: {error}", archive_path.display()),
+    })?;
+    let entry = zfs
+        .files
+        .iter()
+        .find(|candidate| {
+            candidate
+                .name
+                .eq_ignore_ascii_case(BUTTON_CLICK_SOUND_ENTRY)
+        })
+        .cloned()
+        .ok_or_else(|| MainMenuError::Music {
+            message: format!(
+                "{BUTTON_CLICK_SOUND_ENTRY} was not found in {}",
+                archive_path.display()
+            ),
+        })?;
+    let bytes = entry
+        .read_data(&mut reader)
+        .map_err(|error| MainMenuError::Music {
+            message: format!(
+                "failed to read {} from {}: {error}",
+                entry.name,
+                archive_path.display()
+            ),
+        })?;
+    Ok((entry.name, bytes))
+}
+
+/// Returns a test summary for the original button-click sound asset.
+#[cfg(test)]
+pub(in crate::main_menu) fn button_click_sound_summary_for_test(
+    installation_root: &Path,
+) -> Result<(String, String, usize, [u8; 4]), MainMenuError> {
+    let (entry_name, bytes) = load_button_click_wav_bytes(installation_root)?;
+    let mut header = [0_u8; 4];
+    let header_bytes = bytes.get(0..4).ok_or_else(|| MainMenuError::Music {
+        message: format!("{BUTTON_CLICK_SOUND_ENTRY} is too short to contain a RIFF header"),
+    })?;
+    header.copy_from_slice(header_bytes);
+    Ok((
+        BUTTON_CLICK_SOUND_ARCHIVE.to_owned(),
+        entry_name.to_ascii_lowercase(),
+        bytes.len(),
+        header,
     ))
 }

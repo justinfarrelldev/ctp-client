@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::VideoResult;
 use super::input::SkipEventListener;
-use super::process::{run_process_with_skip, spawn_ffplay, spawn_vlc};
+use super::process::{PlaybackWindowSize, run_process_with_skip, spawn_ffplay, spawn_vlc};
 
 /// Backend used to play an already-resolved intro video file.
 pub(super) trait IntroVideoBackend {
@@ -27,7 +27,7 @@ impl IntroVideoBackend for ExternalIntroVideoBackend {
         let video_uri = format!("file://{path_str}");
         info!("Playing video: {video_uri}");
 
-        play_video_standalone(&video_uri)
+        play_video_standalone(&video_uri, intro_video_window_size())
     }
 }
 
@@ -40,6 +40,24 @@ impl IntroVideoBackend for ExternalIntroVideoBackend {
 pub(super) fn play_intro_video(installation: &GameInstallation) -> VideoResult {
     let mut backend = ExternalIntroVideoBackend;
     play_intro_video_with_backend(installation, &mut backend)
+}
+
+/// Returns the application-sized intro-video window from persisted CTP2 settings.
+fn intro_video_window_size() -> PlaybackWindowSize {
+    crate::config::AppConfig::load().map_or_else(
+        |_| {
+            PlaybackWindowSize::new(
+                crate::main_menu::MAIN_MENU_WIDTH,
+                crate::main_menu::MAIN_MENU_HEIGHT,
+            )
+        },
+        |config| {
+            PlaybackWindowSize::new(
+                config.ctp2_options.graphics.resolution.width,
+                config.ctp2_options.graphics.resolution.height,
+            )
+        },
+    )
 }
 
 /// Resolves and plays an installation's intro video with an injectable backend for tests.
@@ -67,7 +85,7 @@ where
 
 /// Attempts to play the supplied video URI with ffplay or VLC, allowing the caller to handle
 /// skip events.
-fn play_video_standalone(video_uri: &str) -> VideoResult {
+fn play_video_standalone(video_uri: &str, window_size: PlaybackWindowSize) -> VideoResult {
     info!("Attempting to play video with FFmpeg: {video_uri}");
 
     let file_path = video_uri.strip_prefix("file://").unwrap_or(video_uri);
@@ -88,9 +106,13 @@ fn play_video_standalone(video_uri: &str) -> VideoResult {
         }
     };
 
-    match spawn_ffplay(file_path, true) {
+    match spawn_ffplay(file_path, window_size) {
         Ok(process) => {
-            return run_process_with_skip(process, "ffplay (fullscreen)", skip_listener.take());
+            return run_process_with_skip(
+                process,
+                "ffplay (application-sized)",
+                skip_listener.take(),
+            );
         }
         Err(err) => {
             error!("Failed to start ffplay: {err}");
@@ -98,21 +120,27 @@ fn play_video_standalone(video_uri: &str) -> VideoResult {
     }
 
     info!("Trying fallback with VLC media player...");
-    match spawn_vlc(file_path) {
+    match spawn_vlc(file_path, window_size) {
         Ok(process) => return run_process_with_skip(process, "VLC", skip_listener.take()),
         Err(err) => {
             error!("VLC fallback failed: {err}");
         }
     }
 
-    info!("Trying basic ffplay without fullscreen...");
-    spawn_ffplay(file_path, false).map_or_else(
+    info!("Trying application-sized ffplay again without VLC...");
+    spawn_ffplay(file_path, window_size).map_or_else(
         |_| {
             VideoResult::Failed(
                 "No suitable video player found. Please install ffmpeg or vlc.".to_owned(),
             )
         },
-        |process| run_process_with_skip(process, "ffplay (windowed)", skip_listener.take()),
+        |process| {
+            run_process_with_skip(
+                process,
+                "ffplay (application-sized retry)",
+                skip_listener.take(),
+            )
+        },
     )
 }
 
