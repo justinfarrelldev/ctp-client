@@ -223,11 +223,23 @@ pub(in crate::main_menu) const fn shell_left_top_text_color_for_test() -> (u8, u
 /// Edits the focused runtime leader-name field through real SDL-style events.
 #[cfg(test)]
 pub(in crate::main_menu) fn leader_name_after_keydown_edit_for_test() -> String {
+    leader_name_after_events_for_test(leader_name_edit_events_for_test())
+}
+
+/// Presses Backspace immediately after focusing the runtime leader-name field.
+#[cfg(test)]
+pub(in crate::main_menu) fn leader_name_after_initial_backspace_for_test() -> String {
+    leader_name_after_events_for_test(leader_name_initial_backspace_events_for_test())
+}
+
+/// Runs a deterministic SDL-style leader-name event sequence.
+#[cfg(test)]
+fn leader_name_after_events_for_test(events: Vec<sdl2::event::Event>) -> String {
     let model = MainMenuModel::ctp2_landing(PathBuf::from("/tmp/ctp2-keydown-test"));
     let mut shell_state = shell_runtime::ShellRuntimeState::new();
     let mut selected_action = None;
     let mut suppressed_keydown_text = None;
-    for event in leader_name_edit_events_for_test() {
+    for event in events {
         let _sound = handle_menu_event(
             &event,
             &model,
@@ -263,6 +275,20 @@ fn leader_name_edit_events_for_test() -> Vec<sdl2::event::Event> {
         key_down_event_for_test(sdl2::keyboard::Keycode::B, sdl2::keyboard::Mod::NOMOD),
         key_down_event_for_test(sdl2::keyboard::Keycode::O, sdl2::keyboard::Mod::NOMOD),
         key_down_event_for_test(sdl2::keyboard::Keycode::Y, sdl2::keyboard::Mod::NOMOD),
+    ]
+}
+
+/// Returns the SDL-style event sequence for focusing and backspacing the leader name.
+#[cfg(test)]
+fn leader_name_initial_backspace_events_for_test() -> Vec<sdl2::event::Event> {
+    vec![
+        mouse_down_event_for_test(600_i32, 470_i32),
+        mouse_down_event_for_test(644_i32, 246_i32),
+        mouse_down_event_for_test(300_i32, 173_i32),
+        key_down_event_for_test(
+            sdl2::keyboard::Keycode::Backspace,
+            sdl2::keyboard::Mod::NOMOD,
+        ),
     ]
 }
 

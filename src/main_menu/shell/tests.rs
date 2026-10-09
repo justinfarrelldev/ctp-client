@@ -305,6 +305,23 @@ fn new_game_leader_name_uses_original_field_style() {
 }
 
 #[test]
+fn first_backspace_after_focusing_leader_name_removes_one_character() {
+    let mut model = SinglePlayerShellModel::default();
+
+    assert_eq!(
+        model.apply_action(ShellAction::FocusLeaderName),
+        ShellFlowOutcome::Continue,
+        "leader field focus should keep the current shell open"
+    );
+    model.backspace_text();
+    assert_eq!(
+        model.setup().leader_name(),
+        "Julius Caesa",
+        "first Backspace after focusing should remove one character, not clear the whole default leader name"
+    );
+}
+
+#[test]
 fn selecting_empire_updates_default_leader_and_leader_field_is_editable() {
     let mut model = SinglePlayerShellModel::default();
 

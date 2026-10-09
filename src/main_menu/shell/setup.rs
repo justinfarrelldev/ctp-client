@@ -257,9 +257,7 @@ impl GameSetupState {
     /// Removes one character from the editable leader-name field.
     pub(super) fn backspace_leader_name(&mut self) {
         if self.leader_name_edit.replace_on_input {
-            self.leader_name.clear();
             self.leader_name_edit.replace_on_input = false;
-            return;
         }
         let removed = self.leader_name.pop();
         debug_assert!(
