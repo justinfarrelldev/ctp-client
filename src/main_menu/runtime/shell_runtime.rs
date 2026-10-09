@@ -204,6 +204,11 @@ impl ShellRuntimeState {
         self.model.handle_backspace();
     }
 
+    /// Returns whether a text-entry field owns keyboard focus.
+    pub(super) const fn text_input_focused(&self) -> bool {
+        self.model.text_input_focused()
+    }
+
     /// Returns the current leader name for runtime tests.
     #[cfg(test)]
     pub(super) fn leader_name_for_test(&self) -> &str {

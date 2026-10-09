@@ -101,6 +101,8 @@ pub(super) fn draw_left_centered_text(
     rect: &MenuRect,
     text: &str,
     inset_x: i32,
+    color: (u8, u8, u8),
+    scale_percent: u32,
 ) -> Result<(), MainMenuError> {
     let Some(font) = font else {
         return Ok(());
@@ -108,15 +110,17 @@ pub(super) fn draw_left_centered_text(
 
     let surface = font
         .render(text)
-        .blended(rgb_color(BUTTON_LABEL_TEXT_COLOR))
+        .blended(rgb_color(color))
         .map_err(|error| runtime_error(error.to_string()))?;
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator
         .create_texture_from_surface(&surface)
         .map_err(|error| runtime_error(error.to_string()))?;
     let physical_rect = physical_rect_for_menu_rect(canvas, rect)?;
+    let scaled_width = scale_percent_extent(surface.width(), scale_percent);
+    let scaled_height = scale_percent_extent(surface.height(), scale_percent);
     let rect_height = i32::try_from(physical_rect.height).map_or(0_i32, |value| value);
-    let text_height = i32::try_from(surface.height()).map_or(0_i32, |value| value);
+    let text_height = i32::try_from(scaled_height).map_or(0_i32, |value| value);
     let offset_y = rect_height
         .saturating_sub(text_height)
         .checked_div(2_i32)
@@ -128,8 +132,8 @@ pub(super) fn draw_left_centered_text(
     let destination = SdlRect::new(
         physical_rect.x.saturating_add(physical_inset_x),
         physical_rect.y.saturating_add(offset_y),
-        surface.width(),
-        surface.height(),
+        scaled_width,
+        scaled_height,
     );
 
     copy_texture_at_physical_resolution(canvas, &texture, destination)
@@ -220,6 +224,15 @@ fn physical_rect_for_menu_rect(
         scale_unsigned_axis(rect.width, viewport.width, super::super::MAIN_MENU_WIDTH),
         scale_unsigned_axis(rect.height, viewport.height, super::super::MAIN_MENU_HEIGHT),
     ))
+}
+
+/// Scales a physical text extent by a percentage.
+fn scale_percent_extent(value: u32, percent: u32) -> u32 {
+    let scaled = u64::from(value)
+        .saturating_mul(u64::from(percent))
+        .checked_div(100_u64)
+        .map_or(1_u64, |extent| extent.max(1_u64));
+    u32::try_from(scaled).map_or(u32::MAX, |extent| extent)
 }
 
 /// Scales a signed menu coordinate into a physical viewport coordinate.

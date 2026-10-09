@@ -220,6 +220,78 @@ pub(in crate::main_menu) const fn shell_left_top_text_color_for_test() -> (u8, u
     text::shell_left_top_text_color_for_test()
 }
 
+/// Edits the focused runtime leader-name field through keydown events.
+#[cfg(test)]
+pub(in crate::main_menu) fn leader_name_after_keydown_edit_for_test() -> String {
+    let model = MainMenuModel::ctp2_landing(PathBuf::from("/tmp/ctp2-keydown-test"));
+    let mut shell_state = shell_runtime::ShellRuntimeState::new();
+    shell_state.open_single_player();
+    assert!(
+        shell_state.click_shell(644_i32, 246_i32).action.is_none(),
+        "opening New Game should not exit the runtime loop"
+    );
+    assert!(
+        shell_state.click_shell(300_i32, 164_i32).action.is_none(),
+        "focusing leader name should not exit the runtime loop"
+    );
+    let mut selected_action = None;
+    let mut suppressed_keydown_text = None;
+    for event in [
+        key_down_event_for_test(sdl2::keyboard::Keycode::N, sdl2::keyboard::Mod::LSHIFTMOD),
+        text_input_event_for_test("N"),
+        key_down_event_for_test(sdl2::keyboard::Keycode::I, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::N, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::J, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::A, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::B, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::O, sdl2::keyboard::Mod::NOMOD),
+        key_down_event_for_test(sdl2::keyboard::Keycode::Y, sdl2::keyboard::Mod::NOMOD),
+    ] {
+        assert!(
+            handle_menu_event(
+                &event,
+                &model,
+                &mut shell_state,
+                &mut selected_action,
+                (
+                    super::super::MAIN_MENU_WIDTH,
+                    super::super::MAIN_MENU_HEIGHT
+                ),
+                &mut suppressed_keydown_text,
+            )
+            .is_none(),
+            "leader-name keyboard editing should not play pointer audio"
+        );
+    }
+    shell_state.leader_name_for_test().to_owned()
+}
+
+/// Creates a deterministic keydown event for runtime text-entry tests.
+#[cfg(test)]
+const fn key_down_event_for_test(
+    keycode: sdl2::keyboard::Keycode,
+    keymod: sdl2::keyboard::Mod,
+) -> sdl2::event::Event {
+    sdl2::event::Event::KeyDown {
+        timestamp: 0,
+        window_id: 0,
+        keycode: Some(keycode),
+        scancode: None,
+        keymod,
+        repeat: false,
+    }
+}
+
+/// Creates a deterministic text-input event for runtime text-entry tests.
+#[cfg(test)]
+fn text_input_event_for_test(text: &str) -> sdl2::event::Event {
+    sdl2::event::Event::TextInput {
+        timestamp: 0,
+        window_id: 0,
+        text: String::from(text),
+    }
+}
+
 /// Returns the shell control draw order for one screen.
 #[cfg(test)]
 pub(in crate::main_menu) fn shell_control_draw_order_for_test(

@@ -449,6 +449,15 @@ fn shell_left_top_descriptions_use_original_black_text_color() {
 }
 
 #[test]
+fn leader_name_accepts_keydown_text_entry_without_text_input_duplicates() {
+    assert_eq!(
+        runtime::leader_name_after_keydown_edit_for_test(),
+        "Ninjaboy",
+        "focused leader-name field should accept normal keydown text and suppress duplicate SDL text-input echoes"
+    );
+}
+
+#[test]
 fn new_game_header_labels_draw_above_overlapping_button_art() {
     let draw_order = runtime::shell_control_draw_order_for_test(shell::ShellScreenId::NewGame);
     let difficulty_label_index = draw_order

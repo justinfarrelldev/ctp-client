@@ -617,6 +617,11 @@ impl SinglePlayerShellModel {
         self.setup.leader_name()
     }
 
+    /// Returns whether a text-entry field currently owns keyboard focus.
+    pub(super) const fn text_input_focused(&self) -> bool {
+        self.setup.leader_name_focused()
+    }
+
     /// Returns options state.
     pub(super) const fn options(&self) -> &options_state::ShellOptionsState {
         &self.options

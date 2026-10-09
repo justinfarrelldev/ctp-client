@@ -200,10 +200,17 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
     let leader_field = screen
         .find_accessible("Leader Name Field")
         .expect("original tribe popup should include the editable leader name field");
+    let style = text_field_style(leader_field.kind())
+        .expect("leader-name field should expose original text-field style");
     assert_eq!(
-        text_field_style(leader_field.kind()),
-        Some(ShellTextFieldStyle::popup_default()),
+        style,
+        ShellTextFieldStyle::popup_default(),
         "leader-name field should be modeled as the original editable popup text field"
+    );
+    assert_eq!(
+        style.background_color(),
+        (255_u8, 255_u8, 255_u8),
+        "original CTP2 popup text fields should have the native white edit-control background"
     );
     assert_eq!(
         leader_field.action(),
@@ -235,10 +242,22 @@ fn new_game_leader_name_uses_original_field_style() {
         .find_accessible("Leader Name")
         .expect("new-game screen should include the editable leader name field");
 
+    let style = text_field_style(leader_field.kind())
+        .expect("new-game leader field should expose original text-field style");
     assert_eq!(
-        text_field_style(leader_field.kind()),
-        Some(ShellTextFieldStyle::new_game_field()),
+        style,
+        ShellTextFieldStyle::new_game_field(),
         "new-game leader field should preserve the original FIELD bevel styling"
+    );
+    assert_eq!(
+        style.background_color(),
+        (255_u8, 255_u8, 255_u8),
+        "original CTP2 leader field should use the native white edit-control background"
+    );
+    assert_eq!(
+        style.font_scale_percent(),
+        80_u32,
+        "leader-name edit text should render smaller than shell button labels"
     );
 }
 

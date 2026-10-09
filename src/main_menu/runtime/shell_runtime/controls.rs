@@ -32,6 +32,8 @@ pub(super) fn draw_text_field(
     rect: &MenuRect,
     style: ShellTextFieldStyle,
 ) -> Result<(), MainMenuError> {
+    canvas.set_draw_color(rgb_color(style.background_color()));
+    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
     let bevel_rect = expanded_text_field_rect(rect);
     draw_inset_bevel(canvas, &bevel_rect, style.bevel_width())
 }
@@ -44,7 +46,20 @@ pub(super) fn draw_text_field_text(
     style: ShellTextFieldStyle,
     text: &str,
 ) -> Result<(), MainMenuError> {
-    draw_left_centered_text(canvas, font, rect, text, style.text_inset_x())
+    draw_left_centered_text(
+        canvas,
+        font,
+        rect,
+        text,
+        style.text_inset_x(),
+        style.text_color(),
+        style.font_scale_percent(),
+    )
+}
+
+/// Converts RGB bytes into an SDL color.
+const fn rgb_color((red, green, blue): (u8, u8, u8)) -> Color {
+    Color::RGB(red, green, blue)
 }
 
 /// Expands an LDL field rectangle to the outer bevel drawn by `ctp2_TextField::DrawThis`.

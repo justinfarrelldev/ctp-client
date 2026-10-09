@@ -12,7 +12,7 @@ use std::thread;
 use std::time::Duration;
 
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Mod};
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
@@ -261,6 +261,7 @@ fn run_sdl_event_loop_with_options_and_audio(
     let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
     let mut shell_state = shell_runtime::ShellRuntimeState::new();
     let mut selected_action = None;
+    let mut suppressed_keydown_text: Option<String> = None;
     let mut rendered_frames = 0_u32;
 
     while selected_action.is_none() {
@@ -279,6 +280,7 @@ fn run_sdl_event_loop_with_options_and_audio(
                 &mut shell_state,
                 &mut selected_action,
                 event_output_size,
+                &mut suppressed_keydown_text,
             ) {
                 if let Some(backend) = audio_backend.as_deref_mut() {
                     play_menu_sound(backend, sound);
@@ -400,6 +402,113 @@ fn apply_resolution(
     Ok(())
 }
 
+/// Keyboard letter key mapping used by fallback text entry.
+const LETTER_KEYCODES: [(Keycode, char); 26] = [
+    (Keycode::A, 'a'),
+    (Keycode::B, 'b'),
+    (Keycode::C, 'c'),
+    (Keycode::D, 'd'),
+    (Keycode::E, 'e'),
+    (Keycode::F, 'f'),
+    (Keycode::G, 'g'),
+    (Keycode::H, 'h'),
+    (Keycode::I, 'i'),
+    (Keycode::J, 'j'),
+    (Keycode::K, 'k'),
+    (Keycode::L, 'l'),
+    (Keycode::M, 'm'),
+    (Keycode::N, 'n'),
+    (Keycode::O, 'o'),
+    (Keycode::P, 'p'),
+    (Keycode::Q, 'q'),
+    (Keycode::R, 'r'),
+    (Keycode::S, 's'),
+    (Keycode::T, 't'),
+    (Keycode::U, 'u'),
+    (Keycode::V, 'v'),
+    (Keycode::W, 'w'),
+    (Keycode::X, 'x'),
+    (Keycode::Y, 'y'),
+    (Keycode::Z, 'z'),
+];
+
+/// Keyboard digit key mapping used by fallback text entry.
+const DIGIT_KEYCODES: [(Keycode, char, char); 10] = [
+    (Keycode::NUM_0, '0', ')'),
+    (Keycode::NUM_1, '1', '!'),
+    (Keycode::NUM_2, '2', '@'),
+    (Keycode::NUM_3, '3', '#'),
+    (Keycode::NUM_4, '4', '$'),
+    (Keycode::NUM_5, '5', '%'),
+    (Keycode::NUM_6, '6', '^'),
+    (Keycode::NUM_7, '7', '&'),
+    (Keycode::NUM_8, '8', '*'),
+    (Keycode::NUM_9, '9', '('),
+];
+
+/// Keyboard punctuation mapping used by fallback text entry.
+const PUNCTUATION_KEYCODES: [(Keycode, char, char); 5] = [
+    (Keycode::SPACE, ' ', ' '),
+    (Keycode::MINUS, '-', '_'),
+    (Keycode::QUOTE, '\'', '"'),
+    (Keycode::PERIOD, '.', '>'),
+    (Keycode::COMMA, ',', '<'),
+];
+
+/// Returns text for a keydown event when SDL text-input events are unavailable.
+fn text_for_keydown(keycode: Keycode, keymod: Mod) -> Option<String> {
+    if keymod.intersects(
+        Mod::LCTRLMOD | Mod::RCTRLMOD | Mod::LALTMOD | Mod::RALTMOD | Mod::LGUIMOD | Mod::RGUIMOD,
+    ) {
+        return None;
+    }
+    let shifted = keymod.intersects(Mod::LSHIFTMOD | Mod::RSHIFTMOD);
+    let caps = keymod.contains(Mod::CAPSMOD);
+    let character = letter_for_keydown(keycode, shifted, caps)
+        .or_else(|| digit_for_keydown(keycode, shifted))
+        .or_else(|| punctuation_for_keydown(keycode, shifted))?;
+    Some(single_character_string(character))
+}
+
+/// Returns a letter character for a keydown, applying shift/caps state.
+fn letter_for_keydown(keycode: Keycode, shifted: bool, caps: bool) -> Option<char> {
+    LETTER_KEYCODES
+        .into_iter()
+        .find_map(|(candidate, lowercase)| (candidate == keycode).then_some(lowercase))
+        .map(|lowercase| {
+            if shifted == caps {
+                lowercase
+            } else {
+                lowercase.to_ascii_uppercase()
+            }
+        })
+}
+
+/// Returns a digit or shifted digit character for a keydown.
+fn digit_for_keydown(keycode: Keycode, shifted: bool) -> Option<char> {
+    DIGIT_KEYCODES
+        .into_iter()
+        .find_map(|(candidate, plain, shifted_character)| {
+            (candidate == keycode).then_some(if shifted { shifted_character } else { plain })
+        })
+}
+
+/// Returns a printable punctuation character for a keydown.
+fn punctuation_for_keydown(keycode: Keycode, shifted: bool) -> Option<char> {
+    PUNCTUATION_KEYCODES
+        .into_iter()
+        .find_map(|(candidate, plain, shifted_character)| {
+            (candidate == keycode).then_some(if shifted { shifted_character } else { plain })
+        })
+}
+
+/// Builds a one-character owned string.
+fn single_character_string(character: char) -> String {
+    let mut text = String::new();
+    text.push(character);
+    text
+}
+
 /// Applies one SDL event to the menu action state.
 fn handle_menu_event(
     event: &Event,
@@ -407,6 +516,7 @@ fn handle_menu_event(
     shell_state: &mut shell_runtime::ShellRuntimeState,
     selected_action: &mut Option<MainMenuAction>,
     output_size: (u32, u32),
+    suppressed_keydown_text: &mut Option<String>,
 ) -> Option<shell_runtime::sound::ShellRuntimeSound> {
     match event.clone() {
         Event::Quit { .. }
@@ -452,7 +562,12 @@ fn handle_menu_event(
             None
         }
         Event::TextInput { text, .. } => {
-            shell_state.handle_text_input(&text);
+            if suppressed_keydown_text.as_deref() == Some(text.as_str()) {
+                suppressed_keydown_text.take();
+            } else {
+                suppressed_keydown_text.take();
+                shell_state.handle_text_input(&text);
+            }
             None
         }
         Event::KeyDown {
@@ -460,54 +575,31 @@ fn handle_menu_event(
             repeat: false,
             ..
         } => {
+            suppressed_keydown_text.take();
             shell_state.handle_backspace();
             None
         }
-        Event::KeyDown { .. }
-        | Event::KeyUp { .. }
-        | Event::ControllerButtonDown { .. }
-        | Event::ControllerButtonUp { .. }
-        | Event::ControllerAxisMotion { .. }
-        | Event::Window { .. }
-        | Event::AppTerminating { .. }
-        | Event::AppLowMemory { .. }
-        | Event::AppWillEnterBackground { .. }
-        | Event::AppDidEnterBackground { .. }
-        | Event::AppWillEnterForeground { .. }
-        | Event::AppDidEnterForeground { .. }
-        | Event::Display { .. }
-        | Event::TextEditing { .. }
-        | Event::JoyAxisMotion { .. }
-        | Event::JoyBallMotion { .. }
-        | Event::JoyHatMotion { .. }
-        | Event::JoyButtonDown { .. }
-        | Event::JoyButtonUp { .. }
-        | Event::JoyDeviceAdded { .. }
-        | Event::JoyDeviceRemoved { .. }
-        | Event::ControllerDeviceAdded { .. }
-        | Event::ControllerDeviceRemoved { .. }
-        | Event::ControllerDeviceRemapped { .. }
-        | Event::ControllerTouchpadDown { .. }
-        | Event::ControllerTouchpadMotion { .. }
-        | Event::ControllerTouchpadUp { .. }
-        | Event::FingerDown { .. }
-        | Event::FingerUp { .. }
-        | Event::FingerMotion { .. }
-        | Event::DollarGesture { .. }
-        | Event::DollarRecord { .. }
-        | Event::MultiGesture { .. }
-        | Event::ClipboardUpdate { .. }
-        | Event::DropFile { .. }
-        | Event::DropText { .. }
-        | Event::DropBegin { .. }
-        | Event::DropComplete { .. }
-        | Event::AudioDeviceAdded { .. }
-        | Event::AudioDeviceRemoved { .. }
-        | Event::RenderTargetsReset { .. }
-        | Event::RenderDeviceReset { .. }
-        | Event::User { .. }
-        | Event::Unknown { .. } => None,
+        Event::KeyDown {
+            keycode: Some(keycode),
+            keymod,
+            repeat: false,
+            ..
+        } => {
+            if shell_state.text_input_focused() {
+                if let Some(text) = text_for_keydown(keycode, keymod) {
+                    shell_state.handle_text_input(&text);
+                    *suppressed_keydown_text = Some(text);
+                }
+            }
+            None
+        }
+        other_event => ignored_menu_event(&other_event),
     }
+}
+
+/// Ignores SDL events that do not affect the CTP2 shell state.
+const fn ignored_menu_event(_event: &Event) -> Option<shell_runtime::sound::ShellRuntimeSound> {
+    None
 }
 
 /// Parses an original resolution label such as `1024 x 768`.
@@ -564,8 +656,9 @@ pub(super) use testing::{
     button_click_sound_summary_for_test, button_label_text_color_for_test,
     button_layer_render_plan_for_test, button_style_asset_summaries_for_test,
     button_triplet_render_plan_for_test, disabled_button_layer_render_plan_for_test,
-    initial_music_track_for_test, listbox_scrollbar_arrow_glyph_plan_for_test,
-    menu_texture_format_for_test, mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
+    initial_music_track_for_test, leader_name_after_keydown_edit_for_test,
+    listbox_scrollbar_arrow_glyph_plan_for_test, menu_texture_format_for_test,
+    mixer_allocated_channels_for_test, mixer_chunk_size_for_test,
     music_track_relative_path_for_test, next_music_track_after_finish_for_test,
     option_volume_to_mixer_volume_for_test, parse_resolution_label_for_test,
     prepared_canvas_state_for_test, render_headless_average_color_for_test,
