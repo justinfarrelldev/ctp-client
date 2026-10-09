@@ -94,41 +94,80 @@ pub(super) fn draw_centered_text(
     copy_texture_at_physical_resolution(canvas, &texture, destination)
 }
 
+/// Style options for left-aligned shell text drawing.
+#[derive(Clone, Copy)]
+pub(super) struct LeftTextStyle {
+    /// Horizontal physical inset in menu pixels before scaling.
+    inset_x: i32,
+    /// RGB text color.
+    color: (u8, u8, u8),
+    /// Text scale as a percentage of the loaded shell font.
+    scale_percent: u32,
+    /// Whether to draw a focused edit-control caret.
+    focused: bool,
+}
+
+impl LeftTextStyle {
+    /// Creates a left-aligned text style.
+    pub(super) const fn new(
+        inset_x: i32,
+        color: (u8, u8, u8),
+        scale_percent: u32,
+        focused: bool,
+    ) -> Self {
+        Self {
+            inset_x,
+            color,
+            scale_percent,
+            focused,
+        }
+    }
+}
+
 /// Draws left-aligned, vertically centered shell text inside a menu rectangle.
 pub(super) fn draw_left_centered_text(
     canvas: &mut Canvas<Window>,
     font: Option<&Font<'_, '_>>,
     rect: &MenuRect,
     text: &str,
-    inset_x: i32,
-    color: (u8, u8, u8),
-    scale_percent: u32,
+    style: LeftTextStyle,
 ) -> Result<(), MainMenuError> {
     let Some(font) = font else {
         return Ok(());
     };
 
+    let physical_rect = physical_rect_for_menu_rect(canvas, rect)?;
+    let output_size = canvas.output_size().map_err(runtime_error)?;
+    let viewport = menu_viewport_for_output_size(output_size.0, output_size.1);
+    let physical_inset_x =
+        scale_signed_axis(style.inset_x, viewport.width, super::super::MAIN_MENU_WIDTH);
+    if text.is_empty() {
+        return draw_optional_caret(
+            canvas,
+            style.focused,
+            &physical_rect,
+            physical_inset_x,
+            0_u32,
+            style.color,
+        );
+    }
+
     let surface = font
         .render(text)
-        .blended(rgb_color(color))
+        .blended(rgb_color(style.color))
         .map_err(|error| runtime_error(error.to_string()))?;
     let texture_creator = canvas.texture_creator();
     let texture = texture_creator
         .create_texture_from_surface(&surface)
         .map_err(|error| runtime_error(error.to_string()))?;
-    let physical_rect = physical_rect_for_menu_rect(canvas, rect)?;
-    let scaled_width = scale_percent_extent(surface.width(), scale_percent);
-    let scaled_height = scale_percent_extent(surface.height(), scale_percent);
+    let scaled_width = scale_percent_extent(surface.width(), style.scale_percent);
+    let scaled_height = scale_percent_extent(surface.height(), style.scale_percent);
     let rect_height = i32::try_from(physical_rect.height).map_or(0_i32, |value| value);
     let text_height = i32::try_from(scaled_height).map_or(0_i32, |value| value);
     let offset_y = rect_height
         .saturating_sub(text_height)
         .checked_div(2_i32)
         .map_or(0_i32, |value| value);
-    let output_size = canvas.output_size().map_err(runtime_error)?;
-    let viewport = menu_viewport_for_output_size(output_size.0, output_size.1);
-    let physical_inset_x =
-        scale_signed_axis(inset_x, viewport.width, super::super::MAIN_MENU_WIDTH);
     let destination = SdlRect::new(
         physical_rect.x.saturating_add(physical_inset_x),
         physical_rect.y.saturating_add(offset_y),
@@ -136,7 +175,40 @@ pub(super) fn draw_left_centered_text(
         scaled_height,
     );
 
-    copy_texture_at_physical_resolution(canvas, &texture, destination)
+    copy_texture_at_physical_resolution(canvas, &texture, destination)?;
+    draw_optional_caret(
+        canvas,
+        style.focused,
+        &physical_rect,
+        physical_inset_x,
+        scaled_width,
+        style.color,
+    )
+}
+
+/// Draws a native edit-control caret when a text field is focused.
+fn draw_optional_caret(
+    canvas: &mut Canvas<Window>,
+    focused: bool,
+    physical_rect: &MenuRect,
+    inset_x: i32,
+    text_width: u32,
+    color: (u8, u8, u8),
+) -> Result<(), MainMenuError> {
+    if !focused {
+        return Ok(());
+    }
+    let caret_x = physical_rect
+        .x
+        .saturating_add(inset_x)
+        .saturating_add(i32::try_from(text_width).map_or(i32::MAX, |value| value))
+        .saturating_add(1_i32);
+    let caret_height = physical_rect.height.saturating_sub(4_u32).max(1_u32);
+    let caret_y = physical_rect.y.saturating_add(2_i32);
+    canvas.set_draw_color(rgb_color(color));
+    canvas
+        .fill_rect(SdlRect::new(caret_x, caret_y, 2_u32, caret_height))
+        .map_err(runtime_error)
 }
 
 /// Draws shell text starting at the menu rectangle origin at physical output resolution.

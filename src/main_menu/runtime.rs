@@ -12,14 +12,15 @@ use std::thread;
 use std::time::Duration;
 
 use sdl2::event::Event;
-use sdl2::keyboard::{Keycode, Mod};
+use sdl2::keyboard::{Keycode, Mod, TextInputUtil};
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect as SdlRect;
 use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use crate::config::GameInstallation;
 
-use super::{ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel};
+use super::{ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel, MenuRect};
 
 /// Delay between menu frames.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
@@ -232,7 +233,8 @@ fn run_sdl_event_loop_with_options_and_audio(
 ) -> Result<MainMenuAction, MainMenuError> {
     let sdl = sdl2::init().map_err(runtime_error)?;
     let video = sdl.video().map_err(runtime_error)?;
-    video.text_input().start();
+    let text_input = video.text_input();
+    text_input.start();
     let window = video
         .window(
             "Call to Power II",
@@ -286,6 +288,7 @@ fn run_sdl_event_loop_with_options_and_audio(
                     play_menu_sound(backend, sound);
                 }
             }
+            update_text_input_focus(&text_input, &shell_state, event_output_size);
         }
 
         apply_shell_runtime_effects(
@@ -400,6 +403,67 @@ fn apply_resolution(
     canvas.set_scale(1.0, 1.0).map_err(runtime_error)?;
     canvas.set_viewport(None);
     Ok(())
+}
+
+/// Keeps SDL's native text-input target aligned with the focused menu field.
+fn update_text_input_focus(
+    text_input: &TextInputUtil,
+    shell_state: &shell_runtime::ShellRuntimeState,
+    output_size: (u32, u32),
+) {
+    if let Some(rect) = shell_state.focused_text_input_rect() {
+        text_input.start();
+        text_input.set_rect(menu_rect_to_output_rect(rect, output_size));
+    }
+}
+
+/// Converts an original menu rectangle into physical output pixels.
+fn menu_rect_to_output_rect(rect: MenuRect, output_size: (u32, u32)) -> SdlRect {
+    let viewport = viewport::menu_viewport_for_output_size(output_size.0, output_size.1);
+    SdlRect::new(
+        viewport.x.saturating_add(scale_menu_axis(
+            rect.x,
+            viewport.width,
+            super::MAIN_MENU_WIDTH,
+        )),
+        viewport.y.saturating_add(scale_menu_axis(
+            rect.y,
+            viewport.height,
+            super::MAIN_MENU_HEIGHT,
+        )),
+        scale_menu_extent(rect.width, viewport.width, super::MAIN_MENU_WIDTH),
+        scale_menu_extent(rect.height, viewport.height, super::MAIN_MENU_HEIGHT),
+    )
+}
+
+/// Scales a signed menu coordinate into output pixels.
+fn scale_menu_axis(value: i32, viewport_extent: u32, menu_extent: u32) -> i32 {
+    if menu_extent == 0_u32 {
+        return 0_i32;
+    }
+    let scaled = i64::from(value)
+        .saturating_mul(i64::from(viewport_extent))
+        .checked_div(i64::from(menu_extent))
+        .map_or(0_i64, |coordinate| coordinate);
+    i32::try_from(scaled).unwrap_or_else(|_error| {
+        if scaled.is_negative() {
+            i32::MIN
+        } else {
+            i32::MAX
+        }
+    })
+}
+
+/// Scales an unsigned menu extent into output pixels.
+fn scale_menu_extent(value: u32, viewport_extent: u32, menu_extent: u32) -> u32 {
+    if menu_extent == 0_u32 {
+        return 0_u32;
+    }
+    let scaled = u64::from(value)
+        .saturating_mul(u64::from(viewport_extent))
+        .checked_div(u64::from(menu_extent))
+        .map_or(0_u64, |extent| extent);
+    u32::try_from(scaled).map_or(u32::MAX, |extent| extent)
 }
 
 /// Keyboard letter key mapping used by fallback text entry.
@@ -572,7 +636,6 @@ fn handle_menu_event(
         }
         Event::KeyDown {
             keycode: Some(Keycode::Backspace),
-            repeat: false,
             ..
         } => {
             suppressed_keydown_text.take();
@@ -582,7 +645,6 @@ fn handle_menu_event(
         Event::KeyDown {
             keycode: Some(keycode),
             keymod,
-            repeat: false,
             ..
         } => {
             if shell_state.text_input_focused() {

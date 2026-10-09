@@ -371,6 +371,7 @@ pub(super) fn field(
     y: i32,
     width: u32,
     height: u32,
+    focused: bool,
     source: &'static str,
 ) -> ShellControl {
     field_with_style(
@@ -382,6 +383,7 @@ pub(super) fn field(
         width,
         height,
         ShellTextFieldStyle::new_game_field(),
+        focused,
         source,
     )
 }
@@ -400,6 +402,7 @@ pub(super) fn field_with_style(
     width: u32,
     height: u32,
     style: ShellTextFieldStyle,
+    focused: bool,
     source: &'static str,
 ) -> ShellControl {
     let mut control = label(
@@ -412,7 +415,7 @@ pub(super) fn field_with_style(
         height,
         source,
     );
-    control.kind = ShellControlKind::TextField { style };
+    control.kind = ShellControlKind::TextField { style, focused };
     control.action = Some(ShellAction::FocusLeaderName);
     control.sound = Some(ShellSoundPolicy::original_button());
     control

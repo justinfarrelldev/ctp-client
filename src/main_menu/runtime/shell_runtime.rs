@@ -209,6 +209,23 @@ impl ShellRuntimeState {
         self.model.text_input_focused()
     }
 
+    /// Returns the active text-input rectangle in menu coordinates.
+    pub(super) fn focused_text_input_rect(&self) -> Option<MenuRect> {
+        if !self.model.text_input_focused() {
+            return None;
+        }
+        let screen = current_screen(&self.model);
+        screen.controls().iter().find_map(|control| {
+            if control.action() != Some(ShellAction::FocusLeaderName) {
+                return None;
+            }
+            let ShellControlKind::TextField { style, .. } = control.kind() else {
+                return None;
+            };
+            Some(screen_rect(&screen, style.edit_rect(control.rect())))
+        })
+    }
+
     /// Returns the current leader name for runtime tests.
     #[cfg(test)]
     pub(super) fn leader_name_for_test(&self) -> &str {

@@ -220,23 +220,40 @@ pub(in crate::main_menu) const fn shell_left_top_text_color_for_test() -> (u8, u
     text::shell_left_top_text_color_for_test()
 }
 
-/// Edits the focused runtime leader-name field through keydown events.
+/// Edits the focused runtime leader-name field through real SDL-style events.
 #[cfg(test)]
 pub(in crate::main_menu) fn leader_name_after_keydown_edit_for_test() -> String {
     let model = MainMenuModel::ctp2_landing(PathBuf::from("/tmp/ctp2-keydown-test"));
     let mut shell_state = shell_runtime::ShellRuntimeState::new();
-    shell_state.open_single_player();
-    assert!(
-        shell_state.click_shell(644_i32, 246_i32).action.is_none(),
-        "opening New Game should not exit the runtime loop"
-    );
-    assert!(
-        shell_state.click_shell(300_i32, 164_i32).action.is_none(),
-        "focusing leader name should not exit the runtime loop"
-    );
     let mut selected_action = None;
     let mut suppressed_keydown_text = None;
-    for event in [
+    for event in leader_name_edit_events_for_test() {
+        let _sound = handle_menu_event(
+            &event,
+            &model,
+            &mut shell_state,
+            &mut selected_action,
+            (
+                super::super::MAIN_MENU_WIDTH,
+                super::super::MAIN_MENU_HEIGHT,
+            ),
+            &mut suppressed_keydown_text,
+        );
+        assert_eq!(
+            selected_action, None,
+            "leader-name editing events should not leave the shell"
+        );
+    }
+    shell_state.leader_name_for_test().to_owned()
+}
+
+/// Returns the SDL-style event sequence for focusing and editing the leader name.
+#[cfg(test)]
+fn leader_name_edit_events_for_test() -> Vec<sdl2::event::Event> {
+    vec![
+        mouse_down_event_for_test(600_i32, 470_i32),
+        mouse_down_event_for_test(644_i32, 246_i32),
+        mouse_down_event_for_test(300_i32, 173_i32),
         key_down_event_for_test(sdl2::keyboard::Keycode::N, sdl2::keyboard::Mod::LSHIFTMOD),
         text_input_event_for_test("N"),
         key_down_event_for_test(sdl2::keyboard::Keycode::I, sdl2::keyboard::Mod::NOMOD),
@@ -246,24 +263,21 @@ pub(in crate::main_menu) fn leader_name_after_keydown_edit_for_test() -> String 
         key_down_event_for_test(sdl2::keyboard::Keycode::B, sdl2::keyboard::Mod::NOMOD),
         key_down_event_for_test(sdl2::keyboard::Keycode::O, sdl2::keyboard::Mod::NOMOD),
         key_down_event_for_test(sdl2::keyboard::Keycode::Y, sdl2::keyboard::Mod::NOMOD),
-    ] {
-        assert!(
-            handle_menu_event(
-                &event,
-                &model,
-                &mut shell_state,
-                &mut selected_action,
-                (
-                    super::super::MAIN_MENU_WIDTH,
-                    super::super::MAIN_MENU_HEIGHT
-                ),
-                &mut suppressed_keydown_text,
-            )
-            .is_none(),
-            "leader-name keyboard editing should not play pointer audio"
-        );
+    ]
+}
+
+/// Creates a deterministic mouse-down event for runtime text-entry tests.
+#[cfg(test)]
+const fn mouse_down_event_for_test(x: i32, y: i32) -> sdl2::event::Event {
+    sdl2::event::Event::MouseButtonDown {
+        timestamp: 0,
+        window_id: 0,
+        which: 0,
+        mouse_btn: sdl2::mouse::MouseButton::Left,
+        clicks: 1,
+        x,
+        y,
     }
-    shell_state.leader_name_for_test().to_owned()
 }
 
 /// Creates a deterministic keydown event for runtime text-entry tests.

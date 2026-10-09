@@ -9,7 +9,7 @@ use crate::main_menu::shell::text_field::ShellTextFieldStyle;
 use crate::main_menu::shell::{ShellControl, ShellImageSet};
 use crate::main_menu::{MainMenuError, MainMenuModel, MenuRect};
 
-use super::super::text::draw_left_centered_text;
+use super::super::text::{LeftTextStyle, draw_left_centered_text};
 use super::{create_texture_for_ldl_asset, draw_centered_text, runtime_error, to_sdl_rect};
 
 /// Draws a disabled button fallback.
@@ -32,9 +32,12 @@ pub(super) fn draw_text_field(
     rect: &MenuRect,
     style: ShellTextFieldStyle,
 ) -> Result<(), MainMenuError> {
+    let edit_rect = style.edit_rect(*rect);
     canvas.set_draw_color(rgb_color(style.background_color()));
-    canvas.fill_rect(to_sdl_rect(rect)).map_err(runtime_error)?;
-    let bevel_rect = expanded_text_field_rect(rect);
+    canvas
+        .fill_rect(to_sdl_rect(&edit_rect))
+        .map_err(runtime_error)?;
+    let bevel_rect = style.bevel_rect(*rect);
     draw_inset_bevel(canvas, &bevel_rect, style.bevel_width())
 }
 
@@ -44,32 +47,27 @@ pub(super) fn draw_text_field_text(
     font: Option<&sdl2::ttf::Font<'_, '_>>,
     rect: &MenuRect,
     style: ShellTextFieldStyle,
+    focused: bool,
     text: &str,
 ) -> Result<(), MainMenuError> {
+    let edit_rect = style.edit_rect(*rect);
     draw_left_centered_text(
         canvas,
         font,
-        rect,
+        &edit_rect,
         text,
-        style.text_inset_x(),
-        style.text_color(),
-        style.font_scale_percent(),
+        LeftTextStyle::new(
+            style.text_inset_x(),
+            style.text_color(),
+            style.font_scale_percent(),
+            focused,
+        ),
     )
 }
 
 /// Converts RGB bytes into an SDL color.
 const fn rgb_color((red, green, blue): (u8, u8, u8)) -> Color {
     Color::RGB(red, green, blue)
-}
-
-/// Expands an LDL field rectangle to the outer bevel drawn by `ctp2_TextField::DrawThis`.
-const fn expanded_text_field_rect(rect: &MenuRect) -> MenuRect {
-    MenuRect::new(
-        rect.x.saturating_sub(2_i32),
-        rect.y.saturating_sub(2_i32),
-        rect.width.saturating_add(4_u32),
-        rect.height.saturating_add(4_u32),
-    )
 }
 
 /// Draws an inset CTP2-style bevel around a text field.

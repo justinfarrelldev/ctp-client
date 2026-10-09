@@ -99,7 +99,12 @@ fn leader_name_field_accepts_custom_text_after_click() {
     state.open_single_player();
 
     click(&mut state, &model, 644_i32, 246_i32);
-    click(&mut state, &model, 300_i32, 164_i32);
+    click(&mut state, &model, 300_i32, 173_i32);
+    assert_eq!(
+        state.focused_text_input_rect(),
+        Some(crate::main_menu::MenuRect::new(250, 154, 300, 16)),
+        "focusing the field should expose the native edit-control rectangle for SDL text input"
+    );
     state.handle_text_input("Ninjaboy");
 
     assert_eq!(

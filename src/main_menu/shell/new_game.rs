@@ -66,6 +66,7 @@ pub(super) fn new_game_screen(setup: &GameSetupState) -> ShellScreen {
             154,
             300,
             20,
+            setup.leader_name_focused(),
             "spnewgame.ldl:389",
         ),
         raised_label(

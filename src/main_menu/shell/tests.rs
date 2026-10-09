@@ -20,7 +20,20 @@ fn switch_images(kind: ShellControlKind) -> Option<ShellImageSet> {
 /// Extracts original text-field style metadata from a control kind.
 const fn text_field_style(kind: ShellControlKind) -> Option<ShellTextFieldStyle> {
     match kind {
-        ShellControlKind::TextField { style } => Some(style),
+        ShellControlKind::TextField { style, .. } => Some(style),
+        ShellControlKind::Button(_)
+        | ShellControlKind::Label { .. }
+        | ShellControlKind::Slider { .. }
+        | ShellControlKind::Switch { .. }
+        | ShellControlKind::ListBoxChrome { .. }
+        | ShellControlKind::ListItem { .. } => None,
+    }
+}
+
+/// Extracts focus state from a text-field control kind.
+const fn text_field_focused(kind: ShellControlKind) -> Option<bool> {
+    match kind {
+        ShellControlKind::TextField { focused, .. } => Some(focused),
         ShellControlKind::Button(_)
         | ShellControlKind::Label { .. }
         | ShellControlKind::Slider { .. }
@@ -213,6 +226,21 @@ fn nation_picker_matches_original_tribe_popup_layout_and_art() {
         "original CTP2 popup text fields should have the native white edit-control background"
     );
     assert_eq!(
+        style.edit_rect(leader_field.rect()),
+        MenuRect::new(120, 405, 180, 16),
+        "popup text fields should use the original one-line EDIT height after aui_TextField::Resize"
+    );
+    assert_eq!(
+        style.bevel_rect(leader_field.rect()),
+        MenuRect::new(118, 403, 184, 20),
+        "popup text fields should draw ctp2_TextField's 2px bevel around the resized EDIT area"
+    );
+    assert_eq!(
+        style.interaction_rect(leader_field.rect()),
+        MenuRect::new(118, 403, 184, 32),
+        "popup text fields should accept clicks in the original LDL field and visible bevel bounds"
+    );
+    assert_eq!(
         leader_field.action(),
         Some(ShellAction::FocusLeaderName),
         "clicking the leader-name field should focus it for text input"
@@ -259,6 +287,21 @@ fn new_game_leader_name_uses_original_field_style() {
         80_u32,
         "leader-name edit text should render smaller than shell button labels"
     );
+    assert_eq!(
+        style.edit_rect(leader_field.rect()),
+        MenuRect::new(250, 154, 300, 16),
+        "new-game text field should shrink the native EDIT area to the original one-line height"
+    );
+    assert_eq!(
+        style.bevel_rect(leader_field.rect()),
+        MenuRect::new(248, 152, 304, 20),
+        "new-game text field should draw the original 2px bevel around the resized EDIT area"
+    );
+    assert_eq!(
+        style.interaction_rect(leader_field.rect()),
+        MenuRect::new(248, 152, 304, 22),
+        "new-game text fields should accept clicks in the original LDL field and visible bevel bounds"
+    );
 }
 
 #[test]
@@ -288,6 +331,19 @@ fn selecting_empire_updates_default_leader_and_leader_field_is_editable() {
         model.apply_action(ShellAction::FocusLeaderName),
         ShellFlowOutcome::Continue,
         "leader field focus should keep the current shell open"
+    );
+    let focused_screen = screen_for(
+        ShellScreenId::NewGame,
+        model.setup(),
+        &ShellOptionsState::default(),
+    );
+    let focused_field = focused_screen
+        .find_accessible("Leader Name")
+        .expect("focused leader field should still exist");
+    assert_eq!(
+        text_field_focused(focused_field.kind()),
+        Some(true),
+        "focused leader field should expose caret state to the renderer"
     );
     model.input_text("Maximilian Alexander Caesar");
     assert_eq!(

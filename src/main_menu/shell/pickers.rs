@@ -222,6 +222,7 @@ pub(super) fn nation_picker_screen(setup: &GameSetupState) -> ShellScreen {
             180,
             30,
             ShellTextFieldStyle::popup_default(),
+            setup.leader_name_focused(),
             "spnewgamepopups.ldl:241",
         ),
         image_switch_control(

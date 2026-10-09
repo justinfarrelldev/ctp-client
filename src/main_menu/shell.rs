@@ -363,6 +363,8 @@ pub(super) enum ShellControlKind {
     TextField {
         /// Original CTP2 visual styling metadata.
         style: ShellTextFieldStyle,
+        /// Whether the field owns text-input focus and should show a caret.
+        focused: bool,
     },
     /// Slider with a bounded integer range.
     Slider {
@@ -545,7 +547,7 @@ impl ShellScreen {
     }
 
     /// Returns the rendered interaction rectangle for one control in global coordinates.
-    const fn control_interaction_rect(&self, control: &ShellControl) -> MenuRect {
+    fn control_interaction_rect(&self, control: &ShellControl) -> MenuRect {
         let global_rect = MenuRect::new(
             self.rect.x.saturating_add(control.rect.x),
             self.rect.y.saturating_add(control.rect.y),
@@ -554,8 +556,8 @@ impl ShellScreen {
         );
         match control.kind {
             ShellControlKind::Button(style) => style.visual_style().rendered_rect(global_rect),
+            ShellControlKind::TextField { style, .. } => style.interaction_rect(global_rect),
             ShellControlKind::Label { .. }
-            | ShellControlKind::TextField { .. }
             | ShellControlKind::Slider { .. }
             | ShellControlKind::Switch { .. }
             | ShellControlKind::ListBoxChrome { .. }

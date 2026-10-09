@@ -113,8 +113,8 @@ fn draw_shell_control_text(
         ShellControlKind::Label { layout } => {
             draw_label(canvas, font, &rect, control.label(), layout)
         }
-        ShellControlKind::TextField { style } => {
-            draw_text_field_text(canvas, font, &rect, style, control.label())
+        ShellControlKind::TextField { style, focused } => {
+            draw_text_field_text(canvas, font, &rect, style, focused, control.label())
         }
         ShellControlKind::Switch { .. } | ShellControlKind::ListItem { .. } => {
             draw_centered_text(canvas, font, &rect, control.label())
@@ -269,7 +269,7 @@ fn draw_shell_control(
         ShellControlKind::Label { layout } => {
             draw_label(canvas, font, &rect, control.label(), layout)
         }
-        ShellControlKind::TextField { style } => draw_text_field(canvas, &rect, style),
+        ShellControlKind::TextField { style, .. } => draw_text_field(canvas, &rect, style),
         ShellControlKind::ListBoxChrome {
             scroll_offset,
             item_count,
