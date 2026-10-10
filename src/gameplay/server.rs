@@ -14,6 +14,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{GameplayError, asset_error, runtime_error};
@@ -24,6 +25,14 @@ pub const DEFAULT_SERVER_URL: &str = "http://localhost:9000";
 pub const SERVER_URL_ENV: &str = "OPEN_CTP_SERVER_URL";
 /// HTTP timeout used during launch bootstrap.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(5);
+/// Backoff delays for transient local setup capacity responses.
+const SETUP_RETRY_DELAYS: [Duration; 5] = [
+    Duration::from_millis(100),
+    Duration::from_millis(250),
+    Duration::from_millis(500),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+];
 /// AI country slots used for local single-human games.
 const AI_COUNTRIES: [&str; 7] = [
     "Romans",
@@ -389,7 +398,7 @@ impl ServerClient {
     fn post_json(&self, path: &str, body: &Value) -> Result<Value, GameplayError> {
         let body_text = serde_json::to_string(body)
             .map_err(|error| asset_error(format!("failed to encode server request: {error}")))?;
-        let response = self.request("POST", path, Some((&body_text, "application/json")), &[])?;
+        let response = self.request_json_with_capacity_retry(path, &body_text)?;
         if !(200..300).contains(&response.status) {
             return Err(runtime_error(format!(
                 "server request {path} failed with HTTP {}: {}",
@@ -399,6 +408,28 @@ impl ServerClient {
         serde_json::from_str(&response.body).map_err(|error| {
             asset_error(format!("server response for {path} was not JSON: {error}"))
         })
+    }
+
+    /// Sends a JSON request, retrying transient local capacity responses.
+    fn request_json_with_capacity_retry(
+        &self,
+        path: &str,
+        body_text: &str,
+    ) -> Result<HttpResponse, GameplayError> {
+        let mut response =
+            self.request("POST", path, Some((body_text, "application/json")), &[])?;
+        for delay in SETUP_RETRY_DELAYS {
+            if response.status != 429_u16 {
+                return Ok(response);
+            }
+            log::warn!(
+                "Open CTP server capacity-limited {path}; retrying in {} ms",
+                delay.as_millis()
+            );
+            thread::sleep(delay);
+            response = self.request("POST", path, Some((body_text, "application/json")), &[])?;
+        }
+        Ok(response)
     }
 
     /// Sends one HTTP request.

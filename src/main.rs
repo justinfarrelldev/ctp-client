@@ -157,7 +157,7 @@ static INIT: Once = Once::new();
 fn main() {
     // Initialize the logging system (only once)
     INIT.call_once(|| {
-        env_logger::init();
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     });
 
     info!("Starting CTP Client v{}", env!("CARGO_PKG_VERSION"));
@@ -194,12 +194,9 @@ fn main() {
                         Ok(action) => {
                             info!("Main menu action selected: {}", action.label());
                             if action == main_menu::MainMenuAction::LaunchSinglePlayer {
-                                match gameplay::run_sdl_singleplayer_game(&installation) {
-                                    Ok(outcome) => info!("Gameplay session ended: {outcome:?}"),
-                                    Err(error) => {
-                                        log::warn!("Gameplay could not be displayed: {error}");
-                                    }
-                                }
+                                info!(
+                                    "Single-player gameplay was launched from the existing menu window"
+                                );
                             }
                         }
                         Err(error) => {

@@ -85,9 +85,9 @@ where
     player.play_intro_for_installation(installation)
 }
 
-/// Abstraction over the main menu launch step after intro playback.
+/// Abstraction over the main-menu-driven launch step after intro playback.
 pub trait MainMenuLaunch {
-    /// Opens the CTP2 main menu for the selected installation.
+    /// Opens the CTP2 main menu for the selected installation and lets Launch hand off in-place.
     ///
     /// # Errors
     ///
@@ -1031,10 +1031,7 @@ impl GtkUI {
             Ok(action) => {
                 log::info!("Main menu action selected: {}", action.label());
                 if action == crate::main_menu::MainMenuAction::LaunchSinglePlayer {
-                    match crate::gameplay::run_sdl_singleplayer_game(&installation) {
-                        Ok(outcome) => log::info!("Gameplay session ended: {outcome:?}"),
-                        Err(error) => log::warn!("Gameplay could not be displayed: {error}"),
-                    }
+                    log::info!("Single-player gameplay was launched from the existing menu window");
                 }
             }
             Err(error) => {

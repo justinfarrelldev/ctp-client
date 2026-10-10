@@ -17,6 +17,7 @@ use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::video::{Window, WindowContext};
 
 use crate::config::GameInstallation;
+use crate::gameplay::SinglePlayerLaunchConfig;
 
 use super::{ButtonVisualStyle, MainMenuAction, MainMenuError, MainMenuModel, MenuRect};
 
@@ -142,7 +143,13 @@ pub(super) fn run_sdl_main_menu(
         ctp2_options.graphics.resolution.width,
         ctp2_options.graphics.resolution.height,
     );
-    run_sdl_event_loop_with_audio(&model, music_backend.as_mut(), initial_window_size)
+    let gameplay_config = SinglePlayerLaunchConfig::from_installation(installation);
+    run_sdl_event_loop_with_audio(
+        &model,
+        music_backend.as_mut(),
+        initial_window_size,
+        Some(&gameplay_config),
+    )
 }
 
 /// Loads persisted CTP2 options for runtime startup.
@@ -200,11 +207,13 @@ fn run_sdl_event_loop_with_audio(
     model: &MainMenuModel,
     audio_backend: Option<&mut SdlMenuMusicBackend>,
     initial_window_size: (u32, u32),
+    gameplay_config: Option<&SinglePlayerLaunchConfig>,
 ) -> Result<MainMenuAction, MainMenuError> {
     run_sdl_event_loop_with_options_and_audio(
         model,
         RuntimeLoopOptions::interactive(initial_window_size),
         audio_backend,
+        gameplay_config,
     )
 }
 
@@ -214,14 +223,19 @@ fn run_sdl_event_loop_with_options(
     model: &MainMenuModel,
     options: RuntimeLoopOptions,
 ) -> Result<MainMenuAction, MainMenuError> {
-    run_sdl_event_loop_with_options_and_audio(model, options, None)
+    run_sdl_event_loop_with_options_and_audio(model, options, None, None)
 }
 
 /// Runs the SDL event loop with configurable test hooks and optional audio backend.
+#[expect(
+    clippy::too_many_lines,
+    reason = "SDL menu setup, frame processing, and in-place gameplay handoff share one canvas owner"
+)]
 fn run_sdl_event_loop_with_options_and_audio(
     model: &MainMenuModel,
     options: RuntimeLoopOptions,
     mut audio_backend: Option<&mut SdlMenuMusicBackend>,
+    gameplay_config: Option<&SinglePlayerLaunchConfig>,
 ) -> Result<MainMenuAction, MainMenuError> {
     let sdl = sdl2::init().map_err(runtime_error)?;
     let video = sdl.video().map_err(runtime_error)?;
@@ -327,7 +341,23 @@ fn run_sdl_event_loop_with_options_and_audio(
         thread::sleep(FRAME_DELAY);
     }
 
-    selected_action.ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))
+    let action = selected_action
+        .ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))?;
+    let launch_config = (action == MainMenuAction::LaunchSinglePlayer)
+        .then_some(gameplay_config)
+        .flatten();
+    if let Some(config) = launch_config {
+        log::info!("Launching single-player gameplay in the existing SDL menu window");
+        drop(textures);
+        drop(font_cache);
+        crate::gameplay::runtime::run_sdl_game_on_existing_window(
+            config,
+            &mut canvas,
+            &mut event_pump,
+        )
+        .map_err(|error| runtime_error(format!("single-player gameplay failed: {error}")))?;
+    }
+    Ok(action)
 }
 
 /// Returns the physical renderer output size, falling back to the original menu size.

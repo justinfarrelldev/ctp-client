@@ -10,9 +10,12 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
+use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
+use sdl2::render::Canvas;
+use sdl2::video::Window;
 use serde_json::{Value, json};
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind};
@@ -132,16 +135,44 @@ fn run_sdl_game_with_options(
         .software()
         .build()
         .map_err(|error| runtime_error(error.to_string()))?;
+    let event_subsystem = sdl.event().map_err(runtime_error)?;
+    for event in options.initial_events {
+        event_subsystem.push_event(event).map_err(runtime_error)?;
+    }
+    let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
+    run_sdl_game_on_canvas(config, &mut canvas, &mut event_pump, options.frame_limit)
+}
+
+/// Runs gameplay on an existing SDL window/canvas owned by the menu runtime.
+///
+/// # Errors
+///
+/// Returns [`GameplayError`] when original assets, server bootstrap, or rendering fail.
+pub(crate) fn run_sdl_game_on_existing_window(
+    config: &SinglePlayerLaunchConfig,
+    canvas: &mut Canvas<Window>,
+    event_pump: &mut EventPump,
+) -> Result<GameplayOutcome, GameplayError> {
+    canvas
+        .window_mut()
+        .set_title("Call to Power II - Game")
+        .map_err(|error| runtime_error(error.to_string()))?;
+    run_sdl_game_on_canvas(config, canvas, event_pump, None)
+}
+
+/// Runs gameplay on the provided SDL canvas and event pump.
+fn run_sdl_game_on_canvas(
+    config: &SinglePlayerLaunchConfig,
+    canvas: &mut Canvas<Window>,
+    event_pump: &mut EventPump,
+    frame_limit: Option<u32>,
+) -> Result<GameplayOutcome, GameplayError> {
     let texture_creator = canvas.texture_creator();
     let textures = textures::GameplayTextures::load(
         &config.installation_root,
         &texture_creator,
         config.server.required,
     )?;
-    let event_subsystem = sdl.event().map_err(runtime_error)?;
-    for event in options.initial_events {
-        event_subsystem.push_event(event).map_err(runtime_error)?;
-    }
     let ttf_context = sdl2::ttf::init().ok();
     let font_path = find_existing_font();
     let font = match (ttf_context.as_ref(), font_path.as_ref()) {
@@ -161,7 +192,6 @@ fn run_sdl_game_with_options(
     } else {
         None
     };
-    let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
     let mut state = authority
         .as_ref()
         .and_then(|authority| authority.session.projection.as_ref())
@@ -187,12 +217,9 @@ fn run_sdl_game_with_options(
                 outcome = Some(next);
             }
         }
-        render::draw_frame(&mut canvas, &textures, &state, &ui, &camera, font.as_ref())?;
+        render::draw_frame(canvas, &textures, &state, &ui, &camera, font.as_ref())?;
         rendered_frames = rendered_frames.saturating_add(1);
-        if options
-            .frame_limit
-            .is_some_and(|frame_limit| rendered_frames >= frame_limit)
-        {
+        if frame_limit.is_some_and(|limit| rendered_frames >= limit) {
             outcome = Some(GameplayOutcome::Closed);
         }
         thread::sleep(FRAME_DELAY);
@@ -565,7 +592,11 @@ fn restore_env_var(key: &str, value: Option<std::ffi::OsString>) {
 mod tests {
     use std::path::PathBuf;
 
-    use super::run_headless_smoke_for_test;
+    use sdl2::event::Event;
+
+    use super::{
+        HeadlessSdlEnvironment, run_headless_smoke_for_test, run_sdl_game_on_existing_window,
+    };
     use crate::gameplay::{GameplayOutcome, SinglePlayerLaunchConfig};
 
     #[test]
@@ -580,5 +611,54 @@ mod tests {
         .expect("headless gameplay should run");
 
         assert_eq!(outcome, GameplayOutcome::Closed);
+    }
+
+    #[test]
+    fn headless_gameplay_reuses_existing_sdl_window() {
+        let guard =
+            crate::sdl_test_lock::lock_sdl_for_test().expect("SDL test lock should be available");
+        let environment = HeadlessSdlEnvironment::apply();
+        {
+            let sdl = sdl2::init().expect("SDL should initialize with dummy driver");
+            let video = sdl.video().expect("video subsystem should initialize");
+            let window = video
+                .window("menu-owned", 800, 600)
+                .position_centered()
+                .build()
+                .expect("dummy window should be created");
+            let mut canvas = window
+                .into_canvas()
+                .software()
+                .build()
+                .expect("dummy canvas should be created");
+            let existing_window_id = canvas.window().id();
+            let events = sdl.event().expect("event subsystem should initialize");
+            events
+                .push_event(Event::Quit { timestamp: 0 })
+                .expect("quit event should be queued");
+            let mut event_pump = sdl.event_pump().expect("event pump should initialize");
+
+            let outcome = run_sdl_game_on_existing_window(
+                &SinglePlayerLaunchConfig {
+                    installation_root: PathBuf::from("/tmp/ctp2"),
+                    empire_count: 2,
+                    leader_name: "Tester".to_owned(),
+                    seed: 42,
+                    server: crate::gameplay::server::ServerConfig::disabled_for_test(),
+                },
+                &mut canvas,
+                &mut event_pump,
+            )
+            .expect("gameplay should run on a menu-owned window");
+
+            assert_eq!(outcome, GameplayOutcome::Closed);
+            assert_eq!(
+                canvas.window().id(),
+                existing_window_id,
+                "gameplay must reuse the menu-owned SDL window"
+            );
+        }
+        environment.restore();
+        drop(guard);
     }
 }

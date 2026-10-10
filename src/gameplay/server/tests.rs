@@ -69,6 +69,78 @@ fn health_check_hits_local_server() {
 }
 
 #[test]
+fn bootstrap_retries_capacity_limited_setup_request() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
+    let port = listener
+        .local_addr()
+        .expect("listener should expose address")
+        .port();
+    let handle = thread::spawn(move || {
+        let responses = vec![
+            (200_u16, json!({"status":"OK"}).to_string()),
+            (200_u16, "1".to_owned()),
+            (
+                200_u16,
+                json!({"account_id":7_i32,"session_id":11_i32}).to_string(),
+            ),
+            (200_u16, json!({"id":44_i32}).to_string()),
+            (200_u16, json!({"id":44_i32}).to_string()),
+            (
+                429_u16,
+                json!({"status":"Request Failed","body":"The API is at capacity, try again later."})
+                    .to_string(),
+            ),
+            (200_u16, json!({"id":44_i32}).to_string()),
+            (200_u16, json!({"id":44_i32}).to_string()),
+            (
+                200_u16,
+                "event: resync\ndata: {\"revision\":1,\"turn\":1}\n\n".to_owned(),
+            ),
+        ];
+        let mut add_ai_requests = 0_u8;
+        for (status, response) in responses {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let mut request = [0_u8; 4096];
+            let count = stream.read(&mut request).expect("request should read");
+            let request_text = String::from_utf8_lossy(&request[..count]);
+            if request_text.contains("/game/add_ai") {
+                add_ai_requests = add_ai_requests.saturating_add(1);
+            }
+            let status_text = if status == 429_u16 {
+                "Too Many Requests"
+            } else {
+                "OK"
+            };
+            let message = format!(
+                "HTTP/1.1 {status} {status_text}\r\nContent-Length: {}\r\n\r\n{}",
+                response.len(),
+                response
+            );
+            stream
+                .write_all(message.as_bytes())
+                .expect("response should write");
+        }
+        assert_eq!(
+            add_ai_requests, 2,
+            "bootstrap should retry the rate-limited add_ai request exactly once"
+        );
+    });
+    let client = ServerClient::from_config(&ServerConfig {
+        base_url: format!("http://127.0.0.1:{port}"),
+        required: true,
+    })
+    .expect("client should parse config");
+
+    let session = client
+        .bootstrap_local_singleplayer("Tester", 2)
+        .expect("bootstrap should retry a transient 429 and complete");
+
+    assert_eq!(session.game_id, 44);
+    assert_eq!(session.session_id, 11);
+    handle.join().expect("server thread should finish");
+}
+
+#[test]
 fn bootstrap_posts_authoritative_setup_sequence() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
     let port = listener
