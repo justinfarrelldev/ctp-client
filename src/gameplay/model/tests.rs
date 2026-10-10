@@ -75,6 +75,37 @@ fn movement_reveals_fog_and_shows_distance_labels() {
 }
 
 #[test]
+fn movement_order_rejects_hidden_projection_tiles() {
+    let mut state = GameState::new(24, 18, 2, 15);
+    let start = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .position;
+    let target = start
+        .offset(1, 0, state.width, state.height)
+        .expect("test target should remain in bounds");
+    state
+        .tile_mut(target)
+        .expect("target tile should exist")
+        .fog = FogState::Hidden;
+
+    let events = state.order_selected_to(target);
+    let moved = state
+        .selected_unit()
+        .expect("selected unit should remain alive")
+        .position;
+
+    assert!(
+        events.is_empty(),
+        "orders into hidden/unprojected authoritative tiles must be rejected locally"
+    );
+    assert_eq!(
+        moved, start,
+        "hidden/unprojected authoritative tiles must not move the selected unit"
+    );
+}
+
+#[test]
 fn settle_consumes_settler_and_opens_city_build_menu() {
     let mut state = GameState::new(24, 18, 2, 12);
     let selected_id = state

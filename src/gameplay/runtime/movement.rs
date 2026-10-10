@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
-use super::super::model::{GameState, MapPoint, PlayerId, UnitId};
+use super::super::model::{FogState, GameState, MapPoint, PlayerId, UnitId};
 
 /// Neighbor offsets used by original-style eight-direction land pathing.
 const NEIGHBOR_DELTAS: [(i16, i16); 8] = [
@@ -392,11 +392,11 @@ fn direct_path_between(
     path
 }
 
-/// Returns whether a land unit may enter a point.
+/// Returns whether a land unit may enter a known point.
 fn is_land_passable(state: &GameState, point: MapPoint) -> bool {
     state
         .tile(point)
-        .is_some_and(|tile| tile.terrain.passable_by_land())
+        .is_some_and(|tile| tile.fog != FogState::Hidden && tile.terrain.passable_by_land())
 }
 
 /// Returns a row-major tile index for a map point.
@@ -545,6 +545,44 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hidden_projection_tiles_keep_bad_feedback_without_submission() {
+        let mut state = GameState::new(24, 18, 1, 97);
+        state.popups.clear();
+        make_world_passable(&mut state);
+        let selected = state
+            .selected_unit()
+            .expect("generated state should select a human unit")
+            .clone();
+        let hidden_target = selected
+            .position
+            .offset(1, 0, state.width, state.height)
+            .expect("hidden target should be in bounds");
+        set_fog(&mut state, hidden_target, FogState::Hidden);
+        let mut movement = MovementInputState::default();
+
+        assert!(
+            begin_or_activate_unit_drag(&mut state, &mut movement, selected.position),
+            "clicking the selected unit should activate it"
+        );
+        movement.extend_drag_to(&state, hidden_target);
+
+        assert!(
+            movement.planned_path().is_empty(),
+            "hidden/unprojected tiles should not produce submittable authoritative paths"
+        );
+        assert_eq!(
+            movement.planned_bad_path(),
+            &[hidden_target],
+            "hidden/unprojected tiles should still show CTP2 stop feedback"
+        );
+        assert_eq!(
+            movement.finish_drag(),
+            None,
+            "hidden/unprojected paths must never submit to the authoritative server"
+        );
+    }
+
     /// Makes every tile visible grassland for deterministic pathing tests.
     fn make_world_passable(state: &mut GameState) {
         for tile in &mut state.tiles {
@@ -555,14 +593,25 @@ mod tests {
 
     /// Sets terrain at a generated map point.
     fn set_terrain(state: &mut GameState, point: MapPoint, terrain: TerrainKind) {
+        let tile = tile_mut(state, point);
+        tile.terrain = terrain;
+    }
+
+    /// Sets fog at a generated map point.
+    fn set_fog(state: &mut GameState, point: MapPoint, fog: FogState) {
+        let tile = tile_mut(state, point);
+        tile.fog = fog;
+    }
+
+    /// Returns a mutable tile for a generated map point.
+    fn tile_mut(state: &mut GameState, point: MapPoint) -> &mut crate::gameplay::model::MapTile {
         let index = usize::from(point.y)
             .checked_mul(usize::from(state.width))
             .and_then(|row| row.checked_add(usize::from(point.x)))
             .expect("test map point should fit in usize");
-        let tile = state
+        state
             .tiles
             .get_mut(index)
-            .expect("test map point should address a generated tile");
-        tile.terrain = terrain;
+            .expect("test map point should address a generated tile")
     }
 }

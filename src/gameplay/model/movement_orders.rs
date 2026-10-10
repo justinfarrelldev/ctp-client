@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 use super::generation::straight_line_path;
-use super::{GameState, GameplayEvent, MapPoint, UnitOrder};
+use super::{FogState, GameState, GameplayEvent, MapPoint, UnitOrder};
 
 /// Orders or immediately moves the selected unit to a target tile.
 pub(super) fn order_selected_to(state: &mut GameState, target: MapPoint) -> Vec<GameplayEvent> {
@@ -62,9 +62,9 @@ fn path_is_valid_from(state: &GameState, start: MapPoint, path: &[MapPoint]) -> 
     true
 }
 
-/// Returns whether a land movement order may enter a point.
+/// Returns whether a land movement order may enter a known point.
 fn is_land_passable_for_order(state: &GameState, point: MapPoint) -> bool {
     state
         .tile(point)
-        .is_some_and(|tile| tile.terrain.passable_by_land())
+        .is_some_and(|tile| tile.fog != FogState::Hidden && tile.terrain.passable_by_land())
 }
