@@ -1,4 +1,4 @@
-//! CTP2-style unit activation and drag-path input state.
+//! CTP2-style unit activation and source-aligned path input state.
 
 extern crate alloc;
 
@@ -22,7 +22,7 @@ struct MovementDrag {
     unit_id: UnitId,
     /// Tile where the drag started.
     origin: MapPoint,
-    /// Planned path excluding the origin tile.
+    /// Planned computed path excluding the origin tile.
     path: Vec<MapPoint>,
 }
 
@@ -39,10 +39,10 @@ impl MovementInputState {
         self.drag.as_ref().map_or(&[], |drag| drag.path.as_slice())
     }
 
-    /// Activates a unit and clears any partial drag path.
-    fn activate(&mut self, unit_id: UnitId) {
-        self.active_unit = Some(unit_id);
-        self.drag = None;
+    /// Returns the origin tile for the currently planned path.
+    #[must_use]
+    pub(super) fn planned_path_origin(&self) -> Option<MapPoint> {
+        self.drag.as_ref().map(|drag| drag.origin)
     }
 
     /// Starts a drag for the active unit.
@@ -55,27 +55,26 @@ impl MovementInputState {
         });
     }
 
-    /// Extends the current drag path to a visible, passable map point.
+    /// Recomputes the current drag path to a visible, passable map point.
     pub(super) fn extend_drag_to(&mut self, state: &GameState, target: MapPoint) {
         let Some(drag) = self.drag.as_mut() else {
             return;
         };
-        if !state
-            .tile(target)
-            .is_some_and(|tile| tile.terrain.passable_by_land())
+        drag.path.clear();
+        if target == drag.origin
+            || !state
+                .tile(target)
+                .is_some_and(|tile| tile.terrain.passable_by_land())
         {
             return;
         }
-        let start = drag.path.last().copied().unwrap_or(drag.origin);
-        for point in drag_path_between(start, target, state.width, state.height) {
-            if point == drag.origin || drag.path.last().copied() == Some(point) {
-                continue;
-            }
+        for point in computed_path_between(drag.origin, target, state.width, state.height) {
             if !state
                 .tile(point)
                 .is_some_and(|tile| tile.terrain.passable_by_land())
             {
-                break;
+                drag.path.clear();
+                return;
             }
             drag.path.push(point);
         }
@@ -111,7 +110,7 @@ impl MovementInputState {
     }
 }
 
-/// Activates an owned unit or starts a CTP2-style drag from an active unit.
+/// Activates an owned unit and starts the same potential drag, matching CTP2 `SelectArmyStartMoveClick`.
 pub(super) fn begin_or_activate_unit_drag(
     state: &mut GameState,
     movement: &mut MovementInputState,
@@ -130,7 +129,7 @@ pub(super) fn begin_or_activate_unit_drag(
     }
     if let Some(unit_id) = human_unit_at(state, point) {
         if state.select_unit(unit_id) {
-            movement.activate(unit_id);
+            movement.begin_drag(unit_id, point);
             return true;
         }
     }
@@ -146,8 +145,13 @@ fn human_unit_at(state: &GameState, point: MapPoint) -> Option<UnitId> {
         .map(|unit| unit.id)
 }
 
-/// Builds an eight-direction path between two tiles, excluding the start tile.
-fn drag_path_between(start: MapPoint, target: MapPoint, width: u16, height: u16) -> Vec<MapPoint> {
+/// Builds an eight-direction computed path between two tiles, excluding the start tile.
+fn computed_path_between(
+    start: MapPoint,
+    target: MapPoint,
+    width: u16,
+    height: u16,
+) -> Vec<MapPoint> {
     let mut path = Vec::new();
     let mut current = start;
     while current != target {

@@ -17,7 +17,7 @@ use super::{
     run_headless_smoke_for_test, run_sdl_game_on_existing_window, server_tile_ids_for_path,
     top_menu_click_action,
 };
-use crate::gameplay::model::MapPoint;
+use crate::gameplay::model::{FogState, MapPoint, TerrainKind};
 use crate::gameplay::server::{
     ServerClient, ServerConfig, ServerGameplaySession, ServerProjection, ServerTileProjection,
 };
@@ -459,23 +459,28 @@ fn left_click_on_owned_unit_activates_without_moving() {
 }
 
 #[test]
-fn active_unit_click_drag_release_moves_along_planned_path() {
+fn first_unit_click_drag_release_moves_along_computed_path() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 86);
     state.popups.clear();
+    make_world_passable_for_movement_test(&mut state);
     let start = state
         .selected_unit()
         .expect("selected unit should exist")
         .position;
-    let target = start
+    let detour = start
         .offset(1, 0, state.width, state.height)
-        .expect("adjacent target should be in bounds");
+        .expect("detour target should be in bounds");
+    let target = start
+        .offset(1, 1, state.width, state.height)
+        .expect("diagonal target should be in bounds");
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
     let (start_x, start_y) = camera.tile_to_screen(start);
+    let (detour_x, detour_y) = camera.tile_to_screen(detour);
     let (target_x, target_y) = camera.tile_to_screen(target);
 
-    let _activate = handle_left_click(
+    let _activate_and_drag_start = handle_left_click(
         start_x,
         start_y,
         &mut state,
@@ -484,21 +489,13 @@ fn active_unit_click_drag_release_moves_along_planned_path() {
         &mut movement,
         None,
     );
-    let _drag_start = handle_left_click(
-        start_x,
-        start_y,
-        &mut state,
-        &mut ui,
-        &mut camera,
-        &mut movement,
-        None,
-    );
+    handle_mouse_motion(detour_x, detour_y, &state, &camera, &mut movement);
     handle_mouse_motion(target_x, target_y, &state, &camera, &mut movement);
 
     assert_eq!(
         movement.planned_path(),
         &[target],
-        "dragging from the active unit should draw the exact planned path"
+        "CTP2 movement should recompute the path from the unit origin to the current destination instead of preserving cursor detours"
     );
 
     let outcome = handle_left_release(
@@ -518,7 +515,7 @@ fn active_unit_click_drag_release_moves_along_planned_path() {
             .expect("selected unit should still exist")
             .position,
         target,
-        "local fallback should execute only after a completed drag path"
+        "local fallback should execute only after a completed computed path"
     );
 }
 
@@ -535,8 +532,7 @@ fn mouse_up_without_drag_path_submits_nothing() {
     let mut movement = MovementInputState::default();
     let (x, y) = camera.tile_to_screen(start);
 
-    let _activate = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
-    let _drag_start =
+    let _activate_and_drag_start =
         handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
     let outcome = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
 
@@ -594,6 +590,14 @@ fn server_path_conversion_preserves_dragged_tile_order() {
         vec!["east".to_owned(), "south-east".to_owned()],
         "authoritative move payload should preserve the drag path, not collapse to one target"
     );
+}
+
+/// Makes every generated tile passable and visible so movement tests isolate input semantics.
+fn make_world_passable_for_movement_test(state: &mut crate::gameplay::model::GameState) {
+    for tile in &mut state.tiles {
+        tile.terrain = TerrainKind::Grassland;
+        tile.fog = FogState::Visible;
+    }
 }
 
 /// Returns a passable tile that does not contain a unit.

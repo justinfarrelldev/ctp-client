@@ -62,7 +62,6 @@ pub(super) fn draw_frame(
     draw_top_menu(canvas, textures, ui, font)?;
     draw_control_panel(canvas, textures, state, font)?;
     draw_side_panel(canvas, state, font)?;
-    draw_reachable_labels(canvas, state, camera, input)?;
     movement::draw_planned_path(canvas, input, camera)?;
     draw_popups(canvas, textures, state, font)?;
     canvas.present();
@@ -232,18 +231,19 @@ fn draw_units(
             continue;
         }
         let (screen_x, screen_y) = camera.tile_to_screen(unit.position);
-        if let Some(texture) = textures.unit_texture(unit.kind) {
+        let target = if let Some(texture) = textures.unit_texture(unit.kind) {
             let query = texture.query();
             let target = unit_target_rect_from_size(query.width, query.height, screen_x, screen_y);
             canvas.copy(texture, None, target).map_err(runtime_error)?;
+            target
         } else {
+            let target = Rect::new(screen_x + 40, screen_y + 20, 12, 18);
             canvas.set_draw_color(unit_color(unit.kind, unit.owner));
-            canvas
-                .fill_rect(Rect::new(screen_x + 40, screen_y + 20, 12, 18))
-                .map_err(runtime_error)?;
-        }
+            canvas.fill_rect(target).map_err(runtime_error)?;
+            target
+        };
         if Some(unit.id) == input.active_unit() {
-            movement::draw_movement_diamond(canvas, camera, screen_x, screen_y)?;
+            movement::draw_selection_brackets(canvas, target)?;
         }
     }
     Ok(())
@@ -267,27 +267,6 @@ fn unit_target_rect_from_size(width: u32, height: u32, screen_x: i32, screen_y: 
         target_width,
         target_height,
     )
-}
-
-/// Draws movement distance overlays.
-fn draw_reachable_labels(
-    canvas: &mut Canvas<Window>,
-    state: &GameState,
-    camera: &Camera,
-    input: &MovementInputState,
-) -> Result<(), GameplayError> {
-    if input.active_unit().is_none() {
-        return Ok(());
-    }
-    for label in state.reachable_tile_labels() {
-        let (screen_x, screen_y) = camera.tile_to_screen(label.position);
-        let shade = if label.label == "1" { 240 } else { 180 };
-        canvas.set_draw_color(Color::RGB(shade, shade, 40));
-        canvas
-            .fill_rect(Rect::new(screen_x + 44, screen_y + 40, 8, 8))
-            .map_err(runtime_error)?;
-    }
-    Ok(())
 }
 
 /// Draws top menu bar and optionally a dropdown.

@@ -6,6 +6,8 @@ use super::{
     DROPDOWN_DISABLED_TEXT_COLOR, DROPDOWN_ENABLED_TEXT_COLOR, TILE_HEIGHT, TILE_WIDTH,
     TOP_MENU_TEXT_COLOR, movement, unit_target_rect_from_size,
 };
+use crate::gameplay::model::MapPoint;
+use crate::gameplay::runtime::Camera;
 
 #[test]
 fn unit_sprite_rect_is_centered_and_bottom_anchored_on_tile() {
@@ -25,21 +27,38 @@ fn unit_sprite_rect_is_centered_and_bottom_anchored_on_tile() {
 }
 
 #[test]
-fn movement_feedback_uses_thick_green_geometry() {
+fn movement_feedback_uses_ctp2_line_and_bracket_geometry() {
     let offsets = movement::movement_feedback_stroke_offsets();
-    let marker = movement::planned_path_marker_rect(100, 200);
+    let camera = Camera::for_test_identity();
+    let origin = MapPoint::new(2, 2);
+    let path = [MapPoint::new(3, 3), MapPoint::new(4, 3)];
+    let segments = movement::planned_path_segments(&camera, origin, &path);
+    let brackets =
+        movement::selection_bracket_segments(unit_target_rect_from_size(64, 72, 100, 200));
 
     assert!(
         offsets.len() >= 3,
-        "active-unit reticles should use multiple strokes so they remain visible after viewport scaling"
+        "path lines should use multiple strokes so they remain visible after viewport scaling"
     );
     assert!(
         offsets.contains(&-1) && offsets.contains(&0) && offsets.contains(&1),
-        "reticle strokes should cover the center line and neighboring pixels"
+        "line strokes should cover the center line and neighboring pixels"
+    );
+    assert_eq!(
+        segments.len(),
+        path.len(),
+        "planned movement should render CTP2-style line segments, not one tile marker per reachable tile"
+    );
+    assert_eq!(
+        brackets.len(),
+        8,
+        "selected units should draw four CTP2-style bracket corners with two line segments each"
     );
     assert!(
-        marker.width() >= 12 && marker.height() >= 12,
-        "drag path markers should be larger than the old barely-visible 8px square"
+        brackets
+            .iter()
+            .all(|segment| segment.start.x != segment.end.x || segment.start.y != segment.end.y),
+        "selection bracket segments should have visible length"
     );
 }
 

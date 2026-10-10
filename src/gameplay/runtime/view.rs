@@ -27,6 +27,16 @@ pub(super) struct Camera {
 }
 
 impl Camera {
+    /// Creates an identity-like camera for geometry-only tests.
+    #[cfg(test)]
+    pub(super) const fn for_test_identity() -> Self {
+        Self {
+            offset_x: 0,
+            offset_y: 0,
+            zoom: 1,
+        }
+    }
+
     /// Creates a camera centered around the selected unit.
     pub(super) fn centered_on_selected(state: &GameState) -> Self {
         let selected = state
