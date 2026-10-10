@@ -127,6 +127,23 @@ impl MovementInputState {
         self.update_path_to(state, target, true);
     }
 
+    /// Completes a CTP2 pathing click on a hovered destination.
+    pub(super) fn finish_preview_order_to(
+        &mut self,
+        state: &GameState,
+        target: MapPoint,
+    ) -> Option<(UnitId, Vec<MapPoint>)> {
+        let active_unit_id = self.active_unit?;
+        self.update_path_to(state, target, false);
+        self.drag = None;
+        let preview = self.preview.take()?;
+        self.active_unit = Some(preview.unit_id);
+        if preview.unit_id != active_unit_id || preview.good_path.is_empty() {
+            return None;
+        }
+        Some((preview.unit_id, preview.good_path))
+    }
+
     /// Completes the drag, leaving the unit active for subsequent orders.
     pub(super) fn finish_drag(&mut self) -> Option<(UnitId, Vec<MapPoint>)> {
         let drag = self.drag.take()?;

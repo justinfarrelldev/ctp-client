@@ -34,7 +34,8 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
     let path = [MapPoint::new(3, 3), MapPoint::new(4, 3)];
     let segments = movement::planned_path_segments(&camera, origin, &path);
     let turn_markers = movement::planned_path_turn_markers(&camera, &path, 1);
-    let brackets =
+    let brackets = movement::tile_selection_bracket_segments(&camera, origin);
+    let legacy_sprite_brackets =
         movement::selection_bracket_segments(unit_target_rect_from_size(64, 72, 100, 200));
 
     assert!(
@@ -73,6 +74,10 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
             .iter()
             .all(|segment| segment.start.x != segment.end.x || segment.start.y != segment.end.y),
         "selection bracket segments should have visible length"
+    );
+    assert_ne!(
+        brackets[0], legacy_sprite_brackets[0],
+        "runtime selection feedback should use CTP2 tile-centered brackets, not a sprite-bounding CTP1-style reticle"
     );
 }
 

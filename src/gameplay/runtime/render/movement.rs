@@ -33,9 +33,12 @@ const MOVEMENT_TEXT_COLOR: Color = Color::RGBA(0, 0, 0, 255);
 /// Pixel offsets used to thicken movement-feedback lines.
 const MOVEMENT_FEEDBACK_STROKE_OFFSETS: [i32; 3] = [-1, 0, 1];
 /// Length of each selected-unit bracket arm in screen pixels.
-const SELECTION_BRACKET_LENGTH: i32 = 14;
-/// Outset around a unit sprite target used for selected-unit brackets.
+const SELECTION_BRACKET_LENGTH: i32 = 12;
+/// Outset around a unit sprite target used for legacy geometry tests.
+#[cfg(test)]
 const SELECTION_BRACKET_MARGIN: i32 = 4;
+/// Half extent of the original CTP2 map-icon selection bracket square.
+const CTP2_SELECTION_HALF_EXTENT: i32 = 25;
 /// Half-size of the original CTP2 turn box in pixels.
 const TURN_BOX_EDGE_SIZE: i32 = 8;
 /// Minimum half-size enforced by the original CTP2 renderer.
@@ -145,33 +148,60 @@ pub(super) const fn selection_feedback_color(can_move: bool) -> Color {
     }
 }
 
-/// Draws selected-unit brackets using CTP2-style corner segments.
-pub(super) fn draw_selection_brackets(
+/// Draws selected-unit brackets at the original CTP2 tile-centered bracket position.
+pub(super) fn draw_tile_selection_brackets(
     canvas: &mut Canvas<Window>,
-    target: Rect,
+    camera: &Camera,
+    point: MapPoint,
     color: Color,
 ) -> Result<(), GameplayError> {
     canvas.set_draw_color(color);
-    for segment in selection_bracket_segments(target) {
+    for segment in tile_selection_bracket_segments(camera, point) {
         draw_thick_line(canvas, segment, color)?;
     }
     Ok(())
 }
 
+/// Returns selected-unit bracket line segments at the original CTP2 tile-centered position.
+pub(super) fn tile_selection_bracket_segments(
+    camera: &Camera,
+    point: MapPoint,
+) -> [MovementLineSegment; 8] {
+    let center = tile_selection_anchor(*camera, point);
+    bracket_segments_for_bounds(
+        center.x.saturating_sub(CTP2_SELECTION_HALF_EXTENT),
+        center.y.saturating_sub(CTP2_SELECTION_HALF_EXTENT),
+        center.x.saturating_add(CTP2_SELECTION_HALF_EXTENT),
+        center.y.saturating_add(CTP2_SELECTION_HALF_EXTENT),
+    )
+}
+
 /// Returns selected-unit bracket line segments for a sprite target rectangle.
+#[cfg(test)]
 pub(super) fn selection_bracket_segments(target: Rect) -> [MovementLineSegment; 8] {
     let width = i32::try_from(target.width()).map_or(0_i32, |value| value);
     let height = i32::try_from(target.height()).map_or(0_i32, |value| value);
-    let left = target.x().saturating_sub(SELECTION_BRACKET_MARGIN);
-    let top = target.y().saturating_sub(SELECTION_BRACKET_MARGIN);
-    let right = target
-        .x()
-        .saturating_add(width)
-        .saturating_add(SELECTION_BRACKET_MARGIN);
-    let bottom = target
-        .y()
-        .saturating_add(height)
-        .saturating_add(SELECTION_BRACKET_MARGIN);
+    bracket_segments_for_bounds(
+        target.x().saturating_sub(SELECTION_BRACKET_MARGIN),
+        target.y().saturating_sub(SELECTION_BRACKET_MARGIN),
+        target
+            .x()
+            .saturating_add(width)
+            .saturating_add(SELECTION_BRACKET_MARGIN),
+        target
+            .y()
+            .saturating_add(height)
+            .saturating_add(SELECTION_BRACKET_MARGIN),
+    )
+}
+
+/// Returns CTP2 bracket corner segments for a rectangular bounds.
+fn bracket_segments_for_bounds(
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+) -> [MovementLineSegment; 8] {
     let horizontal = SELECTION_BRACKET_LENGTH.min(right.saturating_sub(left));
     let vertical = SELECTION_BRACKET_LENGTH.min(bottom.saturating_sub(top));
     [
@@ -280,5 +310,18 @@ fn tile_line_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint {
     MovementScreenPoint {
         x: screen_x.saturating_add(half_width),
         y: screen_y.saturating_add(height),
+    }
+}
+
+/// Returns the original CTP2 selected-unit bracket anchor for a tile.
+fn tile_selection_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint {
+    let (screen_x, screen_y) = camera.tile_to_screen(point);
+    let half_width = i32::try_from(camera.tile_width())
+        .map_or(0_i32, |value| value.checked_div(2_i32).unwrap_or(0_i32));
+    let half_height = i32::try_from(camera.tile_height())
+        .map_or(0_i32, |value| value.checked_div(2_i32).unwrap_or(0_i32));
+    MovementScreenPoint {
+        x: screen_x.saturating_add(half_width),
+        y: screen_y.saturating_add(half_height),
     }
 }

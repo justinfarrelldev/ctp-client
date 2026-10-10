@@ -15,6 +15,41 @@ const LEFT_MOUSE_BUTTON: u32 = 1_u32;
 const TEST_MULTI_STEP_MOVE_POINTS: i16 = 300_i16;
 
 #[test]
+fn clicking_visible_ctp2_unit_body_activates_settler() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 90);
+    state.popups.clear();
+    make_world_passable_for_input_test(&mut state);
+    let selected = state
+        .selected_unit()
+        .expect("generated game should select a human unit")
+        .clone();
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (body_x, body_y) = camera.tile_unit_body_to_screen(selected.position);
+
+    let down = handle_left_click(
+        body_x,
+        body_y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+
+    assert_eq!(
+        down, None,
+        "clicking the visible CTP2 unit body should not close gameplay"
+    );
+    assert_eq!(
+        movement.active_unit(),
+        Some(selected.id),
+        "clicking the visible CTP2 unit body should activate that settler"
+    );
+}
+
+#[test]
 fn mouse_motion_without_left_button_updates_ctp2_hover_path_for_active_unit() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 91);
     state.popups.clear();
@@ -30,8 +65,8 @@ fn mouse_motion_without_left_button_updates_ctp2_hover_path_for_active_unit() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (start_x, start_y) = camera.tile_to_screen(selected.position);
-    let (target_x, target_y) = camera.tile_to_screen(target);
+    let (start_x, start_y) = camera.tile_click_center_to_screen(selected.position);
+    let (target_x, target_y) = camera.tile_click_center_to_screen(target);
 
     let down = handle_left_click(
         start_x,
@@ -84,6 +119,80 @@ fn mouse_motion_without_left_button_updates_ctp2_hover_path_for_active_unit() {
 }
 
 #[test]
+fn clicking_hovered_ctp2_path_destination_moves_active_settler() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 96);
+    state.popups.clear();
+    make_world_passable_for_input_test(&mut state);
+    let selected = state
+        .selected_unit()
+        .expect("generated game should select a human unit")
+        .clone();
+    let target = selected
+        .position
+        .offset(1, 1, state.width, state.height)
+        .expect("destination should be in bounds");
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (start_x, start_y) = camera.tile_click_center_to_screen(selected.position);
+    let (target_x, target_y) = camera.tile_click_center_to_screen(target);
+
+    let _activate = handle_left_click(
+        start_x,
+        start_y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+    let _release_origin = handle_left_release(
+        start_x,
+        start_y,
+        &mut state,
+        &ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+    let _hover = handle_event(
+        &mouse_motion_event(target_x, target_y, NO_MOUSE_BUTTONS),
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+
+    let click_destination = handle_left_click(
+        target_x,
+        target_y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+
+    assert_eq!(
+        click_destination, None,
+        "committing a CTP2 path click should not close gameplay"
+    );
+    assert_eq!(
+        state
+            .selected_unit()
+            .expect("selected unit should survive destination click")
+            .position,
+        target,
+        "clicking a visible CTP2 hover path destination should execute the move order"
+    );
+    assert!(
+        movement.planned_path().is_empty(),
+        "committed path preview should clear after movement"
+    );
+}
+
+#[test]
 fn drag_release_applies_computed_path_around_blocker_in_local_fallback() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 92);
     state.popups.clear();
@@ -105,8 +214,8 @@ fn drag_release_applies_computed_path_around_blocker_in_local_fallback() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (start_x, start_y) = camera.tile_to_screen(selected.position);
-    let (target_x, target_y) = camera.tile_to_screen(target);
+    let (start_x, start_y) = camera.tile_click_center_to_screen(selected.position);
+    let (target_x, target_y) = camera.tile_click_center_to_screen(target);
 
     let _activation = handle_left_click(
         start_x,

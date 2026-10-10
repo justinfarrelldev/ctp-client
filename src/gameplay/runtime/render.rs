@@ -231,20 +231,18 @@ fn draw_units(
             continue;
         }
         let (screen_x, screen_y) = camera.tile_to_screen(unit.position);
-        let target = if let Some(texture) = textures.unit_texture(unit.kind) {
+        if let Some(texture) = textures.unit_texture(unit.kind) {
             let query = texture.query();
             let target = unit_target_rect_from_size(query.width, query.height, screen_x, screen_y);
             canvas.copy(texture, None, target).map_err(runtime_error)?;
-            target
         } else {
             let target = Rect::new(screen_x + 40, screen_y + 20, 12, 18);
             canvas.set_draw_color(unit_color(unit.kind, unit.owner));
             canvas.fill_rect(target).map_err(runtime_error)?;
-            target
-        };
+        }
         if Some(unit.id) == input.active_unit() || Some(unit.id) == state.selected_unit {
             let color = movement::selection_feedback_color(unit.movement_points > 0_i16);
-            movement::draw_selection_brackets(canvas, target, color)?;
+            movement::draw_tile_selection_brackets(canvas, camera, unit.position, color)?;
         }
     }
     Ok(())

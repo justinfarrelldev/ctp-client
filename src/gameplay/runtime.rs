@@ -247,9 +247,22 @@ fn run_sdl_game_on_canvas(
 
 /// Configures gameplay to render into the original 1024x768 coordinate space.
 fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
+    ensure_native_gameplay_output_size(canvas)?;
     canvas.set_viewport(None);
     canvas
         .set_logical_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        .map_err(|error| runtime_error(error.to_string()))
+}
+
+/// Avoids SDL downscaling the native CTP2 gameplay frame below 1024x768.
+fn ensure_native_gameplay_output_size(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
+    let (width, height) = canvas.output_size().map_err(runtime_error)?;
+    if width >= DEFAULT_WINDOW_WIDTH && height >= DEFAULT_WINDOW_HEIGHT {
+        return Ok(());
+    }
+    canvas
+        .window_mut()
+        .set_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         .map_err(|error| runtime_error(error.to_string()))
 }
 
@@ -367,6 +380,10 @@ fn handle_left_click(
         return None;
     }
     if let Some(point) = camera.screen_to_tile(x, y) {
+        if let Some((unit_id, path)) = movement.finish_preview_order_to(state, point) {
+            apply_finalized_move_path(state, camera, movement, authority, unit_id, path);
+            return None;
+        }
         if begin_or_activate_unit_drag(state, movement, point) {
             return None;
         }
@@ -426,9 +443,22 @@ fn handle_left_release(
         movement.extend_drag_to(state, point);
     }
     let (unit_id, path) = movement.finish_drag()?;
+    apply_finalized_move_path(state, camera, movement, authority, unit_id, path);
+    None
+}
+
+/// Applies or submits one finalized CTP2 movement path.
+fn apply_finalized_move_path(
+    state: &mut GameState,
+    camera: &mut Camera,
+    movement: &mut MovementInputState,
+    authority: Option<&mut RuntimeAuthority>,
+    unit_id: UnitId,
+    path: Vec<MapPoint>,
+) {
     if !state.select_unit(unit_id) {
         movement.retain_selectable(state);
-        return None;
+        return;
     }
     if let Some(active_authority) = authority {
         submit_authoritative_move_path(active_authority, state, unit_id, &path);
@@ -437,7 +467,6 @@ fn handle_left_release(
     }
     movement.retain_selectable(state);
     *camera = Camera::centered_on_selected(state);
-    None
 }
 
 /// Handles a right click.

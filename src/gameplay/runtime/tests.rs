@@ -280,7 +280,7 @@ fn plain_left_click_on_map_tile_does_not_move_unit() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (x, y) = camera.tile_to_screen(target);
+    let (x, y) = camera.tile_click_center_to_screen(target);
 
     let down = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
     let up = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
@@ -334,7 +334,7 @@ fn plain_left_click_with_authority_does_not_submit_move_request() {
         empire_count: 1,
         seed: 89,
     };
-    let (x, y) = camera.tile_to_screen(target);
+    let (x, y) = camera.tile_click_center_to_screen(target);
 
     let down = handle_left_click(
         x,
@@ -438,7 +438,7 @@ fn left_click_on_owned_unit_activates_without_moving() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (x, y) = camera.tile_to_screen(selected.position);
+    let (x, y) = camera.tile_click_center_to_screen(selected.position);
 
     let outcome = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
 
@@ -476,9 +476,9 @@ fn first_unit_click_drag_release_moves_along_computed_path() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (start_x, start_y) = camera.tile_to_screen(start);
-    let (detour_x, detour_y) = camera.tile_to_screen(detour);
-    let (target_x, target_y) = camera.tile_to_screen(target);
+    let (start_x, start_y) = camera.tile_click_center_to_screen(start);
+    let (detour_x, detour_y) = camera.tile_click_center_to_screen(detour);
+    let (target_x, target_y) = camera.tile_click_center_to_screen(target);
 
     let _activate_and_drag_start = handle_left_click(
         start_x,
@@ -530,7 +530,7 @@ fn mouse_up_without_drag_path_submits_nothing() {
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
-    let (x, y) = camera.tile_to_screen(start);
+    let (x, y) = camera.tile_click_center_to_screen(start);
 
     let _activate_and_drag_start =
         handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
@@ -768,7 +768,14 @@ fn headless_gameplay_reuses_existing_sdl_window_and_scales_to_viewport() {
         assert_eq!(
             canvas.logical_size(),
             (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
-            "gameplay should render into a scaled 1024x768 logical viewport instead of the physical top-left corner"
+            "gameplay should render into a 1024x768 logical viewport instead of the physical top-left corner"
+        );
+        assert_eq!(
+            canvas
+                .output_size()
+                .expect("dummy output size should be readable"),
+            (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
+            "menu-owned windows shorter than native CTP2 gameplay should resize instead of downscaling into a blurry low-resolution frame"
         );
     }
     environment.restore();
