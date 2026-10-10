@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
-use super::super::model::{FogState, GameState, MapPoint, PlayerId, UnitId};
+use super::super::model::{GameState, MapPoint, PlayerId, UnitId};
 
 /// Neighbor offsets used by original-style eight-direction land pathing.
 const NEIGHBOR_DELTAS: [(i16, i16); 8] = [
@@ -392,11 +392,11 @@ fn direct_path_between(
     path
 }
 
-/// Returns whether a land unit may enter a known point.
+/// Returns whether a land unit may enter a point.
 fn is_land_passable(state: &GameState, point: MapPoint) -> bool {
     state
         .tile(point)
-        .is_some_and(|tile| tile.fog != FogState::Hidden && tile.terrain.passable_by_land())
+        .is_some_and(|tile| tile.terrain.passable_by_land())
 }
 
 /// Returns a row-major tile index for a map point.
@@ -546,7 +546,7 @@ mod tests {
     }
 
     #[test]
-    fn hidden_projection_tiles_keep_bad_feedback_without_submission() {
+    fn hidden_frontier_tiles_remain_submittable_for_exploration() {
         let mut state = GameState::new(24, 18, 1, 97);
         state.popups.clear();
         make_world_passable(&mut state);
@@ -567,19 +567,19 @@ mod tests {
         );
         movement.extend_drag_to(&state, hidden_target);
 
-        assert!(
-            movement.planned_path().is_empty(),
-            "hidden/unprojected tiles should not produce submittable authoritative paths"
-        );
         assert_eq!(
-            movement.planned_bad_path(),
+            movement.planned_path(),
             &[hidden_target],
-            "hidden/unprojected tiles should still show CTP2 stop feedback"
+            "frontier/exploration tiles should remain valid movement destinations"
+        );
+        assert!(
+            movement.planned_bad_path().is_empty(),
+            "frontier/exploration movement should not show stop feedback"
         );
         assert_eq!(
             movement.finish_drag(),
-            None,
-            "hidden/unprojected paths must never submit to the authoritative server"
+            Some((selected.id, vec![hidden_target])),
+            "frontier/exploration paths should submit to the authoritative server"
         );
     }
 

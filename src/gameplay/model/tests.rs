@@ -75,7 +75,7 @@ fn movement_reveals_fog_and_shows_distance_labels() {
 }
 
 #[test]
-fn movement_order_rejects_hidden_projection_tiles() {
+fn movement_order_enters_hidden_frontier_tile_and_reveals_it() {
     let mut state = GameState::new(24, 18, 2, 15);
     let start = state
         .selected_unit()
@@ -96,12 +96,17 @@ fn movement_order_rejects_hidden_projection_tiles() {
         .position;
 
     assert!(
-        events.is_empty(),
-        "orders into hidden/unprojected authoritative tiles must be rejected locally"
+        !events.is_empty(),
+        "orders into hidden frontier tiles should explore instead of being blocked"
     );
     assert_eq!(
-        moved, start,
-        "hidden/unprojected authoritative tiles must not move the selected unit"
+        moved, target,
+        "hidden frontier tiles should be legal movement destinations"
+    );
+    assert_eq!(
+        state.tile(target).expect("target tile should exist").fog,
+        FogState::Visible,
+        "entering a hidden frontier tile should reveal it"
     );
 }
 

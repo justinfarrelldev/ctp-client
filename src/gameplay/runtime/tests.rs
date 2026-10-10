@@ -14,12 +14,11 @@ use sdl2::keyboard::{Keycode, Mod};
 use super::{
     Camera, HeadlessSdlEnvironment, MovementInputState, RuntimeAuthority, click_in_end_turn_button,
     handle_event, handle_left_click, handle_left_release, handle_mouse_motion, handle_right_click,
-    run_headless_smoke_for_test, run_sdl_game_on_existing_window, server_tile_ids_for_path,
-    top_menu_click_action,
+    run_headless_smoke_for_test, run_sdl_game_on_existing_window, top_menu_click_action,
 };
 use crate::gameplay::model::{FogState, MapPoint, TerrainKind};
 use crate::gameplay::server::{
-    ServerClient, ServerConfig, ServerGameplaySession, ServerProjection, ServerTileProjection,
+    ServerClient, ServerConfig, ServerGameplaySession, ServerProjection,
 };
 use crate::gameplay::ui_model::{InGameAction, InGameUiModel, MenuCategory};
 use crate::gameplay::{GameplayOutcome, SinglePlayerLaunchConfig};
@@ -547,48 +546,6 @@ fn mouse_up_without_drag_path_submits_nothing() {
             .position,
         start,
         "mouse-up without a planned path must not issue movement"
-    );
-}
-
-#[test]
-fn server_path_conversion_preserves_dragged_tile_order() {
-    let projection = ServerProjection {
-        tiles: vec![
-            ServerTileProjection {
-                id: "origin".to_owned(),
-                x: 4,
-                y: 4,
-                terrain: "plains".to_owned(),
-                ..ServerTileProjection::default()
-            },
-            ServerTileProjection {
-                id: "east".to_owned(),
-                x: 5,
-                y: 4,
-                terrain: "plains".to_owned(),
-                ..ServerTileProjection::default()
-            },
-            ServerTileProjection {
-                id: "south-east".to_owned(),
-                x: 6,
-                y: 5,
-                terrain: "plains".to_owned(),
-                ..ServerTileProjection::default()
-            },
-        ],
-        ..ServerProjection::default()
-    };
-
-    let ids = server_tile_ids_for_path(
-        Some(&projection),
-        &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
-    )
-    .expect("all dragged tiles should map to server ids");
-
-    assert_eq!(
-        ids,
-        vec!["east".to_owned(), "south-east".to_owned()],
-        "authoritative move payload should preserve the drag path, not collapse to one target"
     );
 }
 

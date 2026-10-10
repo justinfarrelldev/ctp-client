@@ -135,12 +135,98 @@ fn player_id_from_authority_owner(owner_id: &str, human_owner_id: &str) -> Playe
 
 /// Returns the server tile id for a local map point.
 fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> String {
+    let Some(projection) = projection else {
+        return String::new();
+    };
     projection
-        .and_then(|projection| {
-            projection
-                .tiles
-                .iter()
-                .find(|tile| tile.x == point.x && tile.y == point.y)
-        })
-        .map_or_else(String::new, |tile| tile.id.clone())
+        .tiles
+        .iter()
+        .find(|tile| tile.x == point.x && tile.y == point.y)
+        .map_or_else(
+            || canonical_local_server_tile_id(point),
+            |tile| tile.id.clone(),
+        )
+}
+
+/// Returns the Open CTP local-server canonical tile id for an unprojected frontier tile.
+fn canonical_local_server_tile_id(point: MapPoint) -> String {
+    format!("tile-{}-{}", point.x, point.y)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Authoritative projection tile-id conversion tests.
+
+    use alloc::vec;
+
+    use super::{MapPoint, server_tile_ids_for_path};
+    use crate::gameplay::server::{ServerProjection, ServerTileProjection};
+
+    #[test]
+    fn server_path_conversion_preserves_dragged_tile_order() {
+        let projection = ServerProjection {
+            tiles: vec![
+                ServerTileProjection {
+                    id: "origin".to_owned(),
+                    x: 4,
+                    y: 4,
+                    terrain: "plains".to_owned(),
+                    ..ServerTileProjection::default()
+                },
+                ServerTileProjection {
+                    id: "east".to_owned(),
+                    x: 5,
+                    y: 4,
+                    terrain: "plains".to_owned(),
+                    ..ServerTileProjection::default()
+                },
+                ServerTileProjection {
+                    id: "south-east".to_owned(),
+                    x: 6,
+                    y: 5,
+                    terrain: "plains".to_owned(),
+                    ..ServerTileProjection::default()
+                },
+            ],
+            ..ServerProjection::default()
+        };
+
+        let ids = server_tile_ids_for_path(
+            Some(&projection),
+            &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
+        )
+        .expect("all dragged tiles should map to server ids");
+
+        assert_eq!(
+            ids,
+            vec!["east".to_owned(), "south-east".to_owned()],
+            "authoritative move payload should preserve the drag path, not collapse to one target"
+        );
+    }
+
+    #[test]
+    fn server_path_conversion_synthesizes_frontier_tile_ids_missing_from_projection() {
+        let projection = ServerProjection {
+            tiles: vec![ServerTileProjection {
+                id: "east".to_owned(),
+                x: 5,
+                y: 4,
+                terrain: "plains".to_owned(),
+                ..ServerTileProjection::default()
+            }],
+            ..ServerProjection::default()
+        };
+
+        let ids = server_tile_ids_for_path(
+            Some(&projection),
+            &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
+        )
+        .expect("projected and frontier tiles should map to server ids");
+
+        assert_eq!(
+            ids,
+            vec!["east".to_owned(), "tile-6-5".to_owned()],
+            "frontier exploration should use canonical local server tile ids when the viewer projection omits an unseen tile"
+        );
+    }
 }
