@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use std::path::Path;
 
-use crate::gameplay::assets::SPRITE_DIRECTORY;
+use crate::gameplay::assets::{SPRITE_DIRECTORY, load_unit_sprite, unit_sprite_candidates};
 
 use super::{NUM_FACINGS, SpriteGroupAsset, UNIT_ACTION_MAX, decompress_lzw1, rgba_from_565};
 
@@ -36,13 +36,19 @@ fn parses_minimal_regular_unit_sprite() {
 
 #[test]
 fn loads_local_ctp2_settler_sprite_when_available() {
-    let path = Path::new("ctp2").join(SPRITE_DIRECTORY).join("GU02.SPR");
+    let candidates = unit_sprite_candidates(2);
+    let Some(first_candidate) = candidates.first() else {
+        return;
+    };
+    let path = Path::new("ctp2")
+        .join(SPRITE_DIRECTORY)
+        .join(first_candidate);
     if !path.exists() {
         return;
     }
 
-    let bytes = std::fs::read(&path).expect("local settler sprite should be readable");
-    let sprite = SpriteGroupAsset::parse(&bytes).expect("local settler sprite should decode");
+    let sprite = load_unit_sprite(Path::new("ctp2"), 2)
+        .expect("local CTP2 settler sprite should decode through the shared loader");
 
     assert!(
         sprite.frame_count() > 0,

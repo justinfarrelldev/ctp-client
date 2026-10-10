@@ -45,6 +45,18 @@ const MENU_EXTRA_LEFT_SPACE: u32 = 4;
 pub const CONTROL_PANEL_WIDTH: u32 = 601;
 /// Approximate original control-panel height from `controlpanel.ldl`.
 pub const CONTROL_PANEL_HEIGHT: u32 = 184;
+/// Original end-turn button X within `ControlPanelWindow.ControlPanel`.
+pub const END_TURN_BUTTON_X: i32 = 563;
+/// Original end-turn button Y within `ControlPanelWindow.ControlPanel`.
+pub const END_TURN_BUTTON_Y: i32 = 60;
+/// Original `upcb14*` end-turn button width.
+pub const END_TURN_BUTTON_WIDTH: u32 = 38;
+/// Original `upcb14*` end-turn button height.
+pub const END_TURN_BUTTON_HEIGHT: u32 = 86;
+/// Original status-bar X within the control panel.
+pub const STATUS_BAR_X: i32 = 126;
+/// Original status-bar Y within the control panel.
+pub const STATUS_BAR_Y: i32 = 167;
 
 /// High-level action emitted by the in-game UI model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

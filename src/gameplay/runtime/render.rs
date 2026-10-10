@@ -11,8 +11,6 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
-
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{BlendMode, Canvas, Texture};
@@ -23,18 +21,28 @@ use super::super::model::{
     FogState, GameState, MapPoint, PlayerId, TerrainKind, TileFeature, UnitKind,
 };
 use super::super::ui_model::{
-    CONTROL_PANEL_HEIGHT, CONTROL_PANEL_WIDTH, InGameUiModel, MENU_BAR_HEIGHT,
+    CONTROL_PANEL_HEIGHT, CONTROL_PANEL_WIDTH, END_TURN_BUTTON_HEIGHT, END_TURN_BUTTON_WIDTH,
+    END_TURN_BUTTON_X, END_TURN_BUTTON_Y, InGameUiModel, MENU_BAR_HEIGHT, STATUS_BAR_X,
+    STATUS_BAR_Y,
 };
 use super::super::{GameplayError, runtime_error};
 use super::textures::GameplayTextures;
 use super::view::{Camera, TILE_HEIGHT, TILE_WIDTH};
-use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH};
+use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, SIDE_PANEL_WIDTH};
 
 /// CTP2 chrome drawing helpers.
 mod chrome;
+/// Text drawing helpers.
+mod text;
 
-/// Right-side panel width.
-const SIDE_PANEL_WIDTH: u32 = 160;
+use text::{draw_shadowed_text, draw_text};
+
+/// High-contrast text color for top menu button labels over `uptbtest.rim`.
+const TOP_MENU_TEXT_COLOR: Color = Color::RGBA(255, 238, 170, 255);
+/// Enabled dropdown row text color over original pale menu chrome.
+const DROPDOWN_ENABLED_TEXT_COLOR: Color = Color::RGBA(50, 50, 50, 255);
+/// Disabled dropdown row text color over original pale menu chrome.
+const DROPDOWN_DISABLED_TEXT_COLOR: Color = Color::RGBA(126, 118, 108, 255);
 
 /// Draws one gameplay frame.
 pub(super) fn draw_frame(
@@ -220,12 +228,7 @@ fn draw_units(
         let (screen_x, screen_y) = camera.tile_to_screen(unit.position);
         if let Some(texture) = textures.unit_texture(unit.kind) {
             let query = texture.query();
-            let target = Rect::new(
-                screen_x + 28,
-                screen_y + 4,
-                query.width.min(64),
-                query.height.min(72),
-            );
+            let target = unit_target_rect_from_size(query.width, query.height, screen_x, screen_y);
             canvas.copy(texture, None, target).map_err(runtime_error)?;
         } else {
             canvas.set_draw_color(unit_color(unit.kind, unit.owner));
@@ -244,6 +247,26 @@ fn draw_units(
         }
     }
     Ok(())
+}
+
+/// Returns the destination rectangle for a unit sprite anchored to tile bottom-center.
+fn unit_target_rect_from_size(width: u32, height: u32, screen_x: i32, screen_y: i32) -> Rect {
+    let target_width = width.min(64);
+    let target_height = height.min(u32::try_from(TILE_HEIGHT).map_or(72_u32, |value| value));
+    let tile_width = u32::try_from(TILE_WIDTH).map_or(94_u32, |value| value);
+    let x_offset = tile_width
+        .saturating_sub(target_width)
+        .checked_div(2_u32)
+        .unwrap_or(0_u32);
+    let y_offset = u32::try_from(TILE_HEIGHT)
+        .map_or(72_u32, |value| value)
+        .saturating_sub(target_height);
+    Rect::new(
+        screen_x.saturating_add(i32::try_from(x_offset).map_or(0_i32, |value| value)),
+        screen_y.saturating_add(i32::try_from(y_offset).map_or(0_i32, |value| value)),
+        target_width,
+        target_height,
+    )
 }
 
 /// Draws movement distance overlays.
@@ -311,7 +334,7 @@ fn draw_top_menu(
             button.label,
             button.x.saturating_add(8),
             5,
-            Color::RGB(60, 60, 40),
+            TOP_MENU_TEXT_COLOR,
         )?;
     }
     if let Some(category) = ui.open_menu {
@@ -330,9 +353,9 @@ fn draw_top_menu(
             for (index, item) in ui.items_for(category).iter().enumerate() {
                 if let Some(row) = ui.dropdown_row_rect(category, index) {
                     let text_color = if item.enabled {
-                        Color::RGB(50, 50, 50)
+                        DROPDOWN_ENABLED_TEXT_COLOR
                     } else {
-                        Color::RGB(126, 118, 108)
+                        DROPDOWN_DISABLED_TEXT_COLOR
                     };
                     let text_x = row.x.saturating_add(7);
                     let text_y = row.y.saturating_add(1);
@@ -356,17 +379,7 @@ fn draw_control_panel(
 ) -> Result<(), GameplayError> {
     let y = i32::try_from(DEFAULT_WINDOW_HEIGHT.saturating_sub(CONTROL_PANEL_HEIGHT))
         .map_or(584, |value| value);
-    if let Some(texture) = textures.ui_texture("upfg01.rim") {
-        let query = texture.query();
-        canvas
-            .copy(texture, None, Rect::new(0, y, query.width, query.height))
-            .map_err(runtime_error)?;
-    } else {
-        canvas.set_draw_color(Color::RGB(40, 43, 48));
-        canvas
-            .fill_rect(Rect::new(0, y, CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT))
-            .map_err(runtime_error)?;
-    }
+    draw_control_panel_chrome(canvas, textures, y)?;
     draw_resource_counter(canvas, textures, state, font)?;
     if let Some(unit) = state.selected_unit() {
         draw_text(
@@ -386,27 +399,7 @@ fn draw_control_panel(
         y.saturating_add(58),
         Color::RGB(210, 210, 185),
     )?;
-    if let Some(texture) = textures.ui_texture("upcb14u.rim") {
-        let query = texture.query();
-        canvas
-            .copy(
-                texture,
-                None,
-                Rect::new(932, y + 8, query.width, query.height),
-            )
-            .map_err(runtime_error)?;
-    } else {
-        canvas.set_draw_color(Color::RGB(75, 63, 38));
-        canvas
-            .fill_rect(Rect::new(940, 590, 70, 150))
-            .map_err(runtime_error)?;
-        canvas.set_draw_color(Color::RGB(120, 92, 40));
-        canvas
-            .draw_rect(Rect::new(940, 590, 70, 150))
-            .map_err(runtime_error)?;
-    }
-    draw_text(canvas, font, "END", 960, 648, Color::RGB(255, 235, 140))?;
-    draw_text(canvas, font, "TURN", 954, 666, Color::RGB(255, 235, 140))?;
+    draw_end_turn_button(canvas, textures, font, y)?;
     if state.city_build_menu.is_some() {
         canvas.set_draw_color(Color::RGB(90, 65, 30));
         canvas
@@ -434,6 +427,107 @@ fn draw_control_panel(
         )?;
     }
     Ok(())
+}
+
+/// Draws the original layered lower control-panel chrome.
+fn draw_control_panel_chrome(
+    canvas: &mut Canvas<Window>,
+    textures: &GameplayTextures<'_>,
+    y: i32,
+) -> Result<(), GameplayError> {
+    canvas.set_draw_color(Color::RGB(40, 43, 48));
+    canvas
+        .fill_rect(Rect::new(0, y, CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT))
+        .map_err(runtime_error)?;
+    for (name, x_offset, y_offset) in [
+        ("upfg01.rim", 0_i32, 0_i32),
+        ("upfg03.rim", 542_i32, 31_i32),
+        ("upfg04.rim", 189_i32, 162_i32),
+    ] {
+        if let Some(texture) = textures.ui_texture(name) {
+            let query = texture.query();
+            canvas
+                .copy(
+                    texture,
+                    None,
+                    Rect::new(
+                        x_offset,
+                        y.saturating_add(y_offset),
+                        query.width,
+                        query.height,
+                    ),
+                )
+                .map_err(runtime_error)?;
+        }
+    }
+    if let Some(texture) = textures.ui_texture("upst01.rim") {
+        let query = texture.query();
+        canvas
+            .copy(
+                texture,
+                None,
+                Rect::new(
+                    STATUS_BAR_X,
+                    y.saturating_add(STATUS_BAR_Y),
+                    query.width,
+                    query.height,
+                ),
+            )
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
+/// Draws the original end-turn button on the lower control panel.
+fn draw_end_turn_button(
+    canvas: &mut Canvas<Window>,
+    textures: &GameplayTextures<'_>,
+    font: Option<&Font<'_, '_>>,
+    panel_y: i32,
+) -> Result<(), GameplayError> {
+    let x = END_TURN_BUTTON_X;
+    let y = panel_y.saturating_add(END_TURN_BUTTON_Y);
+    if let Some(texture) = textures.ui_texture("upcb14u.rim") {
+        let query = texture.query();
+        canvas
+            .copy(texture, None, Rect::new(x, y, query.width, query.height))
+            .map_err(runtime_error)?;
+    } else {
+        canvas.set_draw_color(Color::RGB(75, 63, 38));
+        canvas
+            .fill_rect(Rect::new(
+                x,
+                y,
+                END_TURN_BUTTON_WIDTH,
+                END_TURN_BUTTON_HEIGHT,
+            ))
+            .map_err(runtime_error)?;
+        canvas.set_draw_color(Color::RGB(120, 92, 40));
+        canvas
+            .draw_rect(Rect::new(
+                x,
+                y,
+                END_TURN_BUTTON_WIDTH,
+                END_TURN_BUTTON_HEIGHT,
+            ))
+            .map_err(runtime_error)?;
+    }
+    draw_text(
+        canvas,
+        font,
+        "END",
+        x.saturating_add(9),
+        y.saturating_add(2),
+        Color::RGB(255, 235, 140),
+    )?;
+    draw_text(
+        canvas,
+        font,
+        "TURN",
+        x.saturating_add(5),
+        y.saturating_add(68),
+        Color::RGB(255, 235, 140),
+    )
 }
 
 /// Draws the top resource counter row on the control panel/menu bar.
@@ -600,50 +694,6 @@ fn draw_popups(
     Ok(())
 }
 
-/// Draws original-style CTP2 title text with a faint gold shadow.
-fn draw_shadowed_text(
-    canvas: &mut Canvas<Window>,
-    font: Option<&Font<'_, '_>>,
-    text: &str,
-    x: i32,
-    y: i32,
-    color: Color,
-) -> Result<(), GameplayError> {
-    draw_text(
-        canvas,
-        font,
-        text,
-        x.saturating_add(1),
-        y.saturating_add(1),
-        Color::RGB(200, 200, 100),
-    )?;
-    draw_text(canvas, font, text, x, y, color)
-}
-
-/// Draws text when a system font is available.
-fn draw_text(
-    canvas: &mut Canvas<Window>,
-    font: Option<&Font<'_, '_>>,
-    text: &str,
-    x: i32,
-    y: i32,
-    color: Color,
-) -> Result<(), GameplayError> {
-    let Some(font) = font else {
-        return Ok(());
-    };
-    let surface = font
-        .render(text)
-        .blended(color)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let texture_creator = canvas.texture_creator();
-    let texture = texture_creator
-        .create_texture_from_surface(&surface)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let target = Rect::new(x, y, surface.width(), surface.height());
-    canvas.copy(&texture, None, target).map_err(runtime_error)
-}
-
 /// Tiles a texture horizontally.
 fn tile_texture_horizontally(
     canvas: &mut Canvas<Window>,
@@ -713,3 +763,6 @@ const fn unit_color(kind: UnitKind, owner: PlayerId) -> Color {
         (UnitKind::Barbarian, _) => Color::RGB(80, 30, 30),
     }
 }
+
+#[cfg(test)]
+mod tests;

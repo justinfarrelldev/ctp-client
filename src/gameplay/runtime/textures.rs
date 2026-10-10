@@ -10,10 +10,10 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::{BlendMode, Texture, TextureCreator};
 use sdl2::video::WindowContext;
 
+use crate::gameplay::assets::PICTURE_ARCHIVE;
+use crate::gameplay::assets::load_unit_sprite;
 use crate::gameplay::assets::rim::{RgbaImage, load_rim_rgba_entry};
-use crate::gameplay::assets::sprite::SpriteGroupAsset;
 use crate::gameplay::assets::tile::TileSet;
-use crate::gameplay::assets::{PICTURE_ARCHIVE, SPRITE_DIRECTORY};
 use crate::gameplay::model::{TerrainKind, UnitKind};
 use crate::gameplay::{GameplayError, asset_error, runtime_error};
 
@@ -37,10 +37,10 @@ const HILL_TILESET_INDEX: u8 = 9;
 const WATER_TILESET_INDEX: u8 = 10;
 /// Terrain tile number for forest.
 const FOREST_TILESET_INDEX: u8 = 22;
-/// Human settler sprite id/file.
-const SETTLER_SPRITE_FILE: &str = "GU02.SPR";
-/// Warrior sprite id/file used for non-settler ancient units.
-const WARRIOR_SPRITE_FILE: &str = "GU03.SPR";
+/// Human settler sprite id from `spriteID.txt`.
+const SETTLER_SPRITE_ID: u16 = 2;
+/// Warrior sprite id from `spriteID.txt`.
+const WARRIOR_SPRITE_ID: u16 = 3;
 
 /// Loaded original textures used by the renderer.
 pub(super) struct GameplayTextures<'texture> {
@@ -152,6 +152,7 @@ impl<'texture> GameplayTextures<'texture> {
             "upfg01.rim",
             "upfg03.rim",
             "upfg04.rim",
+            "upst01.rim",
             "upcb14u.rim",
             "upcb14d.rim",
             "upcb14h.rim",
@@ -172,12 +173,12 @@ impl<'texture> GameplayTextures<'texture> {
         installation_root: &Path,
         texture_creator: &'texture TextureCreator<WindowContext>,
     ) {
-        for (kind, file_name) in [
-            (UnitKind::Settler, SETTLER_SPRITE_FILE),
-            (UnitKind::Warrior, WARRIOR_SPRITE_FILE),
-            (UnitKind::Barbarian, WARRIOR_SPRITE_FILE),
+        for (kind, sprite_id) in [
+            (UnitKind::Settler, SETTLER_SPRITE_ID),
+            (UnitKind::Warrior, WARRIOR_SPRITE_ID),
+            (UnitKind::Barbarian, WARRIOR_SPRITE_ID),
         ] {
-            if let Ok(image) = load_unit_sprite_rgba(installation_root, file_name) {
+            if let Ok(image) = load_unit_sprite_rgba(installation_root, sprite_id) {
                 if let Ok(texture) = texture_from_rgba(texture_creator, &image) {
                     self.units.push((kind, texture));
                 }
@@ -222,21 +223,14 @@ fn load_ui_rgba(installation_root: &Path, entry_name: &str) -> Result<RgbaImage,
 /// Loads the first usable unit sprite frame as RGBA.
 fn load_unit_sprite_rgba(
     installation_root: &Path,
-    file_name: &str,
+    sprite_id: u16,
 ) -> Result<RgbaImage, GameplayError> {
-    let path = installation_root.join(SPRITE_DIRECTORY).join(file_name);
-    let bytes = std::fs::read(&path).map_err(|error| {
-        asset_error(format!(
-            "failed to read unit sprite {}: {error}",
-            path.display()
-        ))
-    })?;
-    let sprite = SpriteGroupAsset::parse(&bytes)?;
+    let sprite = load_unit_sprite(installation_root, sprite_id)?;
     let frame = sprite
         .actions
         .iter()
         .find_map(|action| action.frames.first())
-        .ok_or_else(|| asset_error(format!("unit sprite {} had no frames", path.display())))?;
+        .ok_or_else(|| asset_error(format!("unit sprite {sprite_id} had no frames")))?;
     Ok(RgbaImage {
         width: u32::from(frame.width),
         height: u32::from(frame.height),

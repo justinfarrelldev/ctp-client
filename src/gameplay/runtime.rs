@@ -20,7 +20,10 @@ use serde_json::{Value, json};
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind};
 use super::server::{ServerClient, ServerGameplaySession, ServerProjection};
-use super::ui_model::{InGameAction, InGameUiModel};
+use super::ui_model::{
+    CONTROL_PANEL_HEIGHT, END_TURN_BUTTON_HEIGHT, END_TURN_BUTTON_WIDTH, END_TURN_BUTTON_X,
+    END_TURN_BUTTON_Y, InGameAction, InGameUiModel, MENU_BAR_HEIGHT, MenuRect,
+};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
 /// Runtime frame delay.
@@ -29,6 +32,8 @@ const FRAME_DELAY: Duration = Duration::from_millis(16);
 pub(super) const DEFAULT_WINDOW_WIDTH: u32 = 1024;
 /// Default SDL window height.
 pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 768;
+/// Right-side panel width.
+pub(super) const SIDE_PANEL_WIDTH: u32 = 160;
 /// Candidate fonts used to draw gameplay labels over original-style chrome.
 const FONT_CANDIDATES: [&str; 8] = [
     "C:/Windows/Fonts/timesbd.ttf",
@@ -268,15 +273,7 @@ fn handle_event(
             x,
             y,
             ..
-        } => {
-            if let Some(point) = camera.screen_to_tile(x, y) {
-                let menu = InGameUiModel::context_menu_for(state, point);
-                if let Some(item) = menu.iter().find(|item| item.enabled) {
-                    return apply_ui_action(item.action, state, ui, camera, authority);
-                }
-            }
-            None
-        }
+        } => handle_right_click(x, y, state, ui, camera, authority),
         Event::MouseWheel { y, .. } => {
             match y.cmp(&0_i32) {
                 Ordering::Greater => camera.zoom_in(),
@@ -321,11 +318,43 @@ fn handle_left_click(
         }
         return None;
     }
+    if click_in_non_map_ui(x, y) {
+        return None;
+    }
     if let Some(point) = camera.screen_to_tile(x, y) {
         if let Some(active_authority) = authority {
             submit_authoritative_move(active_authority, state, point);
         } else {
             state.order_selected_to(point);
+        }
+    }
+    None
+}
+
+/// Handles a right click.
+fn handle_right_click(
+    x: i32,
+    y: i32,
+    state: &mut GameState,
+    ui: &mut InGameUiModel,
+    camera: &mut Camera,
+    authority: Option<&mut RuntimeAuthority>,
+) -> Option<GameplayOutcome> {
+    if !state.popups.is_empty() {
+        state.dismiss_popup();
+        return None;
+    }
+    if ui.open_menu.is_some() {
+        ui.open_menu = None;
+        return None;
+    }
+    if click_in_non_map_ui(x, y) {
+        return None;
+    }
+    if let Some(point) = camera.screen_to_tile(x, y) {
+        let menu = InGameUiModel::context_menu_for(state, point);
+        if let Some(item) = menu.iter().find(|item| item.enabled) {
+            return apply_ui_action(item.action, state, ui, camera, authority);
         }
     }
     None
@@ -499,9 +528,33 @@ fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> Str
         .map_or_else(String::new, |tile| tile.id.clone())
 }
 
+/// Returns the top edge of the bottom control panel.
+fn control_panel_top() -> i32 {
+    i32::try_from(DEFAULT_WINDOW_HEIGHT.saturating_sub(CONTROL_PANEL_HEIGHT))
+        .map_or(0_i32, |value| value)
+}
+
+/// Returns the original end-turn button rectangle in screen coordinates.
+fn end_turn_button_rect() -> MenuRect {
+    MenuRect {
+        x: END_TURN_BUTTON_X,
+        y: control_panel_top().saturating_add(END_TURN_BUTTON_Y),
+        width: END_TURN_BUTTON_WIDTH,
+        height: END_TURN_BUTTON_HEIGHT,
+    }
+}
+
 /// Returns whether a point hits the end-turn button.
-const fn click_in_end_turn_button(x: i32, y: i32) -> bool {
-    x >= 940_i32 && y >= 590_i32 && x < 1_010_i32 && y < 740_i32
+fn click_in_end_turn_button(x: i32, y: i32) -> bool {
+    end_turn_button_rect().contains(x, y)
+}
+
+/// Returns whether a point is inside non-map UI chrome.
+fn click_in_non_map_ui(x: i32, y: i32) -> bool {
+    let menu_height = i32::try_from(MENU_BAR_HEIGHT).map_or(0_i32, |height| height);
+    let side_panel_x = i32::try_from(DEFAULT_WINDOW_WIDTH.saturating_sub(SIDE_PANEL_WIDTH))
+        .map_or(i32::MAX, |value| value);
+    y < menu_height || y >= control_panel_top() || x >= side_panel_x
 }
 
 /// Returns whether a top-menu/dropdown click was consumed and any selected action.
@@ -576,180 +629,4 @@ fn restore_env_var(key: &str, value: Option<std::ffi::OsString>) {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use sdl2::event::Event;
-
-    use super::{
-        HeadlessSdlEnvironment, run_headless_smoke_for_test, run_sdl_game_on_existing_window,
-        top_menu_click_action,
-    };
-    use crate::gameplay::ui_model::{InGameAction, InGameUiModel, MenuCategory};
-    use crate::gameplay::{GameplayOutcome, SinglePlayerLaunchConfig};
-
-    #[test]
-    fn dropdown_hit_testing_preserves_disabled_row_indexes() {
-        let mut ui = InGameUiModel {
-            open_menu: Some(MenuCategory::Options),
-            ..InGameUiModel::default()
-        };
-        let save_row = ui
-            .dropdown_row_rect(MenuCategory::Options, 7)
-            .expect("Save Game row should be present");
-        let x = save_row.x.saturating_add(4);
-        let y = save_row.y.saturating_add(4);
-
-        let (consumed, action) = top_menu_click_action(x, y, &mut ui);
-
-        assert!(
-            consumed,
-            "disabled Save Game row should still consume the click"
-        );
-        assert_eq!(
-            action, None,
-            "disabled Save Game must not fall through to Restart/New Game because enabled rows were filtered"
-        );
-        assert_eq!(
-            ui.open_menu, None,
-            "selecting any row should close the menu"
-        );
-    }
-
-    #[test]
-    fn open_dropdown_consumes_outside_end_turn_click_without_action() {
-        let mut ui = InGameUiModel {
-            open_menu: Some(MenuCategory::Options),
-            ..InGameUiModel::default()
-        };
-
-        let (consumed, action) = top_menu_click_action(960, 648, &mut ui);
-
-        assert!(
-            consumed,
-            "a weakly-modal CTP2 dropdown should consume outside clicks instead of activating end-turn/terrain"
-        );
-        assert_eq!(
-            action, None,
-            "outside click should only cancel the dropdown"
-        );
-        assert_eq!(
-            ui.open_menu, None,
-            "outside click should close the dropdown"
-        );
-    }
-
-    #[test]
-    fn top_menu_buttons_open_original_categories() {
-        let mut ui = InGameUiModel::default();
-
-        let (consumed, action) = top_menu_click_action(405, 12, &mut ui);
-
-        assert!(
-            consumed,
-            "clicking the Options menu button should be consumed"
-        );
-        assert_eq!(action, None, "opening a menu should not fire a row action");
-        assert_eq!(
-            ui.open_menu,
-            Some(MenuCategory::Options),
-            "Options button should use original 80px LDL positioning"
-        );
-    }
-
-    #[test]
-    fn enabled_dropdown_row_returns_action_from_exact_row() {
-        let mut ui = InGameUiModel {
-            open_menu: Some(MenuCategory::Options),
-            ..InGameUiModel::default()
-        };
-        let quit_index = ui
-            .items_for(MenuCategory::Options)
-            .iter()
-            .position(|item| item.label == "Quit")
-            .expect("Quit row should be present");
-        let quit_row = ui
-            .dropdown_row_rect(MenuCategory::Options, quit_index)
-            .expect("Quit row should have a rectangle");
-
-        let (consumed, action) = top_menu_click_action(
-            quit_row.x.saturating_add(4),
-            quit_row.y.saturating_add(4),
-            &mut ui,
-        );
-
-        assert!(consumed, "enabled dropdown row should consume the click");
-        assert_eq!(
-            action,
-            Some(InGameAction::Quit),
-            "Quit row should return Quit"
-        );
-        assert_eq!(
-            ui.open_menu, None,
-            "row selection should close the dropdown"
-        );
-    }
-
-    #[test]
-    fn headless_gameplay_smoke_opens_and_closes() {
-        let outcome = run_headless_smoke_for_test(&SinglePlayerLaunchConfig {
-            installation_root: PathBuf::from("/tmp/ctp2"),
-            empire_count: 2,
-            leader_name: "Tester".to_owned(),
-            seed: 42,
-            server: crate::gameplay::server::ServerConfig::disabled_for_test(),
-        })
-        .expect("headless gameplay should run");
-
-        assert_eq!(outcome, GameplayOutcome::Closed);
-    }
-
-    #[test]
-    fn headless_gameplay_reuses_existing_sdl_window() {
-        let guard =
-            crate::sdl_test_lock::lock_sdl_for_test().expect("SDL test lock should be available");
-        let environment = HeadlessSdlEnvironment::apply();
-        {
-            let sdl = sdl2::init().expect("SDL should initialize with dummy driver");
-            let video = sdl.video().expect("video subsystem should initialize");
-            let window = video
-                .window("menu-owned", 800, 600)
-                .position_centered()
-                .build()
-                .expect("dummy window should be created");
-            let mut canvas = window
-                .into_canvas()
-                .software()
-                .build()
-                .expect("dummy canvas should be created");
-            let existing_window_id = canvas.window().id();
-            let events = sdl.event().expect("event subsystem should initialize");
-            events
-                .push_event(Event::Quit { timestamp: 0 })
-                .expect("quit event should be queued");
-            let mut event_pump = sdl.event_pump().expect("event pump should initialize");
-
-            let outcome = run_sdl_game_on_existing_window(
-                &SinglePlayerLaunchConfig {
-                    installation_root: PathBuf::from("/tmp/ctp2"),
-                    empire_count: 2,
-                    leader_name: "Tester".to_owned(),
-                    seed: 42,
-                    server: crate::gameplay::server::ServerConfig::disabled_for_test(),
-                },
-                &mut canvas,
-                &mut event_pump,
-            )
-            .expect("gameplay should run on a menu-owned window");
-
-            assert_eq!(outcome, GameplayOutcome::Closed);
-            assert_eq!(
-                canvas.window().id(),
-                existing_window_id,
-                "gameplay must reuse the menu-owned SDL window"
-            );
-        }
-        environment.restore();
-        drop(guard);
-    }
-}
+mod tests;

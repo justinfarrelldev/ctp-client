@@ -170,6 +170,12 @@ fn control_panel_art() -> Vec<GameplayAssetReference> {
             "controlpanel.ldl:532",
         ),
         art(
+            "Control panel status bar",
+            Some(PICTURE_ARCHIVE),
+            "upst01.rim",
+            "controlpanel.ldl:544",
+        ),
+        art(
             "End turn disabled",
             Some(PICTURE_ARCHIVE),
             "upcb14x.rim",
@@ -271,10 +277,12 @@ pub fn parse_sprite_id(database_text: &str, symbol: &str) -> Option<u16> {
 #[must_use]
 pub fn unit_sprite_candidates(sprite_id: u16) -> Vec<String> {
     vec![
-        format!("GU{sprite_id:03}.SPR"),
-        format!("GU{sprite_id:02}.SPR"),
         format!("Gu{sprite_id:03}.spr"),
+        format!("GU{sprite_id:03}.SPR"),
+        format!("gu{sprite_id:03}.spr"),
         format!("Gu{sprite_id:02}.spr"),
+        format!("GU{sprite_id:02}.SPR"),
+        format!("gu{sprite_id:02}.spr"),
     ]
 }
 
@@ -358,9 +366,14 @@ mod tests {
     }
 
     #[test]
-    fn unit_sprite_candidates_match_original_loader_names() {
+    fn unit_sprite_candidates_prefer_ctp2_three_digit_mixed_case_names() {
         let candidates = unit_sprite_candidates(2);
 
+        assert_eq!(
+            candidates.first(),
+            Some(&"Gu002.spr".to_owned()),
+            "CTP2 installs include Gu002.spr; it must be preferred over legacy GU02.SPR"
+        );
         assert!(candidates.contains(&"GU002.SPR".to_owned()));
         assert!(candidates.contains(&"GU02.SPR".to_owned()));
     }

@@ -112,3 +112,61 @@ impl Camera {
         self.zoom = self.zoom.saturating_sub(1_i32).max(1_i32);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Camera, TILE_HEIGHT, TILE_STEP_X, TILE_STEP_Y, TILE_WIDTH};
+    use crate::gameplay::assets::tile::{
+        TILE_GRID_HEIGHT, TILE_PIXEL_HEADROOM, TILE_PIXEL_HEIGHT, TILE_PIXEL_WIDTH,
+    };
+    use crate::gameplay::model::GameState;
+
+    #[test]
+    fn tile_constants_match_ctp2_source_dimensions() {
+        assert_eq!(
+            TILE_WIDTH,
+            i32::from(TILE_PIXEL_WIDTH),
+            "tile width should match tileset.h"
+        );
+        assert_eq!(
+            TILE_HEIGHT,
+            i32::from(TILE_GRID_HEIGHT),
+            "tile grid height should include original headroom"
+        );
+        assert_eq!(
+            TILE_STEP_X,
+            i32::from(TILE_PIXEL_WIDTH)
+                .checked_div(2_i32)
+                .unwrap_or(0_i32),
+            "horizontal step should be half the original tile width"
+        );
+        assert_eq!(
+            TILE_STEP_Y,
+            i32::from(TILE_PIXEL_HEIGHT)
+                .checked_div(2_i32)
+                .unwrap_or(0_i32),
+            "vertical step should be half the original terrain diamond height"
+        );
+        assert_eq!(
+            TILE_PIXEL_HEADROOM, 24_u16,
+            "source headroom should remain 24px"
+        );
+    }
+
+    #[test]
+    fn camera_round_trips_tile_top_left_at_native_zoom() {
+        let state = GameState::new(24, 18, 1, 88);
+        let selected = state
+            .selected_unit()
+            .expect("selected unit should exist")
+            .position;
+        let camera = Camera::centered_on_selected(&state);
+        let (screen_x, screen_y) = camera.tile_to_screen(selected);
+
+        assert_eq!(
+            camera.screen_to_tile(screen_x, screen_y),
+            Some(selected),
+            "tile conversion should round-trip original 47x24 grid coordinates"
+        );
+    }
+}
