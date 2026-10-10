@@ -243,7 +243,7 @@ fn draw_units(
                 .map_err(runtime_error)?;
         }
         if Some(unit.id) == input.active_unit() {
-            draw_tile_diamond(canvas, camera, screen_x, screen_y, Color::RGB(32, 255, 64))?;
+            movement::draw_movement_diamond(canvas, camera, screen_x, screen_y)?;
         }
     }
     Ok(())

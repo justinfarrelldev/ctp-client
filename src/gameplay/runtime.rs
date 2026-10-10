@@ -168,6 +168,7 @@ fn run_sdl_game_on_canvas(
     event_pump: &mut EventPump,
     frame_limit: Option<u32>,
 ) -> Result<GameplayOutcome, GameplayError> {
+    configure_gameplay_canvas(canvas)?;
     let texture_creator = canvas.texture_creator();
     let textures = textures::GameplayTextures::load(
         &config.installation_root,
@@ -242,6 +243,14 @@ fn run_sdl_game_on_canvas(
     }
 
     Ok(outcome.unwrap_or(GameplayOutcome::Closed))
+}
+
+/// Configures gameplay to render into the original 1024x768 coordinate space.
+fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
+    canvas.set_viewport(None);
+    canvas
+        .set_logical_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        .map_err(|error| runtime_error(error.to_string()))
 }
 
 /// Handles one SDL event.

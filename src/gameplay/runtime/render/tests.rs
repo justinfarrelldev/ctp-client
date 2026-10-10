@@ -4,7 +4,7 @@ use sdl2::pixels::Color;
 
 use super::{
     DROPDOWN_DISABLED_TEXT_COLOR, DROPDOWN_ENABLED_TEXT_COLOR, TILE_HEIGHT, TILE_WIDTH,
-    TOP_MENU_TEXT_COLOR, unit_target_rect_from_size,
+    TOP_MENU_TEXT_COLOR, movement, unit_target_rect_from_size,
 };
 
 #[test]
@@ -21,6 +21,25 @@ fn unit_sprite_rect_is_centered_and_bottom_anchored_on_tile() {
             .saturating_add(i32::try_from(rect.height()).unwrap_or(0_i32)),
         200_i32 + TILE_HEIGHT,
         "unit sprite feet should anchor to the bottom of the tile grid"
+    );
+}
+
+#[test]
+fn movement_feedback_uses_thick_green_geometry() {
+    let offsets = movement::movement_feedback_stroke_offsets();
+    let marker = movement::planned_path_marker_rect(100, 200);
+
+    assert!(
+        offsets.len() >= 3,
+        "active-unit reticles should use multiple strokes so they remain visible after viewport scaling"
+    );
+    assert!(
+        offsets.contains(&-1) && offsets.contains(&0) && offsets.contains(&1),
+        "reticle strokes should cover the center line and neighboring pixels"
+    );
+    assert!(
+        marker.width() >= 12 && marker.height() >= 12,
+        "drag path markers should be larger than the old barely-visible 8px square"
     );
 }
 

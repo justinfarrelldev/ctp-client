@@ -718,7 +718,7 @@ fn headless_gameplay_smoke_opens_and_closes() {
 }
 
 #[test]
-fn headless_gameplay_reuses_existing_sdl_window() {
+fn headless_gameplay_reuses_existing_sdl_window_and_scales_to_viewport() {
     let guard =
         crate::sdl_test_lock::lock_sdl_for_test().expect("SDL test lock should be available");
     let environment = HeadlessSdlEnvironment::apply();
@@ -726,7 +726,7 @@ fn headless_gameplay_reuses_existing_sdl_window() {
         let sdl = sdl2::init().expect("SDL should initialize with dummy driver");
         let video = sdl.video().expect("video subsystem should initialize");
         let window = video
-            .window("menu-owned", 800, 600)
+            .window("menu-owned", 1280, 720)
             .position_centered()
             .build()
             .expect("dummy window should be created");
@@ -760,6 +760,11 @@ fn headless_gameplay_reuses_existing_sdl_window() {
             canvas.window().id(),
             existing_window_id,
             "gameplay must reuse the menu-owned SDL window"
+        );
+        assert_eq!(
+            canvas.logical_size(),
+            (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
+            "gameplay should render into a scaled 1024x768 logical viewport instead of the physical top-left corner"
         );
     }
     environment.restore();
