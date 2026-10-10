@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind};
 use super::server::{ServerClient, ServerGameplaySession, ServerProjection};
-use super::ui_model::{InGameAction, InGameUiModel, MENU_BAR_HEIGHT};
+use super::ui_model::{InGameAction, InGameUiModel};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
 /// Runtime frame delay.
@@ -302,6 +302,15 @@ fn handle_left_click(
         state.dismiss_popup();
         return None;
     }
+    if ui.open_menu.is_some() {
+        let (menu_consumed, menu_action) = top_menu_click_action(x, y, ui);
+        if menu_consumed {
+            if let Some(action) = menu_action {
+                return apply_ui_action(action, state, ui, camera, authority);
+            }
+            return None;
+        }
+    }
     if click_in_end_turn_button(x, y) {
         return apply_ui_action(InGameAction::EndTurn, state, ui, camera, authority);
     }
@@ -497,38 +506,16 @@ const fn click_in_end_turn_button(x: i32, y: i32) -> bool {
 
 /// Returns whether a top-menu/dropdown click was consumed and any selected action.
 fn top_menu_click_action(x: i32, y: i32, ui: &mut InGameUiModel) -> (bool, Option<InGameAction>) {
-    let menu_height = i32::try_from(MENU_BAR_HEIGHT).map_or(0_i32, |height| height);
-    if y >= 0_i32 && y < menu_height {
-        if let Some(category) = ui
-            .menu_buttons
-            .iter()
-            .find(|button| {
-                x >= button.x
-                    && x < button
-                        .x
-                        .saturating_add(i32::try_from(button.width).map_or(0_i32, |width| width))
-            })
-            .map(|button| button.category)
-        {
-            ui.open_menu = Some(category);
-            return (true, None);
-        }
+    if let Some(category) = ui.menu_button_at(x, y) {
+        ui.open_menu = Some(category);
+        return (true, None);
     }
     let Some(category) = ui.open_menu else {
         return (false, None);
     };
-    if y < menu_height || !(0_i32..260_i32).contains(&x) {
-        ui.open_menu = None;
-        return (false, None);
-    }
-    let row = usize::try_from((y.saturating_sub(menu_height)).saturating_div(18)).ok();
-    let action = row.and_then(|index| {
-        ui.items_for(category)
-            .into_iter()
-            .filter(|item| item.enabled)
-            .nth(index)
-            .map(|item| item.action)
-    });
+    let action = ui
+        .dropdown_item_at(category, x, y)
+        .and_then(|item| item.enabled.then_some(item.action));
     ui.open_menu = None;
     (true, action)
 }
@@ -596,8 +583,112 @@ mod tests {
 
     use super::{
         HeadlessSdlEnvironment, run_headless_smoke_for_test, run_sdl_game_on_existing_window,
+        top_menu_click_action,
     };
+    use crate::gameplay::ui_model::{InGameAction, InGameUiModel, MenuCategory};
     use crate::gameplay::{GameplayOutcome, SinglePlayerLaunchConfig};
+
+    #[test]
+    fn dropdown_hit_testing_preserves_disabled_row_indexes() {
+        let mut ui = InGameUiModel {
+            open_menu: Some(MenuCategory::Options),
+            ..InGameUiModel::default()
+        };
+        let save_row = ui
+            .dropdown_row_rect(MenuCategory::Options, 7)
+            .expect("Save Game row should be present");
+        let x = save_row.x.saturating_add(4);
+        let y = save_row.y.saturating_add(4);
+
+        let (consumed, action) = top_menu_click_action(x, y, &mut ui);
+
+        assert!(
+            consumed,
+            "disabled Save Game row should still consume the click"
+        );
+        assert_eq!(
+            action, None,
+            "disabled Save Game must not fall through to Restart/New Game because enabled rows were filtered"
+        );
+        assert_eq!(
+            ui.open_menu, None,
+            "selecting any row should close the menu"
+        );
+    }
+
+    #[test]
+    fn open_dropdown_consumes_outside_end_turn_click_without_action() {
+        let mut ui = InGameUiModel {
+            open_menu: Some(MenuCategory::Options),
+            ..InGameUiModel::default()
+        };
+
+        let (consumed, action) = top_menu_click_action(960, 648, &mut ui);
+
+        assert!(
+            consumed,
+            "a weakly-modal CTP2 dropdown should consume outside clicks instead of activating end-turn/terrain"
+        );
+        assert_eq!(
+            action, None,
+            "outside click should only cancel the dropdown"
+        );
+        assert_eq!(
+            ui.open_menu, None,
+            "outside click should close the dropdown"
+        );
+    }
+
+    #[test]
+    fn top_menu_buttons_open_original_categories() {
+        let mut ui = InGameUiModel::default();
+
+        let (consumed, action) = top_menu_click_action(405, 12, &mut ui);
+
+        assert!(
+            consumed,
+            "clicking the Options menu button should be consumed"
+        );
+        assert_eq!(action, None, "opening a menu should not fire a row action");
+        assert_eq!(
+            ui.open_menu,
+            Some(MenuCategory::Options),
+            "Options button should use original 80px LDL positioning"
+        );
+    }
+
+    #[test]
+    fn enabled_dropdown_row_returns_action_from_exact_row() {
+        let mut ui = InGameUiModel {
+            open_menu: Some(MenuCategory::Options),
+            ..InGameUiModel::default()
+        };
+        let quit_index = ui
+            .items_for(MenuCategory::Options)
+            .iter()
+            .position(|item| item.label == "Quit")
+            .expect("Quit row should be present");
+        let quit_row = ui
+            .dropdown_row_rect(MenuCategory::Options, quit_index)
+            .expect("Quit row should have a rectangle");
+
+        let (consumed, action) = top_menu_click_action(
+            quit_row.x.saturating_add(4),
+            quit_row.y.saturating_add(4),
+            &mut ui,
+        );
+
+        assert!(consumed, "enabled dropdown row should consume the click");
+        assert_eq!(
+            action,
+            Some(InGameAction::Quit),
+            "Quit row should return Quit"
+        );
+        assert_eq!(
+            ui.open_menu, None,
+            "row selection should close the dropdown"
+        );
+    }
 
     #[test]
     fn headless_gameplay_smoke_opens_and_closes() {

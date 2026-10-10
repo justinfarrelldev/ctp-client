@@ -80,6 +80,36 @@ fn top_menu_art() -> Vec<GameplayAssetReference> {
             "controlpanel.ldl:2135",
         ),
         art(
+            "Menu button",
+            Some(PICTURE_ARCHIVE),
+            "uptbtest.rim",
+            "controlpanel.ldl:2125",
+        ),
+        art(
+            "Dropdown item background",
+            Some(PICTURE_ARCHIVE),
+            "uptg01e.rim",
+            "ctp_template.ldl:1013",
+        ),
+        art(
+            "Dropdown left frame",
+            Some(PICTURE_ARCHIVE),
+            "uptg05a.rim",
+            "ctp_template.ldl:1004",
+        ),
+        art(
+            "Dropdown center frame",
+            Some(PICTURE_ARCHIVE),
+            "uptg05b.rim",
+            "ctp_template.ldl:1008",
+        ),
+        art(
+            "Dropdown right frame",
+            Some(PICTURE_ARCHIVE),
+            "uptg05c.rim",
+            "ctp_template.ldl:1011",
+        ),
+        art(
             "Menu resource counter left",
             Some(PICTURE_ARCHIVE),
             "uptb02.rim",
@@ -297,6 +327,13 @@ mod tests {
                 .iter()
                 .any(|asset| asset.entry_name == "uptb00.rim"),
             "top menu bar art should be tracked"
+        );
+        assert!(
+            manifest
+                .art
+                .iter()
+                .any(|asset| asset.entry_name == "uptg05a.rim"),
+            "original CTP2 dropdown frame art should be tracked"
         );
         assert!(
             manifest

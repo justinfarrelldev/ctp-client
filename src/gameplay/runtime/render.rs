@@ -30,6 +30,9 @@ use super::textures::GameplayTextures;
 use super::view::{Camera, TILE_HEIGHT, TILE_WIDTH};
 use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH};
 
+/// CTP2 chrome drawing helpers.
+mod chrome;
+
 /// Right-side panel width.
 const SIDE_PANEL_WIDTH: u32 = 160;
 
@@ -276,63 +279,68 @@ fn draw_top_menu(
             .map_err(runtime_error)?;
     }
     for button in &ui.menu_buttons {
-        canvas.set_draw_color(Color::RGBA(20, 20, 24, 80));
-        canvas.set_blend_mode(BlendMode::Blend);
-        canvas
-            .fill_rect(Rect::new(
-                button.x,
-                2,
-                button.width,
-                MENU_BAR_HEIGHT.saturating_sub(4),
-            ))
-            .map_err(runtime_error)?;
-        canvas.set_blend_mode(BlendMode::None);
-        draw_text(
+        if let Some(texture) = textures.ui_texture("uptbtest.rim") {
+            canvas
+                .copy(
+                    texture,
+                    None,
+                    Rect::new(button.x, 0, button.width, MENU_BAR_HEIGHT),
+                )
+                .map_err(runtime_error)?;
+        } else {
+            canvas.set_draw_color(Color::RGB(126, 113, 81));
+            canvas
+                .fill_rect(Rect::new(button.x, 0, button.width, MENU_BAR_HEIGHT))
+                .map_err(runtime_error)?;
+            canvas.set_draw_color(Color::RGB(64, 52, 38));
+            canvas
+                .draw_rect(Rect::new(button.x, 0, button.width, MENU_BAR_HEIGHT))
+                .map_err(runtime_error)?;
+        }
+        if ui.open_menu == Some(button.category) {
+            canvas.set_blend_mode(BlendMode::Blend);
+            canvas.set_draw_color(Color::RGBA(40, 30, 12, 60));
+            canvas
+                .fill_rect(Rect::new(button.x, 0, button.width, MENU_BAR_HEIGHT))
+                .map_err(runtime_error)?;
+            canvas.set_blend_mode(BlendMode::None);
+        }
+        draw_shadowed_text(
             canvas,
             font,
             button.label,
-            button.x.saturating_add(6),
+            button.x.saturating_add(8),
             5,
-            Color::RGB(230, 224, 190),
+            Color::RGB(60, 60, 40),
         )?;
     }
     if let Some(category) = ui.open_menu {
-        canvas.set_draw_color(Color::RGB(43, 43, 48));
-        let rows = ui.items_for(category);
-        let height = u32::try_from(rows.len()).map_or(0, |count| count.saturating_mul(18));
-        let menu_y = i32::try_from(MENU_BAR_HEIGHT).map_or(24, |value| value);
-        canvas
-            .fill_rect(Rect::new(0, menu_y, 260, height))
-            .map_err(runtime_error)?;
-        canvas.set_draw_color(Color::RGB(110, 96, 55));
-        canvas
-            .draw_rect(Rect::new(0, menu_y, 260, height))
-            .map_err(runtime_error)?;
-        for (index, item) in rows.iter().enumerate() {
-            let row_y = menu_y
-                .saturating_add(i32::try_from(index).map_or(0, |value| value.saturating_mul(18)));
-            let text_color = if item.enabled {
-                Color::RGB(235, 230, 205)
-            } else {
-                Color::RGB(125, 120, 112)
-            };
-            draw_text(
+        if let Some(rect) = ui.dropdown_rect(category) {
+            chrome::draw_dropdown_chrome(
                 canvas,
-                font,
-                item.label,
-                8,
-                row_y.saturating_add(2),
-                text_color,
+                textures,
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
             )?;
-            if !item.shortcut.is_empty() {
-                draw_text(
-                    canvas,
-                    font,
-                    item.shortcut,
-                    188,
-                    row_y.saturating_add(2),
-                    text_color,
-                )?;
+            let shortcut_x = ui
+                .dropdown_shortcut_x(category)
+                .unwrap_or_else(|| rect.x.saturating_add(90));
+            for (index, item) in ui.items_for(category).iter().enumerate() {
+                if let Some(row) = ui.dropdown_row_rect(category, index) {
+                    let text_color = if item.enabled {
+                        Color::RGB(50, 50, 50)
+                    } else {
+                        Color::RGB(126, 118, 108)
+                    };
+                    let text_x = row.x.saturating_add(7);
+                    let text_y = row.y.saturating_add(1);
+                    draw_text(canvas, font, item.label, text_x, text_y, text_color)?;
+                    if !item.shortcut.is_empty() {
+                        draw_text(canvas, font, item.shortcut, shortcut_x, text_y, text_color)?;
+                    }
+                }
             }
         }
     }
@@ -590,6 +598,26 @@ fn draw_popups(
         )?;
     }
     Ok(())
+}
+
+/// Draws original-style CTP2 title text with a faint gold shadow.
+fn draw_shadowed_text(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    text: &str,
+    x: i32,
+    y: i32,
+    color: Color,
+) -> Result<(), GameplayError> {
+    draw_text(
+        canvas,
+        font,
+        text,
+        x.saturating_add(1),
+        y.saturating_add(1),
+        Color::RGB(200, 200, 100),
+    )?;
+    draw_text(canvas, font, text, x, y, color)
 }
 
 /// Draws text when a system font is available.

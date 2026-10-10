@@ -138,8 +138,13 @@ impl<'texture> GameplayTextures<'texture> {
     ) {
         for name in [
             "uptb00.rim",
+            "uptbtest.rim",
             "uptb02.rim",
             "uptb03.rim",
+            "uptg01e.rim",
+            "uptg05a.rim",
+            "uptg05b.rim",
+            "uptg05c.rim",
             "upic34.rim",
             "upic33.rim",
             "upic35.rim",

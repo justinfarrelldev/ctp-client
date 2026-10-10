@@ -4,12 +4,6 @@
     reason = "Gameplay coordinate and movement math is bounded by small map dimensions and checked where it can cross storage boundaries"
 )]
 extern crate alloc;
-use alloc::format;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-use core::cmp::Ordering;
-use crate::gameplay::audio::GameplaySound;
-use crate::gameplay::server::ServerProjection;
 use super::generation::{
     direction_delta, generated_contacts, generated_tiles, lcg_next, new_unit, next_id_from_len,
     owners_are_enemies, ruin_outcome, seeded_edge_point, start_popup, step_toward,
@@ -21,6 +15,12 @@ use super::{
     PopupKind, REACHABLE_LABEL_RADIUS, ReachableTileLabel, RuinOutcome, TileFeature, Unit, UnitId,
     UnitKind, UnitOrder,
 };
+use crate::gameplay::audio::GameplaySound;
+use crate::gameplay::server::ServerProjection;
+use alloc::format;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 impl GameState {
     /// Creates a deterministic game ready for the first render after Launch.
     #[must_use]
