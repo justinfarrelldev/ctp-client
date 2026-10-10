@@ -1,18 +1,15 @@
 //! Game-state actions, turn processing, fog, combat, and generation helpers.
-
 #![expect(
     clippy::arithmetic_side_effects,
     reason = "Gameplay coordinate and movement math is bounded by small map dimensions and checked where it can cross storage boundaries"
 )]
 extern crate alloc;
-
 use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-
 use crate::gameplay::audio::GameplaySound;
-
+use crate::gameplay::server::ServerProjection;
 use super::generation::{
     direction_delta, generated_contacts, generated_tiles, lcg_next, new_unit, next_id_from_len,
     owners_are_enemies, ruin_outcome, seeded_edge_point, start_popup, step_toward,
@@ -24,7 +21,6 @@ use super::{
     PopupKind, REACHABLE_LABEL_RADIUS, ReachableTileLabel, RuinOutcome, TileFeature, Unit, UnitId,
     UnitKind, UnitOrder,
 };
-
 impl GameState {
     /// Creates a deterministic game ready for the first render after Launch.
     #[must_use]
@@ -51,6 +47,17 @@ impl GameState {
         state.refresh_fog();
         state.selected_unit = state.first_human_unit_id();
         state
+    }
+
+    /// Creates a renderable state from an authoritative server projection.
+    #[must_use]
+    pub fn from_server_projection(p: &ServerProjection, empire_count: u8, seed: u64) -> Self {
+        super::server_projection::game_state_from_server_projection(p, empire_count, seed)
+    }
+
+    /// Queues a popup confirming server authority for this game.
+    pub fn queue_server_connected_popup(&mut self, game_id: i64) {
+        super::server_projection::queue_server_connected_popup(self, game_id);
     }
 
     /// Returns the number of non-barbarian empires, including the human empire.

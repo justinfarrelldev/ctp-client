@@ -412,6 +412,8 @@ pub struct GameState {
 mod actions;
 /// Deterministic world generation and movement helper functions.
 mod generation;
+/// Server projection conversion helpers.
+mod server_projection;
 
 #[cfg(test)]
 mod tests;

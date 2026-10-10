@@ -12,7 +12,7 @@ Branch: `singleplayer-in-game`
 
 - [x] Main in-game import root: `ctp2_data/english/uidata/layouts/civ3.ldl` imports the gameplay windows.
 - [x] Control panel: `controlpanel.ldl` defines `ControlPanelWindow`, `TurnButton`, `ShortcutPad`, tab panels, `ContextMenuItem`, `MainMenu`, resource counters, message panel, and tile-improvement panel.
-- [x] Main menu bar: `controlpanel.ldl` `MainMenu:CTP2_MENUBAR` uses pattern `UPtb00.TGA`; buttons are Civ/Cities/Units/Diplomacy/Info/Options; counters use `uptb02.tga`, `uptb03.tga`, icons `upic33.tga`-`upic36.tga`.
+- [x] Main menu bar: `controlpanel.ldl` `MainMenu:CTP2_MENUBAR` uses pattern `uptb00.rim` from picture ZFS archives in this install; buttons are Civ/Cities/Units/Diplomacy/Info/Options; counters use `uptb02.rim`, `uptb03.rim`, icons `upic33.rim`-`upic36.rim`.
 - [x] Menu construction/callbacks: `ctp2_source/ctp2_code/ui/interface/controlpanelwindow.cpp` `BuildMainMenu`, `Build*Menu`, and `*MenuCallback` provide all rows and actions.
 - [x] Menu item templates: `ctp_template.ldl` `PlainMenuListItem`/`IconMenuListItem` define text and shortcut columns.
 - [x] Keyboard shortcuts: `ctp2_data/default/uidata/keymap.txt` maps movement, settle, end turn, Great Library, New Game, Quit, map filters, zoom, and screen shortcuts.
@@ -73,21 +73,21 @@ Branch: `singleplayer-in-game`
 
 ### Asset loading/rendering/audio
 
-- [x] Add SPR loader based on original `SpriteFile` code: header, v1/v2 offsets, LZW1 decompression, normal/faced sprite frames, animation metadata, hot points, shield points, and RGBA conversion with chroma transparency.
-- [x] Load settler/warrior/barbarian sprites from `SPRITE_*` IDs and support lazy full loading for every unit sprite.
-- [ ] Load original UI art from `pic565.zfs`/loose TGA where available; never copy assets into repo. (Manifest references are implemented; full texture rendering remains follow-up.)
-- [x] Render terrain/isometric map graphically with fog/explored states, ruins, units, cities, empires, labels, and movement overlays.
-- [x] Render control panel, top menu bar/dropdowns, context menu, end-turn button, city build menu, government tab, minimap, map filters, Great Library, and startup popup.
+- [x] Add SPR loader based on original `SpriteFile` code: header, v1/v2 offsets, LZW1 decompression/copy path, encoded normal/faced sprite frames, animation metadata, hot points, shield points, and RGBA conversion with chroma transparency.
+- [x] Load settler/warrior/barbarian sprites from original `GU*.SPR` files and render first decoded frames; full facing/animation advancement remains follow-up.
+- [x] Load original UI art from `pic565.zfs`/`pic555.zfs` RIM entries where available; never copy assets into repo.
+- [x] Render terrain/isometric map from decoded `gtset565.til` base tiles with fog/explored states, ruins, units, cities, empires, labels, and movement overlays.
+- [x] Render control panel, top menu bar/dropdowns, end-turn button, minimap, Great Library/startup popups with original RIM-backed art where decoded; remaining city/goods/improvement sprites remain follow-up.
 - [x] Add sound-effect lookup/loading from `sounds.txt` + `sound.zfs`, including UI click, end turn, movement, settle, combat/death, ruin, popup/Great Library.
-- [x] Ensure missing assets degrade gracefully with placeholders and warnings rather than panics.
+- [x] Ensure tests/headless mode degrades gracefully without assets, while interactive launch requires original terrain/control-panel assets.
 
 ### Verification
 
-- [x] Unit tests: no real file mutation; use mock asset bytes or temp read-only inputs.
+- [x] Unit tests: no real file mutation; use mock asset bytes, in-process fake HTTP servers, or read-only optional local CTP2 asset inputs.
 - [x] Runtime smoke: headless SDL opens gameplay and exits deterministically.
 - [x] Lint: `cargo make lint-fix`, then `cargo make lint`.
 - [x] Tests: `cargo make test`.
 - [ ] Coverage: `./scripts/check-coverage-fast.sh` (script is absent in this checkout; command returned `No such file or directory`).
-- [x] Build: dedicated build step (`cargo build` passed; `cargo make build-all` still requires cross-target pkg-config/sysroot setup for i686 GTK dependencies).
+- [x] Build: dedicated build step (`cargo build`; `cargo make build-all` still requires cross-target pkg-config/sysroot setup for i686 GTK dependencies).
 - [x] Final review for asset copyright, security, performance, Windows paths.
-- [x] Commit all changes normally, no `--no-verify`.
+- [ ] Commit all changes normally, no `--no-verify`.

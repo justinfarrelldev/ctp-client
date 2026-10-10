@@ -1,0 +1,195 @@
+//! Conversion from authoritative server visibility projections into render state.
+
+extern crate alloc;
+
+use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::vec;
+use alloc::vec::Vec;
+
+use crate::gameplay::server::ServerProjection;
+
+use super::generation::{generated_contacts, generated_tiles, new_unit, start_popup};
+use super::{
+    City, CityId, FogState, GameState, GameplayPopup, MIN_WORLD_HEIGHT, MIN_WORLD_WIDTH,
+    MapFilters, MapPoint, PlayerId, PopupKind, TerrainKind, UnitId, UnitKind,
+};
+
+/// Converts an authoritative server terrain id into a render terrain family.
+fn terrain_from_server_id(terrain: &str) -> TerrainKind {
+    let lowered = terrain.to_ascii_lowercase();
+    if lowered.contains("water") || lowered.contains("shelf") || lowered.contains("ocean") {
+        TerrainKind::Water
+    } else if lowered.contains("forest") || lowered.contains("jungle") {
+        TerrainKind::Forest
+    } else if lowered.contains("hill") {
+        TerrainKind::Hills
+    } else if lowered.contains("mountain") || lowered.contains("volcano") {
+        TerrainKind::Mountain
+    } else if lowered.contains("desert") {
+        TerrainKind::Desert
+    } else if lowered.contains("swamp") {
+        TerrainKind::Swamp
+    } else if lowered.contains("grass") {
+        TerrainKind::Grassland
+    } else {
+        TerrainKind::Plains
+    }
+}
+
+/// Converts an authoritative server unit id into a render unit family.
+fn unit_kind_from_server_id(unit_type: &str) -> UnitKind {
+    let lowered = unit_type.to_ascii_lowercase();
+    if lowered.contains("settler") {
+        UnitKind::Settler
+    } else if lowered.contains("barbarian") {
+        UnitKind::Barbarian
+    } else {
+        UnitKind::Warrior
+    }
+}
+
+/// Converts an authoritative server owner id into a local render owner.
+fn player_id_from_server_owner(owner_id: &str) -> PlayerId {
+    let lowered = owner_id.to_ascii_lowercase();
+    if lowered.contains("barbarian") {
+        PlayerId::Barbarians
+    } else if lowered.ends_with('1') || lowered.contains("human") || lowered.contains("player-1") {
+        PlayerId::Human
+    } else {
+        PlayerId::Empire(1)
+    }
+}
+
+/// Creates a renderable state from an authoritative server projection.
+#[must_use]
+pub(in crate::gameplay::model) fn game_state_from_server_projection(
+    projection: &ServerProjection,
+    empire_count: u8,
+    seed: u64,
+) -> GameState {
+    if projection.tiles.is_empty() {
+        return GameState::new(64, 48, empire_count, seed);
+    }
+    let width = projection
+        .tiles
+        .iter()
+        .map(|tile| tile.x)
+        .max()
+        .map_or(MIN_WORLD_WIDTH, |value| {
+            value.saturating_add(1).max(MIN_WORLD_WIDTH)
+        });
+    let height = projection
+        .tiles
+        .iter()
+        .map(|tile| tile.y)
+        .max()
+        .map_or(MIN_WORLD_HEIGHT, |value| {
+            value.saturating_add(1).max(MIN_WORLD_HEIGHT)
+        });
+    let mut tiles = generated_tiles(width, height, seed);
+    for server_tile in &projection.tiles {
+        let point = MapPoint::new(server_tile.x, server_tile.y);
+        if let Some(index) = tile_index_for_dimensions(width, point) {
+            if let Some(tile) = tiles.get_mut(index) {
+                tile.terrain = terrain_from_server_id(&server_tile.terrain);
+                tile.fog = if server_tile.stale {
+                    FogState::Explored
+                } else {
+                    FogState::Visible
+                };
+                tile.feature = None;
+            }
+        }
+    }
+    let contacts = generated_contacts(empire_count);
+    let tile_lookup = projection
+        .tiles
+        .iter()
+        .map(|tile| (tile.id.clone(), MapPoint::new(tile.x, tile.y)))
+        .collect::<BTreeMap<_, _>>();
+    let units = projection
+        .units
+        .iter()
+        .filter_map(|unit| {
+            let position = *tile_lookup.get(&unit.tile_id)?;
+            let mut converted = new_unit(
+                UnitId(stable_id_from_text(&unit.id)),
+                unit_kind_from_server_id(&unit.type_id),
+                player_id_from_server_owner(&unit.owner_id),
+                position,
+            );
+            converted.movement_points = unit.movement;
+            converted.max_movement_points = unit.max_movement.max(unit.movement);
+            Some(converted)
+        })
+        .collect::<Vec<_>>();
+    let cities = projection
+        .cities
+        .iter()
+        .filter_map(|city| {
+            Some(City {
+                id: CityId(stable_id_from_text(&city.id)),
+                owner: player_id_from_server_owner(&city.owner_id),
+                position: *tile_lookup.get(&city.tile_id)?,
+                name: city.id.clone(),
+                build_item: "Warrior".to_owned(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let selected_unit = units
+        .iter()
+        .find(|unit| unit.owner == PlayerId::Human && unit.alive)
+        .map(|unit| unit.id);
+    GameState {
+        width,
+        height,
+        tiles,
+        units,
+        cities,
+        contacts,
+        turn: projection.turn.max(1),
+        gold: projection
+            .diplomacy
+            .as_ref()
+            .map_or(0, |diplomacy| diplomacy.gold),
+        public_works: projection
+            .diplomacy
+            .as_ref()
+            .map_or(0, |diplomacy| diplomacy.public_works),
+        selected_unit,
+        popups: vec![start_popup()],
+        filters: MapFilters::default(),
+        seed,
+        city_build_menu: None,
+    }
+}
+
+/// Queues a popup confirming server authority for this game.
+pub(in crate::gameplay::model) fn queue_server_connected_popup(
+    state: &mut GameState,
+    game_id: i64,
+) {
+    state.popups.push(GameplayPopup {
+        title: "Authoritative Server Connected".to_owned(),
+        body: format!("Open CTP server game #{game_id} is the command authority for this session."),
+        kind: PopupKind::GameStart,
+    });
+}
+
+/// Returns row-major tile index for arbitrary dimensions.
+fn tile_index_for_dimensions(width: u16, point: MapPoint) -> Option<usize> {
+    usize::from(point.y)
+        .checked_mul(usize::from(width))?
+        .checked_add(usize::from(point.x))
+}
+
+/// Builds a stable numeric id from a server string id.
+fn stable_id_from_text(text: &str) -> u32 {
+    let mut hash = 2_166_136_261_u32;
+    for byte in text.bytes() {
+        hash ^= u32::from(byte);
+        hash = hash.wrapping_mul(16_777_619_u32);
+    }
+    hash.max(1)
+}

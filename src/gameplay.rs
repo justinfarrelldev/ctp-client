@@ -22,6 +22,8 @@ pub mod audio;
 pub mod model;
 /// SDL renderer/event loop for the in-game state.
 pub mod runtime;
+/// Authoritative Open CTP server HTTP client.
+pub mod server;
 /// Testable in-game menu/control-panel model.
 pub mod ui_model;
 
@@ -89,6 +91,8 @@ pub struct SinglePlayerLaunchConfig {
     pub leader_name: String,
     /// Deterministic world seed.
     pub seed: u64,
+    /// Authoritative server connection settings.
+    pub server: server::ServerConfig,
 }
 
 impl SinglePlayerLaunchConfig {
@@ -100,6 +104,7 @@ impl SinglePlayerLaunchConfig {
             empire_count: 4,
             leader_name: "Leader".to_owned(),
             seed: 0x4354_5032_u64,
+            server: server::ServerConfig::interactive_default(),
         }
     }
 }
@@ -130,5 +135,6 @@ pub fn run_headless_gameplay_smoke_for_test(
         empire_count: 2,
         leader_name: "Tester".to_owned(),
         seed: 1,
+        server: server::ServerConfig::disabled_for_test(),
     })
 }

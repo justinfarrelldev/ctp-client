@@ -10,8 +10,12 @@ use std::path::{Path, PathBuf};
 
 use super::{GameplayError, asset_error};
 
+/// RIM/ZFS image loading for CTP2 UI art.
+pub mod rim;
 /// Sprite file parser for CTP2 `.SPR` files.
 pub mod sprite;
+/// Terrain tile-set decoder for CTP2 `.TIL` files.
+pub mod tile;
 
 /// Default picture archive used by CTP2 in-game UI art.
 pub const PICTURE_ARCHIVE: &str = "ctp2_data/default/graphics/pictures/pic565.zfs";
@@ -72,43 +76,43 @@ fn top_menu_art() -> Vec<GameplayAssetReference> {
         art(
             "Menu bar",
             Some(PICTURE_ARCHIVE),
-            "UPtb00.TGA",
+            "uptb00.rim",
             "controlpanel.ldl:2135",
         ),
         art(
             "Menu resource counter left",
             Some(PICTURE_ARCHIVE),
-            "uptb02.tga",
+            "uptb02.rim",
             "controlpanel.ldl:2089",
         ),
         art(
             "Menu resource counter body",
             Some(PICTURE_ARCHIVE),
-            "uptb03.tga",
+            "uptb03.rim",
             "controlpanel.ldl:2090",
         ),
         art(
             "Gold icon",
             Some(PICTURE_ARCHIVE),
-            "upic34.tga",
+            "upic34.rim",
             "controlpanel.ldl:2252",
         ),
         art(
             "Public works icon",
             Some(PICTURE_ARCHIVE),
-            "upic33.tga",
+            "upic33.rim",
             "controlpanel.ldl:2246",
         ),
         art(
             "Happiness icon",
             Some(PICTURE_ARCHIVE),
-            "upic35.tga",
+            "upic35.rim",
             "controlpanel.ldl:2237",
         ),
         art(
             "Pollution icon",
             Some(PICTURE_ARCHIVE),
-            "upic36.tga",
+            "upic36.rim",
             "controlpanel.ldl:2228",
         ),
     ]
@@ -120,43 +124,43 @@ fn control_panel_art() -> Vec<GameplayAssetReference> {
         art(
             "Control panel base",
             Some(PICTURE_ARCHIVE),
-            "upfg01.tga",
+            "upfg01.rim",
             "controlpanel.ldl:526",
         ),
         art(
             "Control panel right cap",
             Some(PICTURE_ARCHIVE),
-            "upfg03.tga",
+            "upfg03.rim",
             "controlpanel.ldl:529",
         ),
         art(
             "Control panel bottom cap",
             Some(PICTURE_ARCHIVE),
-            "upfg04.tga",
+            "upfg04.rim",
             "controlpanel.ldl:532",
         ),
         art(
             "End turn disabled",
             Some(PICTURE_ARCHIVE),
-            "upcb14X.tga",
+            "upcb14x.rim",
             "controlpanel.ldl:563",
         ),
         art(
             "End turn up",
             Some(PICTURE_ARCHIVE),
-            "upcb14U.tga",
+            "upcb14u.rim",
             "controlpanel.ldl:565",
         ),
         art(
             "End turn down",
             Some(PICTURE_ARCHIVE),
-            "upcb14D.tga",
+            "upcb14d.rim",
             "controlpanel.ldl:567",
         ),
         art(
             "End turn hover",
             Some(PICTURE_ARCHIVE),
-            "upcb14H.tga",
+            "upcb14h.rim",
             "controlpanel.ldl:569",
         ),
     ]
@@ -168,19 +172,19 @@ fn order_and_popup_art() -> Vec<GameplayAssetReference> {
         art(
             "Great Library shortcut",
             Some(PICTURE_ARCHIVE),
-            "upcb60u.tga",
+            "upcb60u.rim",
             "controlpanel.ldl:766",
         ),
         art(
             "Settle order icon",
             Some(PICTURE_ARCHIVE),
-            "UPA014b.tga",
+            "upa014b.rim",
             "buttonbank.ldl:100",
         ),
         art(
             "Order button pattern",
             Some(PICTURE_ARCHIVE),
-            "upba0104.tga",
+            "upba0104.rim",
             "buttonbank.ldl:102",
         ),
         art(
@@ -291,14 +295,14 @@ mod tests {
             manifest
                 .art
                 .iter()
-                .any(|asset| asset.entry_name == "UPtb00.TGA"),
+                .any(|asset| asset.entry_name == "uptb00.rim"),
             "top menu bar art should be tracked"
         );
         assert!(
             manifest
                 .art
                 .iter()
-                .any(|asset| asset.entry_name == "upcb14U.tga"),
+                .any(|asset| asset.entry_name == "upcb14u.rim"),
             "end turn button up art should be tracked"
         );
         assert!(

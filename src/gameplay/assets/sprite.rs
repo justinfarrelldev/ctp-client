@@ -544,31 +544,9 @@ fn decompress_lzw1(bytes: &[u8], actual_size: usize) -> Result<Vec<u8>, Gameplay
     Ok(output)
 }
 
-/// Converts little-endian 565 pixels to RGBA.
-fn rgba_from_565(bytes: &[u8], width: u16, height: u16) -> Result<Vec<u8>, GameplayError> {
-    let expected = usize::from(width)
-        .checked_mul(usize::from(height))
-        .and_then(|pixels| pixels.checked_mul(2))
-        .ok_or_else(|| asset_error("SPR frame dimensions overflow".to_owned()))?;
-    if bytes.len() < expected {
-        return Err(asset_error(format!(
-            "SPR frame is too short: expected {expected} bytes, got {}",
-            bytes.len()
-        )));
-    }
-    let mut rgba = Vec::with_capacity(expected.saturating_mul(2));
-    for pixel_bytes in bytes[..expected].chunks_exact(2) {
-        let pixel = u16::from(pixel_bytes[0]) | (u16::from(pixel_bytes[1]) << 8);
-        let red5 = (pixel >> 11) & 0x1F;
-        let green6 = (pixel >> 5) & 0x3F;
-        let blue5 = pixel & 0x1F;
-        rgba.push(u8::try_from(red5 << 3).map_or(u8::MAX, |value| value));
-        rgba.push(u8::try_from(green6 << 2).map_or(u8::MAX, |value| value));
-        rgba.push(u8::try_from(blue5 << 3).map_or(u8::MAX, |value| value));
-        rgba.push(if pixel == 0 { 0 } else { 255 });
-    }
-    Ok(rgba)
-}
+mod frame;
+
+use frame::rgba_from_565;
 
 /// Reads a vector of u32 values.
 fn read_u32_vec(reader: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<u32>, GameplayError> {
@@ -633,74 +611,4 @@ fn io_error(error: std::io::Error) -> GameplayError {
 }
 
 #[cfg(test)]
-mod tests {
-    use alloc::vec::Vec;
-
-    use super::{NUM_FACINGS, SpriteGroupAsset, UNIT_ACTION_MAX, decompress_lzw1, rgba_from_565};
-
-    #[test]
-    fn lzw1_copy_stream_returns_payload() {
-        let data = [1_u8, 0, 0, 0, 10, 20, 30];
-        let decoded = decompress_lzw1(&data, 3).expect("copy stream should decode");
-
-        assert_eq!(decoded, vec![10, 20, 30]);
-    }
-
-    #[test]
-    fn rgba_conversion_uses_zero_alpha_for_transparency() {
-        let bytes = [0_u8, 0, 0xFF, 0xFF];
-        let rgba = rgba_from_565(&bytes, 2, 1).expect("rgba conversion should succeed");
-
-        assert_eq!(rgba[3], 0, "zero pixel should be transparent");
-        assert_eq!(rgba[7], 255, "non-zero pixel should be opaque");
-    }
-
-    #[test]
-    fn parses_minimal_regular_unit_sprite() {
-        let bytes = minimal_regular_unit_sprite();
-        let parsed = SpriteGroupAsset::parse(&bytes).expect("minimal sprite should parse");
-
-        assert_eq!(parsed.actions.len(), 1, "one action should be present");
-        assert_eq!(parsed.frame_count(), 1, "one frame should be loaded");
-        assert!(parsed.has_action(0), "move action should exist");
-    }
-
-    /// Builds a minimal v1.3 unit sprite containing one normal 1x1 frame.
-    fn minimal_regular_unit_sprite() -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"FRPS");
-        bytes.extend_from_slice(&0x0001_0003_u32.to_le_bytes());
-        bytes.extend_from_slice(&4_u32.to_le_bytes());
-        for _ in 0..5 {
-            bytes.extend_from_slice(&0_u32.to_le_bytes());
-        }
-        bytes.extend_from_slice(&1_u32.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&1_u16.to_le_bytes());
-        bytes.extend_from_slice(&1_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_i32.to_le_bytes());
-        bytes.extend_from_slice(&0_i32.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&1_u16.to_le_bytes());
-        bytes.extend_from_slice(&2_u32.to_le_bytes());
-        bytes.extend_from_slice(&0_u32.to_le_bytes());
-        bytes.extend_from_slice(&0xFFFF_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&1_u16.to_le_bytes());
-        bytes.extend_from_slice(&1_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_i32.to_le_bytes());
-        bytes.extend_from_slice(&0_i32.to_le_bytes());
-        bytes.extend_from_slice(&255_u16.to_le_bytes());
-        for _ in 1..5 {
-            bytes.extend_from_slice(&0_u32.to_le_bytes());
-        }
-        bytes.extend_from_slice(&vec![0_u8; 2 + 8 * NUM_FACINGS * 8]);
-        bytes.extend_from_slice(&vec![0_u8; 2 + 8 * NUM_FACINGS * 8 + NUM_FACINGS * 8]);
-        bytes.extend_from_slice(&[0_u8; UNIT_ACTION_MAX * NUM_FACINGS * 8]);
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes.extend_from_slice(&0_u16.to_le_bytes());
-        bytes
-    }
-}
+mod tests;

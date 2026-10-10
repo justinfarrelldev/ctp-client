@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+use alloc::format;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use std::path::{Path, PathBuf};
@@ -11,8 +13,10 @@ use std::time::Duration;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
+use serde_json::{Value, json};
 
-use super::model::GameState;
+use super::model::{GameState, GameplayPopup, MapPoint, PopupKind};
+use super::server::{ServerClient, ServerGameplaySession, ServerProjection};
 use super::ui_model::{InGameAction, InGameUiModel, MENU_BAR_HEIGHT};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
@@ -35,6 +39,8 @@ const FONT_CANDIDATES: [&str; 8] = [
 ];
 /// Gameplay frame rendering.
 mod render;
+/// Original CTP2 texture loading.
+mod textures;
 /// Camera and screen/tile coordinate conversion.
 mod view;
 
@@ -46,6 +52,18 @@ struct RuntimeOptions {
     initial_events: Vec<Event>,
     /// Maximum rendered frames before returning closed.
     frame_limit: Option<u32>,
+}
+
+/// Live authoritative server state for an interactive runtime session.
+struct RuntimeAuthority {
+    /// Blocking command client.
+    client: ServerClient,
+    /// Current authoritative session metadata.
+    session: ServerGameplaySession,
+    /// Configured empire count for rebuilding projection state.
+    empire_count: u8,
+    /// Configured deterministic fallback seed.
+    seed: u64,
 }
 
 impl RuntimeOptions {
@@ -114,6 +132,12 @@ fn run_sdl_game_with_options(
         .software()
         .build()
         .map_err(|error| runtime_error(error.to_string()))?;
+    let texture_creator = canvas.texture_creator();
+    let textures = textures::GameplayTextures::load(
+        &config.installation_root,
+        &texture_creator,
+        config.server.required,
+    )?;
     let event_subsystem = sdl.event().map_err(runtime_error)?;
     for event in options.initial_events {
         event_subsystem.push_event(event).map_err(runtime_error)?;
@@ -124,8 +148,32 @@ fn run_sdl_game_with_options(
         (Some(context), Some(path)) => context.load_font(path, 13).ok(),
         _ => None,
     };
+    let mut authority = if config.server.required {
+        let client = ServerClient::from_config(&config.server)?;
+        let session =
+            client.bootstrap_local_singleplayer(&config.leader_name, config.empire_count)?;
+        Some(RuntimeAuthority {
+            client,
+            session,
+            empire_count: config.empire_count,
+            seed: config.seed,
+        })
+    } else {
+        None
+    };
     let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
-    let mut state = GameState::new(64, 48, config.empire_count, config.seed);
+    let mut state = authority
+        .as_ref()
+        .and_then(|authority| authority.session.projection.as_ref())
+        .map_or_else(
+            || GameState::new(64, 48, config.empire_count, config.seed),
+            |projection| {
+                GameState::from_server_projection(projection, config.empire_count, config.seed)
+            },
+        );
+    if let Some(active_authority) = authority.as_ref() {
+        state.queue_server_connected_popup(active_authority.session.game_id);
+    }
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut outcome = None;
@@ -133,11 +181,13 @@ fn run_sdl_game_with_options(
 
     while outcome.is_none() {
         for event in event_pump.poll_iter() {
-            if let Some(next) = handle_event(&event, &mut state, &mut ui, &mut camera) {
+            if let Some(next) =
+                handle_event(&event, &mut state, &mut ui, &mut camera, authority.as_mut())
+            {
                 outcome = Some(next);
             }
         }
-        render::draw_frame(&mut canvas, &state, &ui, &camera, font.as_ref())?;
+        render::draw_frame(&mut canvas, &textures, &state, &ui, &camera, font.as_ref())?;
         rendered_frames = rendered_frames.saturating_add(1);
         if options
             .frame_limit
@@ -157,6 +207,7 @@ fn handle_event(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     match event.clone() {
         Event::Quit { .. } => Some(GameplayOutcome::Closed),
@@ -177,13 +228,14 @@ fn handle_event(
             state,
             ui,
             camera,
+            authority,
         ),
         Event::MouseButtonDown {
             mouse_btn: MouseButton::Left,
             x,
             y,
             ..
-        } => handle_left_click(x, y, state, ui, camera),
+        } => handle_left_click(x, y, state, ui, camera, authority),
         Event::MouseButtonDown {
             mouse_btn: MouseButton::Right,
             x,
@@ -193,7 +245,7 @@ fn handle_event(
             if let Some(point) = camera.screen_to_tile(x, y) {
                 let menu = InGameUiModel::context_menu_for(state, point);
                 if let Some(item) = menu.iter().find(|item| item.enabled) {
-                    return apply_ui_action(item.action, state, ui, camera);
+                    return apply_ui_action(item.action, state, ui, camera, authority);
                 }
             }
             None
@@ -217,23 +269,28 @@ fn handle_left_click(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     if !state.popups.is_empty() {
         state.dismiss_popup();
         return None;
     }
     if click_in_end_turn_button(x, y) {
-        return apply_ui_action(InGameAction::EndTurn, state, ui, camera);
+        return apply_ui_action(InGameAction::EndTurn, state, ui, camera, authority);
     }
     let (menu_consumed, menu_action) = top_menu_click_action(x, y, ui);
     if menu_consumed {
         if let Some(action) = menu_action {
-            return apply_ui_action(action, state, ui, camera);
+            return apply_ui_action(action, state, ui, camera, authority);
         }
         return None;
     }
     if let Some(point) = camera.screen_to_tile(x, y) {
-        state.order_selected_to(point);
+        if let Some(active_authority) = authority {
+            submit_authoritative_move(active_authority, state, point);
+        } else {
+            state.order_selected_to(point);
+        }
     }
     None
 }
@@ -244,6 +301,7 @@ fn apply_ui_action(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     match action {
         InGameAction::Quit => Some(GameplayOutcome::Quit),
@@ -258,6 +316,14 @@ fn apply_ui_action(
         }
         InGameAction::None => None,
         other => {
+            if let Some(active_authority) = authority {
+                if apply_authoritative_action(active_authority, state, other) {
+                    if matches!(other, InGameAction::MoveBy(_, _) | InGameAction::EndTurn) {
+                        *camera = Camera::centered_on_selected(state);
+                    }
+                    return None;
+                }
+            }
             ui.apply_action(state, other);
             if matches!(other, InGameAction::MoveBy(_, _) | InGameAction::EndTurn) {
                 *camera = Camera::centered_on_selected(state);
@@ -265,6 +331,136 @@ fn apply_ui_action(
             None
         }
     }
+}
+
+/// Applies an action through the server when the action mutates authoritative game state.
+fn apply_authoritative_action(
+    authority: &mut RuntimeAuthority,
+    state: &mut GameState,
+    action: InGameAction,
+) -> bool {
+    match action {
+        InGameAction::EndTurn => {
+            submit_authoritative_command(authority, state, "round-complete", json!({}));
+            true
+        }
+        InGameAction::Settle => {
+            let Some(unit) = state.selected_unit() else {
+                return true;
+            };
+            let city_id = format!("city-{}-{}", unit.position.x, unit.position.y);
+            let payload = json!({
+                "unit_id": server_unit_id_for_position(authority, unit.position),
+                "city_id": city_id,
+                "name": "New City"
+            });
+            submit_authoritative_command(authority, state, "found-city", payload);
+            true
+        }
+        InGameAction::Sentinel => {
+            let Some(unit) = state.selected_unit() else {
+                return true;
+            };
+            let payload = json!({"unit_id": server_unit_id_for_position(authority, unit.position)});
+            submit_authoritative_command(authority, state, "fortify", payload);
+            true
+        }
+        InGameAction::MoveBy(dx, dy) => {
+            let Some(unit) = state.selected_unit() else {
+                return true;
+            };
+            if let Some(target) = unit.position.offset(dx, dy, state.width, state.height) {
+                submit_authoritative_move(authority, state, target);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Submits an authoritative move command to a target tile.
+fn submit_authoritative_move(
+    authority: &mut RuntimeAuthority,
+    state: &mut GameState,
+    target: MapPoint,
+) {
+    let Some(unit) = state.selected_unit() else {
+        return;
+    };
+    let payload = json!({
+        "unit_id": server_unit_id_for_position(authority, unit.position),
+        "path": [server_tile_id(authority.session.projection.as_ref(), target)]
+    });
+    submit_authoritative_command(authority, state, "move", payload);
+}
+
+/// Submits a command and rebuilds local state from the returned projection.
+fn submit_authoritative_command(
+    authority: &mut RuntimeAuthority,
+    state: &mut GameState,
+    command: &str,
+    payload: Value,
+) {
+    match authority
+        .client
+        .submit_command(&authority.session, command, payload)
+    {
+        Ok(response) => {
+            if let Some(projection) = response.viewer_projection {
+                authority.session.apply_projection(projection.clone());
+                replace_state_from_projection(authority, state, &projection);
+            }
+        }
+        Err(error) => state.popups.push(GameplayPopup {
+            title: "Server Command Failed".to_owned(),
+            body: error.to_string(),
+            kind: PopupKind::GameStart,
+        }),
+    }
+}
+
+/// Replaces local render state with a fresh authoritative projection.
+fn replace_state_from_projection(
+    authority: &RuntimeAuthority,
+    state: &mut GameState,
+    projection: &ServerProjection,
+) {
+    let filters = state.filters;
+    let mut next =
+        GameState::from_server_projection(projection, authority.empire_count, authority.seed);
+    next.filters = filters;
+    next.popups.clear();
+    *state = next;
+}
+
+/// Returns the server unit id for a local selected unit position.
+fn server_unit_id_for_position(authority: &RuntimeAuthority, position: MapPoint) -> String {
+    let Some(projection) = authority.session.projection.as_ref() else {
+        return String::new();
+    };
+    projection
+        .units
+        .iter()
+        .find(|unit| {
+            projection
+                .tiles
+                .iter()
+                .find(|tile| tile.id == unit.tile_id)
+                .is_some_and(|tile| tile.x == position.x && tile.y == position.y)
+        })
+        .map_or_else(String::new, |unit| unit.id.clone())
+}
+
+/// Returns the server tile id for a local map point.
+fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> String {
+    projection
+        .and_then(|projection| {
+            projection
+                .tiles
+                .iter()
+                .find(|tile| tile.x == point.x && tile.y == point.y)
+        })
+        .map_or_else(String::new, |tile| tile.id.clone())
 }
 
 /// Returns whether a point hits the end-turn button.
@@ -379,6 +575,7 @@ mod tests {
             empire_count: 2,
             leader_name: "Tester".to_owned(),
             seed: 42,
+            server: crate::gameplay::server::ServerConfig::disabled_for_test(),
         })
         .expect("headless gameplay should run");
 
