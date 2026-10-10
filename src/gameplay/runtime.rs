@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use std::path::{Path, PathBuf};
@@ -12,14 +12,13 @@ use std::time::Duration;
 
 use sdl2::EventPump;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use serde_json::{Value, json};
 
-use super::model::{GameState, GameplayPopup, MapPoint, PopupKind};
-use super::server::{ServerClient, ServerGameplaySession, ServerProjection};
+use super::model::{GameState, GameplayPopup, MapPoint, PopupKind, UnitId};
+use super::server::{ServerClient, ServerProjection};
 use super::ui_model::{
     CONTROL_PANEL_HEIGHT, END_TURN_BUTTON_HEIGHT, END_TURN_BUTTON_WIDTH, END_TURN_BUTTON_X,
     END_TURN_BUTTON_Y, InGameAction, InGameUiModel, MENU_BAR_HEIGHT, MenuRect,
@@ -45,6 +44,10 @@ const FONT_CANDIDATES: [&str; 8] = [
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
 ];
+/// Authoritative server state alignment helpers.
+mod authority;
+/// CTP2-style movement input handling.
+mod movement;
 /// Gameplay frame rendering.
 mod render;
 /// Original CTP2 texture loading.
@@ -52,6 +55,11 @@ mod textures;
 /// Camera and screen/tile coordinate conversion.
 mod view;
 
+use authority::{
+    RuntimeAuthority, server_tile_ids_for_path, server_unit_id_for_position,
+    state_from_authority_projection,
+};
+use movement::{MovementInputState, begin_or_activate_unit_drag};
 use view::Camera;
 
 /// Event-loop options used by production and tests.
@@ -60,18 +68,6 @@ struct RuntimeOptions {
     initial_events: Vec<Event>,
     /// Maximum rendered frames before returning closed.
     frame_limit: Option<u32>,
-}
-
-/// Live authoritative server state for an interactive runtime session.
-struct RuntimeAuthority {
-    /// Blocking command client.
-    client: ServerClient,
-    /// Current authoritative session metadata.
-    session: ServerGameplaySession,
-    /// Configured empire count for rebuilding projection state.
-    empire_count: u8,
-    /// Configured deterministic fallback seed.
-    seed: u64,
 }
 
 impl RuntimeOptions {
@@ -199,30 +195,45 @@ fn run_sdl_game_on_canvas(
     };
     let mut state = authority
         .as_ref()
-        .and_then(|authority| authority.session.projection.as_ref())
-        .map_or_else(
-            || GameState::new(64, 48, config.empire_count, config.seed),
-            |projection| {
-                GameState::from_server_projection(projection, config.empire_count, config.seed)
-            },
-        );
+        .and_then(|authority| {
+            authority
+                .session
+                .projection
+                .as_ref()
+                .map(|projection| state_from_authority_projection(authority, projection))
+        })
+        .unwrap_or_else(|| GameState::new(64, 48, config.empire_count, config.seed));
     if let Some(active_authority) = authority.as_ref() {
         state.queue_server_connected_popup(active_authority.session.game_id);
     }
     let mut ui = InGameUiModel::default();
+    let mut movement = MovementInputState::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut outcome = None;
     let mut rendered_frames = 0_u32;
 
     while outcome.is_none() {
         for event in event_pump.poll_iter() {
-            if let Some(next) =
-                handle_event(&event, &mut state, &mut ui, &mut camera, authority.as_mut())
-            {
+            if let Some(next) = handle_event(
+                &event,
+                &mut state,
+                &mut ui,
+                &mut camera,
+                &mut movement,
+                authority.as_mut(),
+            ) {
                 outcome = Some(next);
             }
         }
-        render::draw_frame(canvas, &textures, &state, &ui, &camera, font.as_ref())?;
+        render::draw_frame(
+            canvas,
+            &textures,
+            &state,
+            &ui,
+            &camera,
+            &movement,
+            font.as_ref(),
+        )?;
         rendered_frames = rendered_frames.saturating_add(1);
         if frame_limit.is_some_and(|limit| rendered_frames >= limit) {
             outcome = Some(GameplayOutcome::Closed);
@@ -239,14 +250,12 @@ fn handle_event(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     match event.clone() {
         Event::Quit { .. } => Some(GameplayOutcome::Closed),
-        Event::KeyDown {
-            keycode: Some(Keycode::Escape),
-            ..
-        } if !state.popups.is_empty() => {
+        Event::KeyDown { repeat: false, .. } if !state.popups.is_empty() => {
             state.dismiss_popup();
             None
         }
@@ -260,6 +269,7 @@ fn handle_event(
             state,
             ui,
             camera,
+            movement,
             authority,
         ),
         Event::MouseButtonDown {
@@ -267,13 +277,29 @@ fn handle_event(
             x,
             y,
             ..
-        } => handle_left_click(x, y, state, ui, camera, authority),
+        } => handle_left_click(x, y, state, ui, camera, movement, authority),
+        Event::MouseButtonUp {
+            mouse_btn: MouseButton::Left,
+            x,
+            y,
+            ..
+        } => handle_left_release(x, y, state, ui, camera, movement, authority),
         Event::MouseButtonDown {
             mouse_btn: MouseButton::Right,
             x,
             y,
             ..
-        } => handle_right_click(x, y, state, ui, camera, authority),
+        } => handle_right_click(x, y, state, ui, camera, movement, authority),
+        Event::MouseMotion {
+            x, y, mousestate, ..
+        } => {
+            if mousestate.left() {
+                handle_mouse_motion(x, y, state, camera, movement);
+            } else {
+                movement.cancel_drag();
+            }
+            None
+        }
         Event::MouseWheel { y, .. } => {
             match y.cmp(&0_i32) {
                 Ordering::Greater => camera.zoom_in(),
@@ -293,9 +319,11 @@ fn handle_left_click(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     if !state.popups.is_empty() {
+        movement.cancel_drag();
         state.dismiss_popup();
         return None;
     }
@@ -303,31 +331,82 @@ fn handle_left_click(
         let (menu_consumed, menu_action) = top_menu_click_action(x, y, ui);
         if menu_consumed {
             if let Some(action) = menu_action {
-                return apply_ui_action(action, state, ui, camera, authority);
+                return apply_ui_action(action, state, ui, camera, movement, authority);
             }
             return None;
         }
     }
     if click_in_end_turn_button(x, y) {
-        return apply_ui_action(InGameAction::EndTurn, state, ui, camera, authority);
+        return apply_ui_action(
+            InGameAction::EndTurn,
+            state,
+            ui,
+            camera,
+            movement,
+            authority,
+        );
     }
     let (menu_consumed, menu_action) = top_menu_click_action(x, y, ui);
     if menu_consumed {
         if let Some(action) = menu_action {
-            return apply_ui_action(action, state, ui, camera, authority);
+            return apply_ui_action(action, state, ui, camera, movement, authority);
         }
         return None;
     }
     if click_in_non_map_ui(x, y) {
+        movement.cancel_drag();
         return None;
     }
     if let Some(point) = camera.screen_to_tile(x, y) {
-        if let Some(active_authority) = authority {
-            submit_authoritative_move(active_authority, state, point);
-        } else {
-            state.order_selected_to(point);
+        if begin_or_activate_unit_drag(state, movement, point) {
+            return None;
         }
     }
+    None
+}
+
+/// Handles map mouse motion while a unit path is being dragged.
+fn handle_mouse_motion(
+    x: i32,
+    y: i32,
+    state: &GameState,
+    camera: &Camera,
+    movement: &mut MovementInputState,
+) {
+    if let Some(point) = camera.screen_to_tile(x, y) {
+        movement.extend_drag_to(state, point);
+    }
+}
+
+/// Handles a left mouse-button release.
+fn handle_left_release(
+    x: i32,
+    y: i32,
+    state: &mut GameState,
+    ui: &InGameUiModel,
+    camera: &mut Camera,
+    movement: &mut MovementInputState,
+    authority: Option<&mut RuntimeAuthority>,
+) -> Option<GameplayOutcome> {
+    if !state.popups.is_empty() || ui.open_menu.is_some() || click_in_non_map_ui(x, y) {
+        movement.cancel_drag();
+        return None;
+    }
+    if let Some(point) = camera.screen_to_tile(x, y) {
+        movement.extend_drag_to(state, point);
+    }
+    let (unit_id, path) = movement.finish_drag()?;
+    if !state.select_unit(unit_id) {
+        movement.retain_selectable(state);
+        return None;
+    }
+    if let Some(active_authority) = authority {
+        submit_authoritative_move_path(active_authority, state, unit_id, &path);
+    } else if let Some(target) = path.last().copied() {
+        state.order_selected_to(target);
+    }
+    movement.retain_selectable(state);
+    *camera = Camera::centered_on_selected(state);
     None
 }
 
@@ -338,13 +417,16 @@ fn handle_right_click(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     if !state.popups.is_empty() {
+        movement.cancel_drag();
         state.dismiss_popup();
         return None;
     }
     if ui.open_menu.is_some() {
+        movement.cancel_drag();
         ui.open_menu = None;
         return None;
     }
@@ -354,7 +436,7 @@ fn handle_right_click(
     if let Some(point) = camera.screen_to_tile(x, y) {
         let menu = InGameUiModel::context_menu_for(state, point);
         if let Some(item) = menu.iter().find(|item| item.enabled) {
-            return apply_ui_action(item.action, state, ui, camera, authority);
+            return apply_ui_action(item.action, state, ui, camera, movement, authority);
         }
     }
     None
@@ -366,6 +448,7 @@ fn apply_ui_action(
     state: &mut GameState,
     ui: &mut InGameUiModel,
     camera: &mut Camera,
+    movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     match action {
@@ -386,10 +469,12 @@ fn apply_ui_action(
                     if matches!(other, InGameAction::MoveBy(_, _) | InGameAction::EndTurn) {
                         *camera = Camera::centered_on_selected(state);
                     }
+                    movement.retain_selectable(state);
                     return None;
                 }
             }
             ui.apply_action(state, other);
+            movement.retain_selectable(state);
             if matches!(other, InGameAction::MoveBy(_, _) | InGameAction::EndTurn) {
                 *camera = Camera::centered_on_selected(state);
             }
@@ -452,9 +537,39 @@ fn submit_authoritative_move(
     let Some(unit) = state.selected_unit() else {
         return;
     };
+    submit_authoritative_move_path(authority, state, unit.id, &[target]);
+}
+
+/// Submits an authoritative move command with the exact path drawn by the user.
+fn submit_authoritative_move_path(
+    authority: &mut RuntimeAuthority,
+    state: &mut GameState,
+    unit_id: UnitId,
+    path: &[MapPoint],
+) {
+    if path.is_empty() {
+        return;
+    }
+    let Some(unit) = state
+        .units
+        .iter()
+        .find(|unit| unit.id == unit_id && unit.alive)
+    else {
+        return;
+    };
+    let Some(path_ids) = server_tile_ids_for_path(authority.session.projection.as_ref(), path)
+    else {
+        state.popups.push(GameplayPopup {
+            title: "Move Path Unavailable".to_owned(),
+            body: "The dragged path includes a tile missing from the authoritative projection."
+                .to_owned(),
+            kind: PopupKind::Info,
+        });
+        return;
+    };
     let payload = json!({
         "unit_id": server_unit_id_for_position(authority, unit.position),
-        "path": [server_tile_id(authority.session.projection.as_ref(), target)]
+        "path": path_ids
     });
     submit_authoritative_command(authority, state, "move", payload);
 }
@@ -491,41 +606,10 @@ fn replace_state_from_projection(
     projection: &ServerProjection,
 ) {
     let filters = state.filters;
-    let mut next =
-        GameState::from_server_projection(projection, authority.empire_count, authority.seed);
+    let mut next = state_from_authority_projection(authority, projection);
     next.filters = filters;
     next.popups.clear();
     *state = next;
-}
-
-/// Returns the server unit id for a local selected unit position.
-fn server_unit_id_for_position(authority: &RuntimeAuthority, position: MapPoint) -> String {
-    let Some(projection) = authority.session.projection.as_ref() else {
-        return String::new();
-    };
-    projection
-        .units
-        .iter()
-        .find(|unit| {
-            projection
-                .tiles
-                .iter()
-                .find(|tile| tile.id == unit.tile_id)
-                .is_some_and(|tile| tile.x == position.x && tile.y == position.y)
-        })
-        .map_or_else(String::new, |unit| unit.id.clone())
-}
-
-/// Returns the server tile id for a local map point.
-fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> String {
-    projection
-        .and_then(|projection| {
-            projection
-                .tiles
-                .iter()
-                .find(|tile| tile.x == point.x && tile.y == point.y)
-        })
-        .map_or_else(String::new, |tile| tile.id.clone())
 }
 
 /// Returns the top edge of the bottom control panel.

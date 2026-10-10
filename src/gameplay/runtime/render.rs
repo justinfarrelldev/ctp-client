@@ -28,10 +28,12 @@ use super::super::ui_model::{
 use super::super::{GameplayError, runtime_error};
 use super::textures::GameplayTextures;
 use super::view::{Camera, TILE_HEIGHT, TILE_WIDTH};
-use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, SIDE_PANEL_WIDTH};
+use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MovementInputState, SIDE_PANEL_WIDTH};
 
 /// CTP2 chrome drawing helpers.
 mod chrome;
+/// Drag-movement overlay drawing helpers.
+mod movement;
 /// Text drawing helpers.
 mod text;
 
@@ -51,15 +53,17 @@ pub(super) fn draw_frame(
     state: &GameState,
     ui: &InGameUiModel,
     camera: &Camera,
+    input: &MovementInputState,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    draw_map(canvas, textures, state, camera)?;
+    draw_map(canvas, textures, state, camera, input)?;
     draw_top_menu(canvas, textures, ui, font)?;
     draw_control_panel(canvas, textures, state, font)?;
     draw_side_panel(canvas, state, font)?;
-    draw_reachable_labels(canvas, state, camera)?;
+    draw_reachable_labels(canvas, state, camera, input)?;
+    movement::draw_planned_path(canvas, input, camera)?;
     draw_popups(canvas, textures, state, font)?;
     canvas.present();
     Ok(())
@@ -71,6 +75,7 @@ fn draw_map(
     textures: &GameplayTextures<'_>,
     state: &GameState,
     camera: &Camera,
+    input: &MovementInputState,
 ) -> Result<(), GameplayError> {
     for y in 0..state.height {
         for x in 0..state.width {
@@ -117,7 +122,7 @@ fn draw_map(
         }
     }
     draw_cities(canvas, state, camera)?;
-    draw_units(canvas, textures, state, camera)
+    draw_units(canvas, textures, state, camera, input)
 }
 
 /// Draws a fallback diamond when original tiles are unavailable.
@@ -217,6 +222,7 @@ fn draw_units(
     textures: &GameplayTextures<'_>,
     state: &GameState,
     camera: &Camera,
+    input: &MovementInputState,
 ) -> Result<(), GameplayError> {
     for unit in state.units.iter().filter(|unit| unit.alive) {
         if state
@@ -236,14 +242,8 @@ fn draw_units(
                 .fill_rect(Rect::new(screen_x + 40, screen_y + 20, 12, 18))
                 .map_err(runtime_error)?;
         }
-        if Some(unit.id) == state.selected_unit {
-            draw_tile_diamond(
-                canvas,
-                camera,
-                screen_x,
-                screen_y,
-                Color::RGB(255, 255, 255),
-            )?;
+        if Some(unit.id) == input.active_unit() {
+            draw_tile_diamond(canvas, camera, screen_x, screen_y, Color::RGB(32, 255, 64))?;
         }
     }
     Ok(())
@@ -274,7 +274,11 @@ fn draw_reachable_labels(
     canvas: &mut Canvas<Window>,
     state: &GameState,
     camera: &Camera,
+    input: &MovementInputState,
 ) -> Result<(), GameplayError> {
+    if input.active_unit().is_none() {
+        return Ok(());
+    }
     for label in state.reachable_tile_labels() {
         let (screen_x, screen_y) = camera.tile_to_screen(label.position);
         let shade = if label.label == "1" { 240 } else { 180 };

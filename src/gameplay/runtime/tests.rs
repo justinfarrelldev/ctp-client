@@ -1,13 +1,25 @@
 //! Tests for the gameplay SDL runtime and pure hit testing.
 
+use alloc::sync::Arc;
+use std::io::{ErrorKind, Read, Write};
+use std::net::TcpListener;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use sdl2::event::Event;
+use sdl2::keyboard::{Keycode, Mod};
 
 use super::{
-    Camera, HeadlessSdlEnvironment, click_in_end_turn_button, handle_left_click,
-    handle_right_click, run_headless_smoke_for_test, run_sdl_game_on_existing_window,
+    Camera, HeadlessSdlEnvironment, MovementInputState, RuntimeAuthority, click_in_end_turn_button,
+    handle_event, handle_left_click, handle_left_release, handle_mouse_motion, handle_right_click,
+    run_headless_smoke_for_test, run_sdl_game_on_existing_window, server_tile_ids_for_path,
     top_menu_click_action,
+};
+use crate::gameplay::model::MapPoint;
+use crate::gameplay::server::{
+    ServerClient, ServerConfig, ServerGameplaySession, ServerProjection, ServerTileProjection,
 };
 use crate::gameplay::ui_model::{InGameAction, InGameUiModel, MenuCategory};
 use crate::gameplay::{GameplayOutcome, SinglePlayerLaunchConfig};
@@ -136,8 +148,17 @@ fn lower_control_panel_click_does_not_move_selected_unit() {
         .position;
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_left_click(120, 610, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_left_click(
+        120,
+        610,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(outcome, None, "panel click should not close gameplay");
     assert_eq!(
@@ -160,8 +181,17 @@ fn side_panel_click_does_not_move_selected_unit() {
         .position;
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_left_click(900, 100, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_left_click(
+        900,
+        100,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(outcome, None, "side panel click should not close gameplay");
     assert_eq!(
@@ -179,12 +209,410 @@ fn gameplay_popup_consumes_end_turn_click_without_advancing_turn() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 79);
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_left_click(570, 650, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_left_click(
+        570,
+        650,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(outcome, None, "popup click should only dismiss the popup");
     assert_eq!(state.turn, 1, "popup dismissal must not advance the turn");
     assert!(state.popups.is_empty(), "popup should be dismissed");
+}
+
+#[test]
+fn keyboard_shortcut_with_popup_dismisses_without_command_action() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 83);
+    let selected_id = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .id;
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+
+    let outcome = handle_event(
+        &Event::KeyDown {
+            timestamp: 0,
+            window_id: 0,
+            keycode: Some(Keycode::B),
+            scancode: None,
+            keymod: Mod::NOMOD,
+            repeat: false,
+        },
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+
+    assert_eq!(outcome, None, "popup key should not close gameplay");
+    assert!(
+        state.popups.is_empty(),
+        "first key should only dismiss popup"
+    );
+    assert!(
+        state
+            .units
+            .iter()
+            .any(|unit| unit.id == selected_id && unit.alive),
+        "B must not found a city while a modal popup is visible"
+    );
+    assert!(state.cities.is_empty(), "no city should be founded");
+}
+
+#[test]
+fn plain_left_click_on_map_tile_does_not_move_unit() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 84);
+    state.popups.clear();
+    let start = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .position;
+    let target = empty_passable_tile(&state, start);
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (x, y) = camera.tile_to_screen(target);
+
+    let down = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
+    let up = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
+
+    assert_eq!(
+        down, None,
+        "plain terrain mouse-down should not close gameplay"
+    );
+    assert_eq!(up, None, "plain terrain mouse-up should not close gameplay");
+    assert_eq!(
+        state
+            .selected_unit()
+            .expect("selected unit should still exist")
+            .position,
+        start,
+        "plain left-clicking terrain should not issue a move order in CTP2"
+    );
+    assert_eq!(
+        movement.active_unit(),
+        None,
+        "terrain clicks should not activate a unit"
+    );
+}
+
+#[test]
+fn plain_left_click_with_authority_does_not_submit_move_request() {
+    let (port, request_seen, handle) = spawn_authoritative_request_probe();
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 89);
+    state.popups.clear();
+    let start = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .position;
+    let target = empty_passable_tile(&state, start);
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let client = ServerClient::from_config(&ServerConfig {
+        base_url: format!("http://127.0.0.1:{port}"),
+        required: true,
+    })
+    .expect("test server URL should parse");
+    let mut authority = RuntimeAuthority {
+        client,
+        session: ServerGameplaySession {
+            game_id: 44,
+            session_id: 11,
+            account_id: 7,
+            projection: Some(ServerProjection::default()),
+        },
+        empire_count: 1,
+        seed: 89,
+    };
+    let (x, y) = camera.tile_to_screen(target);
+
+    let down = handle_left_click(
+        x,
+        y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        Some(&mut authority),
+    );
+    let up = handle_left_release(
+        x,
+        y,
+        &mut state,
+        &ui,
+        &mut camera,
+        &mut movement,
+        Some(&mut authority),
+    );
+
+    handle.join().expect("listener worker should finish");
+    assert_eq!(down, None, "plain terrain down should not close gameplay");
+    assert_eq!(up, None, "plain terrain up should not close gameplay");
+    assert!(
+        !request_seen.load(Ordering::SeqCst),
+        "plain terrain left-clicks must not submit authoritative movement"
+    );
+}
+
+/// Spawns a short-lived fake command listener that records unexpected requests.
+fn spawn_authoritative_request_probe() -> (u16, Arc<AtomicBool>, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
+    listener
+        .set_nonblocking(true)
+        .expect("listener should support nonblocking accept");
+    let port = listener
+        .local_addr()
+        .expect("listener should expose address")
+        .port();
+    let request_seen = Arc::new(AtomicBool::new(false));
+    let worker_seen = Arc::clone(&request_seen);
+    let handle =
+        thread::spawn(move || watch_for_unexpected_authoritative_request(listener, worker_seen));
+    (port, request_seen, handle)
+}
+
+/// Watches for an unexpected command request without blocking successful no-request tests.
+fn watch_for_unexpected_authoritative_request(listener: TcpListener, worker_seen: Arc<AtomicBool>) {
+    let deadline = Instant::now()
+        .checked_add(Duration::from_millis(200))
+        .expect("deadline should be representable");
+    while Instant::now() < deadline {
+        match listener.accept() {
+            Ok((mut stream, _address)) => {
+                worker_seen.store(true, Ordering::SeqCst);
+                let mut request = [0_u8; 1024];
+                let read_result = stream.read(&mut request);
+                assert!(
+                    read_result.is_ok(),
+                    "unexpected command request should be readable"
+                );
+                let response = serde_json::json!({
+                    "revision": 2_i32,
+                    "receipt_id": "unexpected-move",
+                    "event_cursor": 1_i32,
+                    "viewer_projection": {"revision": 2_i32, "turn": 1_i32}
+                })
+                .to_string();
+                let message = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+                    response.len(),
+                    response
+                );
+                stream
+                    .write_all(message.as_bytes())
+                    .expect("unexpected command response should write");
+                break;
+            }
+            Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => assert_eq!(
+                error.kind(),
+                ErrorKind::WouldBlock,
+                "test listener should only report WouldBlock while idle"
+            ),
+        }
+    }
+    drop(listener);
+    drop(worker_seen);
+}
+
+#[test]
+fn left_click_on_owned_unit_activates_without_moving() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 85);
+    state.popups.clear();
+    let selected = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .clone();
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (x, y) = camera.tile_to_screen(selected.position);
+
+    let outcome = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
+
+    assert_eq!(outcome, None, "unit activation should not close gameplay");
+    assert_eq!(
+        movement.active_unit(),
+        Some(selected.id),
+        "clicking an owned unit should activate it for path planning"
+    );
+    assert_eq!(
+        state
+            .selected_unit()
+            .expect("selected unit should remain selected")
+            .position,
+        selected.position,
+        "activation alone must not move the unit"
+    );
+}
+
+#[test]
+fn active_unit_click_drag_release_moves_along_planned_path() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 86);
+    state.popups.clear();
+    let start = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .position;
+    let target = start
+        .offset(1, 0, state.width, state.height)
+        .expect("adjacent target should be in bounds");
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (start_x, start_y) = camera.tile_to_screen(start);
+    let (target_x, target_y) = camera.tile_to_screen(target);
+
+    let _activate = handle_left_click(
+        start_x,
+        start_y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+    let _drag_start = handle_left_click(
+        start_x,
+        start_y,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+    handle_mouse_motion(target_x, target_y, &state, &camera, &mut movement);
+
+    assert_eq!(
+        movement.planned_path(),
+        &[target],
+        "dragging from the active unit should draw the exact planned path"
+    );
+
+    let outcome = handle_left_release(
+        target_x,
+        target_y,
+        &mut state,
+        &ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+
+    assert_eq!(outcome, None, "drag release should not close gameplay");
+    assert_eq!(
+        state
+            .selected_unit()
+            .expect("selected unit should still exist")
+            .position,
+        target,
+        "local fallback should execute only after a completed drag path"
+    );
+}
+
+#[test]
+fn mouse_up_without_drag_path_submits_nothing() {
+    let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 87);
+    state.popups.clear();
+    let start = state
+        .selected_unit()
+        .expect("selected unit should exist")
+        .position;
+    let mut ui = InGameUiModel::default();
+    let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
+    let (x, y) = camera.tile_to_screen(start);
+
+    let _activate = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
+    let _drag_start =
+        handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
+    let outcome = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
+
+    assert_eq!(
+        outcome, None,
+        "empty drag release should not close gameplay"
+    );
+    assert_eq!(
+        state
+            .selected_unit()
+            .expect("selected unit should still exist")
+            .position,
+        start,
+        "mouse-up without a planned path must not issue movement"
+    );
+}
+
+#[test]
+fn server_path_conversion_preserves_dragged_tile_order() {
+    let projection = ServerProjection {
+        tiles: vec![
+            ServerTileProjection {
+                id: "origin".to_owned(),
+                x: 4,
+                y: 4,
+                terrain: "plains".to_owned(),
+                ..ServerTileProjection::default()
+            },
+            ServerTileProjection {
+                id: "east".to_owned(),
+                x: 5,
+                y: 4,
+                terrain: "plains".to_owned(),
+                ..ServerTileProjection::default()
+            },
+            ServerTileProjection {
+                id: "south-east".to_owned(),
+                x: 6,
+                y: 5,
+                terrain: "plains".to_owned(),
+                ..ServerTileProjection::default()
+            },
+        ],
+        ..ServerProjection::default()
+    };
+
+    let ids = server_tile_ids_for_path(
+        Some(&projection),
+        &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
+    )
+    .expect("all dragged tiles should map to server ids");
+
+    assert_eq!(
+        ids,
+        vec!["east".to_owned(), "south-east".to_owned()],
+        "authoritative move payload should preserve the drag path, not collapse to one target"
+    );
+}
+
+/// Returns a passable tile that does not contain a unit.
+fn empty_passable_tile(state: &crate::gameplay::model::GameState, excluded: MapPoint) -> MapPoint {
+    for y in 0..state.height {
+        for x in 0..state.width {
+            let point = MapPoint::new(x, y);
+            if point == excluded || state.units.iter().any(|unit| unit.position == point) {
+                continue;
+            }
+            if state
+                .tile(point)
+                .is_some_and(|tile| tile.terrain.passable_by_land())
+            {
+                return point;
+            }
+        }
+    }
+    excluded
 }
 
 #[test]
@@ -196,8 +624,17 @@ fn right_click_with_open_dropdown_cancels_only_dropdown() {
         ..InGameUiModel::default()
     };
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(570, 650, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_right_click(
+        570,
+        650,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(
         outcome, None,
@@ -218,8 +655,17 @@ fn right_click_popup_consumes_without_context_action() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 81);
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(120, 610, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_right_click(
+        120,
+        610,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(
         outcome, None,
@@ -238,8 +684,17 @@ fn right_click_lower_panel_does_not_open_context_actions() {
     state.popups.clear();
     let mut ui = InGameUiModel::default();
     let mut camera = Camera::centered_on_selected(&state);
+    let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(120, 610, &mut state, &mut ui, &mut camera, None);
+    let outcome = handle_right_click(
+        120,
+        610,
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
 
     assert_eq!(outcome, None, "panel right-click should not close gameplay");
     assert!(
