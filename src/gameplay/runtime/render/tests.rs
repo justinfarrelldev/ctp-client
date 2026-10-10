@@ -27,12 +27,13 @@ fn unit_sprite_rect_is_centered_and_bottom_anchored_on_tile() {
 }
 
 #[test]
-fn movement_feedback_uses_ctp2_line_and_bracket_geometry() {
+fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
     let offsets = movement::movement_feedback_stroke_offsets();
     let camera = Camera::for_test_identity();
     let origin = MapPoint::new(2, 2);
     let path = [MapPoint::new(3, 3), MapPoint::new(4, 3)];
     let segments = movement::planned_path_segments(&camera, origin, &path);
+    let turn_markers = movement::planned_path_turn_markers(&camera, &path, 1);
     let brackets =
         movement::selection_bracket_segments(unit_target_rect_from_size(64, 72, 100, 200));
 
@@ -48,6 +49,19 @@ fn movement_feedback_uses_ctp2_line_and_bracket_geometry() {
         segments.len(),
         path.len(),
         "planned movement should render CTP2-style line segments, not one tile marker per reachable tile"
+    );
+    assert_eq!(
+        turn_markers.len(),
+        path.len(),
+        "one-move ancient units should show CTP2 turn boxes at each completed path step"
+    );
+    assert_eq!(
+        turn_markers[0].label, 1,
+        "the first source-style turn box should be labeled with turn one"
+    );
+    assert!(
+        turn_markers[0].rect.width() >= 8,
+        "turn boxes should keep the original visible minimum size"
     );
     assert_eq!(
         brackets.len(),

@@ -59,10 +59,10 @@ pub(super) fn draw_frame(
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     draw_map(canvas, textures, state, camera, input)?;
+    movement::draw_planned_path(canvas, input, camera, font)?;
     draw_top_menu(canvas, textures, ui, font)?;
     draw_control_panel(canvas, textures, state, font)?;
     draw_side_panel(canvas, state, font)?;
-    movement::draw_planned_path(canvas, input, camera)?;
     draw_popups(canvas, textures, state, font)?;
     canvas.present();
     Ok(())
@@ -242,8 +242,9 @@ fn draw_units(
             canvas.fill_rect(target).map_err(runtime_error)?;
             target
         };
-        if Some(unit.id) == input.active_unit() {
-            movement::draw_selection_brackets(canvas, target)?;
+        if Some(unit.id) == input.active_unit() || Some(unit.id) == state.selected_unit {
+            let color = movement::selection_feedback_color(unit.movement_points > 0_i16);
+            movement::draw_selection_brackets(canvas, target, color)?;
         }
     }
     Ok(())

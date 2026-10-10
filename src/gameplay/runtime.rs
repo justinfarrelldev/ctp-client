@@ -305,7 +305,7 @@ fn handle_event(
             if mousestate.left() {
                 handle_mouse_motion(x, y, state, camera, movement);
             } else {
-                movement.cancel_drag();
+                handle_mouse_hover(x, y, state, camera, movement);
             }
             None
         }
@@ -382,8 +382,29 @@ fn handle_mouse_motion(
     camera: &Camera,
     movement: &mut MovementInputState,
 ) {
+    if click_in_non_map_ui(x, y) {
+        movement.cancel_drag();
+        return;
+    }
     if let Some(point) = camera.screen_to_tile(x, y) {
         movement.extend_drag_to(state, point);
+    }
+}
+
+/// Handles map mouse motion when no button is pressed, matching CTP2 hover path drawing.
+fn handle_mouse_hover(
+    x: i32,
+    y: i32,
+    state: &GameState,
+    camera: &Camera,
+    movement: &mut MovementInputState,
+) {
+    if click_in_non_map_ui(x, y) {
+        movement.cancel_drag();
+        return;
+    }
+    if let Some(point) = camera.screen_to_tile(x, y) {
+        movement.preview_path_to(state, point);
     }
 }
 
@@ -411,8 +432,8 @@ fn handle_left_release(
     }
     if let Some(active_authority) = authority {
         submit_authoritative_move_path(active_authority, state, unit_id, &path);
-    } else if let Some(target) = path.last().copied() {
-        state.order_selected_to(target);
+    } else {
+        state.order_selected_along_path(path);
     }
     movement.retain_selectable(state);
     *camera = Camera::centered_on_selected(state);
@@ -721,5 +742,7 @@ fn restore_env_var(key: &str, value: Option<std::ffi::OsString>) {
     }
 }
 
+#[cfg(test)]
+mod movement_input_tests;
 #[cfg(test)]
 mod tests;

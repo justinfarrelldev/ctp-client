@@ -7,7 +7,6 @@ extern crate alloc;
 use super::generation::{
     direction_delta, generated_contacts, generated_tiles, lcg_next, new_unit, next_id_from_len,
     owners_are_enemies, ruin_outcome, seeded_edge_point, start_popup, step_toward,
-    straight_line_path,
 };
 use super::{
     CITY_VISION_RADIUS, City, CityId, FogState, GameState, GameplayEvent, GameplayPopup,
@@ -140,24 +139,12 @@ impl GameState {
 
     /// Orders or immediately moves the selected unit to a target tile.
     pub fn order_selected_to(&mut self, target: MapPoint) -> Vec<GameplayEvent> {
-        let mut events = Vec::new();
-        if !self.in_bounds(target) || !self.is_land_passable(target) {
-            return events;
-        }
-        let Some(unit_id) = self.selected_unit else {
-            return events;
-        };
-        let Some(start) = self.unit_position(unit_id) else {
-            return events;
-        };
-        let path = straight_line_path(start, target, self.width, self.height);
-        if path.is_empty() {
-            return events;
-        }
-        self.set_unit_order(unit_id, UnitOrder::MoveTo { path });
-        events.extend(self.process_unit_path(unit_id));
-        self.refresh_fog();
-        events
+        super::movement_orders::order_selected_to(self, target)
+    }
+
+    /// Orders or immediately moves the selected unit along an already-computed path.
+    pub fn order_selected_along_path(&mut self, path: Vec<MapPoint>) -> Vec<GameplayEvent> {
+        super::movement_orders::order_selected_along_path(self, path)
     }
 
     /// Moves the selected unit one tile by signed offset.
@@ -356,7 +343,7 @@ impl GameState {
     }
 
     /// Processes one unit's queued path until movement is exhausted.
-    fn process_unit_path(&mut self, unit_id: UnitId) -> Vec<GameplayEvent> {
+    pub(super) fn process_unit_path(&mut self, unit_id: UnitId) -> Vec<GameplayEvent> {
         let mut events = Vec::new();
         loop {
             let Some(next) = self.next_step_for_unit(unit_id) else {
@@ -602,7 +589,7 @@ impl GameState {
     }
 
     /// Recomputes human fog of war.
-    fn refresh_fog(&mut self) {
+    pub(super) fn refresh_fog(&mut self) {
         for tile in &mut self.tiles {
             tile.fog = match tile.fog {
                 FogState::Visible | FogState::Explored => FogState::Explored,
