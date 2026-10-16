@@ -59,4 +59,13 @@
   - `cargo make test` passed.
   - `./scripts/check-coverage-fast.sh` is not present in this repository.
   - `cargo build` passed; `cargo make build-all` was attempted and is blocked by missing i686 GLib/pkg-config cross-compilation sysroot configuration on this host.
+
+## CTP2 Terrain Pixel Seam Repair
+
+See [the detailed plan and red/green evidence](plans/terrain-pixel-seams.md).
+
+- [x] Reproduce tile-edge damage with actual SDL pixel readback on deterministic application-generated maps using installed original art (read-only).
+- [x] Fix rectangular fog spill, zoomed edge culling, and undersized fallback ground; keep mountain/forest overhang transparency outside the flat-ground contract.
+- [x] Test all four grassland/plains/water edges, full ground interiors, zoom 1-3, generated and mixed fog, and single-pixel negative controls. No snapshots, copied assets, live server, or file-mutating new tests.
+- [x] Run strict lint, full tests, dedicated build, coverage measurement and final review. Terrain renderer line coverage: 93.88%; overall coverage: 76.56% (below the repository-wide 80% target, principally unrelated GTK/video paths). Required fast coverage script remains absent.
 - [x] Conduct final review, update documentation, and prepare commit after running `cargo make lint-fix`.

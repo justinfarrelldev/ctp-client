@@ -170,7 +170,7 @@ fn run_sdl_game_on_canvas(
 ) -> Result<GameplayOutcome, GameplayError> {
     configure_gameplay_canvas(canvas)?;
     let texture_creator = canvas.texture_creator();
-    let textures = textures::GameplayTextures::load(
+    let mut textures = textures::GameplayTextures::load(
         &config.installation_root,
         &texture_creator,
         config.server.required,
@@ -228,7 +228,7 @@ fn run_sdl_game_on_canvas(
         }
         render::draw_frame(
             canvas,
-            &textures,
+            &mut textures,
             &state,
             &ui,
             &camera,

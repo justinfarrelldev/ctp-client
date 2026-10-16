@@ -53,6 +53,16 @@ pub(super) struct GameplayTextures<'texture> {
 }
 
 impl<'texture> GameplayTextures<'texture> {
+    /// Stubs missing installation art without touching the filesystem.
+    #[cfg(test)]
+    pub(super) const fn without_assets_for_test() -> Self {
+        Self {
+            terrain: Vec::new(),
+            ui: Vec::new(),
+            units: Vec::new(),
+        }
+    }
+
     /// Loads original CTP2 terrain, UI chrome, and unit sprite textures.
     ///
     /// # Errors
@@ -90,12 +100,12 @@ impl<'texture> GameplayTextures<'texture> {
         Ok(textures)
     }
 
-    /// Returns a terrain texture.
-    pub(super) fn terrain_texture(&self, terrain: TerrainKind) -> Option<&Texture<'texture>> {
+    /// Returns a terrain texture for per-cell fog modulation before drawing.
+    pub(super) fn terrain_texture(&mut self, terrain: TerrainKind) -> Option<&mut Texture<'texture>> {
         self.terrain
-            .iter()
+            .iter_mut()
             .find(|entry| entry.0 == terrain)
-            .map(|entry| &entry.1)
+            .map(|entry| &mut entry.1)
     }
 
     /// Returns a UI texture.

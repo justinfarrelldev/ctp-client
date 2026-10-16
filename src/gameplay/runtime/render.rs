@@ -18,7 +18,7 @@ use sdl2::ttf::Font;
 use sdl2::video::Window;
 
 use super::super::model::{
-    FogState, GameState, MapPoint, PlayerId, TerrainKind, TileFeature, UnitKind,
+    FogState, GameState, MapPoint, PlayerId, TerrainKind, UnitKind,
 };
 use super::super::ui_model::{
     CONTROL_PANEL_HEIGHT, CONTROL_PANEL_WIDTH, END_TURN_BUTTON_HEIGHT, END_TURN_BUTTON_WIDTH,
@@ -34,9 +34,12 @@ use super::{DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MovementInputState, SID
 mod chrome;
 /// Drag-movement overlay drawing helpers.
 mod movement;
+/// Ground drawing and tile-local fog.
+mod terrain;
 /// Text drawing helpers.
 mod text;
 
+use terrain::draw_map;
 use text::{draw_shadowed_text, draw_text};
 
 /// High-contrast text color for top menu button labels over `uptbtest.rim`.
@@ -49,7 +52,7 @@ const DROPDOWN_DISABLED_TEXT_COLOR: Color = Color::RGBA(126, 118, 108, 255);
 /// Draws one gameplay frame.
 pub(super) fn draw_frame(
     canvas: &mut Canvas<Window>,
-    textures: &GameplayTextures<'_>,
+    textures: &mut GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
     camera: &Camera,
@@ -65,109 +68,6 @@ pub(super) fn draw_frame(
     draw_side_panel(canvas, state, font)?;
     draw_popups(canvas, textures, state, font)?;
     canvas.present();
-    Ok(())
-}
-
-/// Draws the world map.
-fn draw_map(
-    canvas: &mut Canvas<Window>,
-    textures: &GameplayTextures<'_>,
-    state: &GameState,
-    camera: &Camera,
-    input: &MovementInputState,
-) -> Result<(), GameplayError> {
-    for y in 0..state.height {
-        for x in 0..state.width {
-            let point = MapPoint::new(x, y);
-            let Some(tile) = state.tile(point) else {
-                continue;
-            };
-            let (screen_x, screen_y) = camera.tile_to_screen(point);
-            if screen_x > i32::try_from(DEFAULT_WINDOW_WIDTH).map_or(1024, |value| value)
-                || screen_y > i32::try_from(DEFAULT_WINDOW_HEIGHT).map_or(768, |value| value)
-                || screen_x < -TILE_WIDTH
-                || screen_y < -TILE_HEIGHT
-            {
-                continue;
-            }
-            if let Some(texture) = textures.terrain_texture(tile.terrain) {
-                canvas
-                    .copy(
-                        texture,
-                        None,
-                        Rect::new(
-                            screen_x,
-                            screen_y,
-                            camera.tile_width(),
-                            camera.tile_height(),
-                        ),
-                    )
-                    .map_err(runtime_error)?;
-            } else {
-                draw_fallback_tile(canvas, camera, tile.terrain, screen_x, screen_y)?;
-            }
-            if state.filters.fog_of_war && tile.fog != FogState::Visible {
-                draw_fog_overlay(canvas, camera, screen_x, screen_y, tile.fog)?;
-            }
-            if state.filters.grid {
-                draw_tile_diamond(canvas, camera, screen_x, screen_y, Color::RGB(20, 20, 20))?;
-            }
-            if tile.feature == Some(TileFeature::Ruin) && tile.fog == FogState::Visible {
-                canvas.set_draw_color(Color::RGB(210, 185, 100));
-                canvas
-                    .fill_rect(Rect::new(screen_x + 40, screen_y + 34, 12, 12))
-                    .map_err(runtime_error)?;
-            }
-        }
-    }
-    draw_cities(canvas, state, camera)?;
-    draw_units(canvas, textures, state, camera, input)
-}
-
-/// Draws a fallback diamond when original tiles are unavailable.
-fn draw_fallback_tile(
-    canvas: &mut Canvas<Window>,
-    camera: &Camera,
-    terrain: TerrainKind,
-    screen_x: i32,
-    screen_y: i32,
-) -> Result<(), GameplayError> {
-    let color = tile_color(terrain);
-    canvas.set_draw_color(color);
-    canvas
-        .fill_rect(Rect::new(
-            screen_x + 8,
-            screen_y + 24,
-            camera.tile_width().saturating_sub(16),
-            camera.tile_height().saturating_sub(36),
-        ))
-        .map_err(runtime_error)
-}
-
-/// Draws fog overlay.
-fn draw_fog_overlay(
-    canvas: &mut Canvas<Window>,
-    camera: &Camera,
-    screen_x: i32,
-    screen_y: i32,
-    fog: FogState,
-) -> Result<(), GameplayError> {
-    let alpha = match fog {
-        FogState::Visible => 0,
-        FogState::Explored => 120,
-        FogState::Hidden => 220,
-    };
-    canvas.set_blend_mode(BlendMode::Blend);
-    canvas.set_draw_color(Color::RGBA(0, 0, 0, alpha));
-    canvas
-        .fill_rect(Rect::new(
-            screen_x,
-            screen_y,
-            camera.tile_width(),
-            camera.tile_height(),
-        ))
-        .map_err(runtime_error)?;
-    canvas.set_blend_mode(BlendMode::None);
     Ok(())
 }
 
@@ -748,3 +648,5 @@ const fn unit_color(kind: UnitKind, owner: PlayerId) -> Color {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod pixel_tests;
