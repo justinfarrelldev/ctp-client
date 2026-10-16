@@ -10,6 +10,36 @@ use crate::gameplay::{GameplayError, runtime_error};
 
 use super::super::textures::GameplayTextures;
 
+/// Copies original art at native size, retaining transparent canvas underneath.
+pub(super) fn draw_art(
+    canvas: &mut Canvas<Window>,
+    textures: &GameplayTextures<'_>,
+    name: &str,
+    x: i32,
+    y: i32,
+) -> Result<(), GameplayError> {
+    if let Some(texture) = textures.ui_texture(name) {
+        let size = texture.query();
+        canvas
+            .copy(texture, None, Rect::new(x, y, size.width, size.height))
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
+/// Copies an LDL image layer into its declared rectangle.
+pub(super) fn draw_art_rect(
+    canvas: &mut Canvas<Window>,
+    textures: &GameplayTextures<'_>,
+    name: &str,
+    rect: Rect,
+) -> Result<(), GameplayError> {
+    if let Some(texture) = textures.ui_texture(name) {
+        canvas.copy(texture, None, rect).map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
 /// Draws the CTP2 dropdown listbox chrome from `CTP2_MENU`.
 pub(super) fn draw_dropdown_chrome(
     canvas: &mut Canvas<Window>,
@@ -52,7 +82,7 @@ pub(super) fn draw_dropdown_chrome(
 }
 
 /// Tiles a texture across a rectangle.
-fn tile_texture(
+pub(super) fn tile_texture(
     canvas: &mut Canvas<Window>,
     texture: &Texture<'_>,
     x: i32,

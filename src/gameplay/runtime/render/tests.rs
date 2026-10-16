@@ -1,28 +1,32 @@
 //! Tests for gameplay rendering geometry helpers.
 
+#![expect(
+    clippy::default_numeric_fallback,
+    reason = "Geometry assertions use original fixed i32 SDL pixel literals"
+)]
+
 use sdl2::pixels::Color;
 
+use super::actors::unit_target_rect;
 use super::{
-    DROPDOWN_DISABLED_TEXT_COLOR, DROPDOWN_ENABLED_TEXT_COLOR, TILE_HEIGHT, TILE_WIDTH,
-    TOP_MENU_TEXT_COLOR, movement, unit_target_rect_from_size,
+    DROPDOWN_DISABLED_TEXT_COLOR, DROPDOWN_ENABLED_TEXT_COLOR, TOP_MENU_TEXT_COLOR, movement,
 };
 use crate::gameplay::model::MapPoint;
 use crate::gameplay::runtime::Camera;
 
 #[test]
-fn unit_sprite_rect_is_centered_and_bottom_anchored_on_tile() {
-    let rect = unit_target_rect_from_size(96, 96, 100, 200);
-
+fn unit_sprite_rect_preserves_native_size_and_original_hotspot() {
+    let rect = unit_target_rect(96, 96, (48, 60), (100, 200), 1);
     assert_eq!(
-        rect.x(),
-        100_i32 + (TILE_WIDTH - 64_i32).checked_div(2_i32).unwrap_or(0_i32),
-        "wide unit sprites should be centered over the 94px tile"
+        rect,
+        sdl2::rect::Rect::new(100, 188, 96, 96),
+        "96px frames must not be distorted into 64×72 boxes"
     );
+    let zoomed = unit_target_rect(96, 96, (48, 60), (100, 200), 2);
     assert_eq!(
-        rect.y()
-            .saturating_add(i32::try_from(rect.height()).unwrap_or(0_i32)),
-        200_i32 + TILE_HEIGHT,
-        "unit sprite feet should anchor to the bottom of the tile grid"
+        zoomed,
+        sdl2::rect::Rect::new(100, 176, 192, 192),
+        "hotspot offsets scale with the whole frame"
     );
 }
 
@@ -36,7 +40,7 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
     let turn_markers = movement::planned_path_turn_markers(&camera, &path, 1);
     let brackets = movement::tile_selection_bracket_segments(&camera, origin);
     let legacy_sprite_brackets =
-        movement::selection_bracket_segments(unit_target_rect_from_size(64, 72, 100, 200));
+        movement::selection_bracket_segments(sdl2::rect::Rect::new(100, 200, 64, 72));
 
     assert!(
         offsets.len() >= 3,
@@ -83,12 +87,12 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
 
 #[test]
 fn menu_text_colors_keep_readable_contrast_against_original_chrome() {
-    let fallback_top_chrome = Color::RGB(126, 113, 81);
+    let fallback_top_chrome = Color::RGB(200, 192, 174);
     let original_dropdown_chrome = Color::RGB(200, 192, 174);
 
     assert!(
         luma_contrast(TOP_MENU_TEXT_COLOR, fallback_top_chrome) >= 95_u16,
-        "top menu labels should stay bright over dark gold/brown button chrome"
+        "original grey/brown labels must stay dark over the actual pale menu art"
     );
     assert!(
         luma_contrast(DROPDOWN_ENABLED_TEXT_COLOR, original_dropdown_chrome) >= 95_u16,

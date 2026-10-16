@@ -27,6 +27,7 @@ impl GameState {
         let width = width.max(MIN_WORLD_WIDTH);
         let height = height.max(MIN_WORLD_HEIGHT);
         let mut state = Self {
+            authoritative: false,
             width,
             height,
             tiles: generated_tiles(width, height, seed),

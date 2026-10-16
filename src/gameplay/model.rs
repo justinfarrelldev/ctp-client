@@ -132,6 +132,13 @@ pub enum FogState {
 pub struct MapTile {
     /// Tile terrain.
     pub terrain: TerrainKind,
+    /// Exact original terrain-art family when present in the server projection.
+    /// This is visual metadata only and never changes authoritative rules.
+    pub art_base_type: Option<u8>,
+    /// Whether a river was explicitly exposed by the server (never inferred).
+    pub river: bool,
+    /// Resource identifier explicitly exposed by the server; never generated.
+    pub good_id: Option<String>,
     /// Optional special feature.
     pub feature: Option<TileFeature>,
     /// Fog state from the human player's perspective.
@@ -166,6 +173,14 @@ impl PlayerId {
 /// Stable unit identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnitId(pub u32);
+
+impl UnitId {
+    /// Builds the stable render identifier used for a server's unit ID.
+    /// Wire commands still use the original string from the session projection.
+    pub(in crate::gameplay) fn from_server_id(id: &str) -> Self {
+        Self(server_projection::stable_id_from_text(id))
+    }
+}
 
 /// Stable city identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -378,6 +393,9 @@ impl Default for MapFilters {
 /// Complete pure gameplay state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
+    /// Whether geography/actors come from a viewer-safe server projection.
+    /// Unknown cells remain unknown even when local fog shading is disabled.
+    pub authoritative: bool,
     /// World width in tiles.
     pub width: u16,
     /// World height in tiles.
@@ -417,5 +435,7 @@ mod movement_orders;
 /// Server projection conversion helpers.
 mod server_projection;
 
+#[cfg(test)]
+mod terrain_tests;
 #[cfg(test)]
 mod tests;

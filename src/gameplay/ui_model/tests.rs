@@ -34,6 +34,26 @@ fn top_menu_matches_original_ctp2_titles_rows_and_save_load_are_disabled() {
         vec!["Build Manager", "City Manager", "Natl Manager"],
         "Cities dropdown rows must use the original CTP2 string labels"
     );
+    assert_eq!(
+        options.iter().map(|item| item.label).collect::<Vec<_>>(),
+        vec![
+            "Zoom Out",
+            "Zoom In",
+            "Gameplay",
+            "Graphics",
+            "Sound",
+            "Music",
+            "Chat screen",
+            "Advanced",
+            "Cheat Mode",
+            "Save Game",
+            "Load Game",
+            "Restart",
+            "New Game",
+            "Quit"
+        ],
+        "all fourteen rows in the supplied retail screenshot must be present"
+    );
     assert!(
         options
             .iter()
@@ -72,7 +92,7 @@ fn top_menu_geometry_uses_original_button_and_dropdown_metrics() {
         .dropdown_rect(MenuCategory::Options)
         .expect("Options dropdown should have rows");
     let save_row = ui
-        .dropdown_row_rect(MenuCategory::Options, 7)
+        .dropdown_row_rect(MenuCategory::Options, 9)
         .expect("Save Game row should be present");
 
     assert_eq!(

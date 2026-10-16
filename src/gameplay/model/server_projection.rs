@@ -9,10 +9,10 @@ use alloc::vec::Vec;
 
 use crate::gameplay::server::ServerProjection;
 
-use super::generation::{generated_contacts, generated_tiles, new_unit, start_popup};
+use super::generation::{generated_contacts, new_unit, start_popup};
 use super::{
     City, CityId, FogState, GameState, GameplayPopup, MIN_WORLD_HEIGHT, MIN_WORLD_WIDTH,
-    MapFilters, MapPoint, PlayerId, PopupKind, TerrainKind, UnitId, UnitKind,
+    MapFilters, MapPoint, MapTile, PlayerId, PopupKind, TerrainKind, UnitId, UnitKind,
 };
 
 /// Converts an authoritative server terrain id into a render terrain family.
@@ -34,6 +34,41 @@ fn terrain_from_server_id(terrain: &str) -> TerrainKind {
         TerrainKind::Grassland
     } else {
         TerrainKind::Plains
+    }
+}
+
+/// Retains every retail terrain family for transition and biome art selection.
+fn terrain_art_base(terrain: &str) -> Option<u8> {
+    let lower = terrain.to_ascii_lowercase();
+    let name = lower.strip_prefix("terrain_").unwrap_or(&lower);
+    match name {
+        "forest" => Some(22),
+        "plains" => Some(1),
+        "tundra" => Some(2),
+        "glacier" => Some(3),
+        "grassland" => Some(4),
+        "desert" => Some(5),
+        "swamp" => Some(6),
+        "jungle" => Some(7),
+        "mountain" => Some(8),
+        "hill" | "hills" => Some(9),
+        "water_shallow" => Some(10),
+        "water_deep" => Some(11),
+        "water_volcano" => Some(12),
+        "water_beach" => Some(13),
+        "water_shelf" => Some(14),
+        "water_trench" => Some(15),
+        "water_rift" => Some(16),
+        "dead" => Some(17),
+        "brown_hill" => Some(18),
+        "brown_mountain" => Some(19),
+        "white_hill" => Some(20),
+        "white_mountain" => Some(21),
+        "water_kelp" => Some(23),
+        "water_reef" => Some(24),
+        "special1" => Some(25),
+        "special2" => Some(26),
+        _ => None,
     }
 }
 
@@ -68,9 +103,6 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
     empire_count: u8,
     seed: u64,
 ) -> GameState {
-    if projection.tiles.is_empty() {
-        return GameState::new(64, 48, empire_count, seed);
-    }
     let width = projection
         .tiles
         .iter()
@@ -87,21 +119,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .map_or(MIN_WORLD_HEIGHT, |value| {
             value.saturating_add(1).max(MIN_WORLD_HEIGHT)
         });
-    let mut tiles = generated_tiles(width, height, seed);
-    for server_tile in &projection.tiles {
-        let point = MapPoint::new(server_tile.x, server_tile.y);
-        if let Some(index) = tile_index_for_dimensions(width, point) {
-            if let Some(tile) = tiles.get_mut(index) {
-                tile.terrain = terrain_from_server_id(&server_tile.terrain);
-                tile.fog = if server_tile.stale {
-                    FogState::Explored
-                } else {
-                    FogState::Visible
-                };
-                tile.feature = None;
-            }
-        }
-    }
+    let tiles = viewer_tiles(projection, width, height);
     let contacts = generated_contacts(empire_count);
     let tile_lookup = projection
         .tiles
@@ -114,7 +132,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .filter_map(|unit| {
             let position = *tile_lookup.get(&unit.tile_id)?;
             let mut converted = new_unit(
-                UnitId(stable_id_from_text(&unit.id)),
+                UnitId::from_server_id(&unit.id),
                 unit_kind_from_server_id(&unit.type_id),
                 player_id_from_server_owner(&unit.owner_id),
                 position,
@@ -142,6 +160,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .find(|unit| unit.owner == PlayerId::Human && unit.alive)
         .map(|unit| unit.id);
     GameState {
+        authoritative: true,
         width,
         height,
         tiles,
@@ -165,6 +184,39 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
     }
 }
 
+/// Fills only viewer-exposed facts; the remaining cells are opaque unknowns,
+/// never procedurally generated ruins, resources, rivers or discovered terrain.
+fn viewer_tiles(projection: &ServerProjection, width: u16, height: u16) -> Vec<MapTile> {
+    let mut tiles = vec![
+        MapTile {
+            terrain: TerrainKind::Grassland,
+            art_base_type: None,
+            river: false,
+            good_id: None,
+            feature: None,
+            fog: FogState::Hidden
+        };
+        usize::from(width).saturating_mul(usize::from(height))
+    ];
+    for source in &projection.tiles {
+        let point = MapPoint::new(source.x, source.y);
+        if let Some(tile) =
+            tile_index_for_dimensions(width, point).and_then(|index| tiles.get_mut(index))
+        {
+            tile.terrain = terrain_from_server_id(&source.terrain);
+            tile.art_base_type = terrain_art_base(&source.terrain);
+            tile.river = source.river;
+            tile.good_id = (!source.good_id.is_empty()).then(|| source.good_id.clone());
+            tile.fog = if source.stale {
+                FogState::Explored
+            } else {
+                FogState::Visible
+            };
+        }
+    }
+    tiles
+}
+
 /// Queues a popup confirming server authority for this game.
 pub(in crate::gameplay::model) fn queue_server_connected_popup(
     state: &mut GameState,
@@ -185,7 +237,7 @@ fn tile_index_for_dimensions(width: u16, point: MapPoint) -> Option<usize> {
 }
 
 /// Builds a stable numeric id from a server string id.
-fn stable_id_from_text(text: &str) -> u32 {
+pub(super) fn stable_id_from_text(text: &str) -> u32 {
     let mut hash = 2_166_136_261_u32;
     for byte in text.bytes() {
         hash ^= u32::from(byte);

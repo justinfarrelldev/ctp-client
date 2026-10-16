@@ -11,9 +11,22 @@ const TILE_STEP_X: i32 = 47;
 /// Vertical step between adjacent isometric tiles.
 const TILE_STEP_Y: i32 = 24;
 /// Default viewport center X.
-const VIEW_CENTER_X: i32 = 512;
+const VIEW_CENTER_X: i32 = 400;
 /// Default viewport center Y.
-const VIEW_CENTER_Y: i32 = 330;
+const VIEW_CENTER_Y: i32 = 288;
+
+/// Iterates each map cell once in back-to-front isometric screen-depth order.
+pub(super) fn painter_order(width: u16, height: u16) -> impl Iterator<Item = MapPoint> {
+    (0_u32..u32::from(width).saturating_add(u32::from(height))).flat_map(move |depth| {
+        (0_u16..width).filter_map(move |x| {
+            let y = depth
+                .checked_sub(u32::from(x))
+                .and_then(|value| u16::try_from(value).ok())
+                .filter(|value| *value < height)?;
+            Some(MapPoint::new(x, y))
+        })
+    })
+}
 
 /// Converts a signed coordinate pair into a map point.
 fn map_point_from_signed(x: i32, y: i32) -> Option<MapPoint> {

@@ -14,31 +14,27 @@ use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::mouse::MouseButton;
 use sdl2::render::Canvas;
+use sdl2::ttf::{Font, Hinting, Sdl2TtfContext};
 use sdl2::video::Window;
 use serde_json::{Value, json};
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind, UnitId};
 use super::server::{ServerClient, ServerProjection};
-use super::ui_model::{
-    CONTROL_PANEL_HEIGHT, END_TURN_BUTTON_HEIGHT, END_TURN_BUTTON_WIDTH, END_TURN_BUTTON_X,
-    END_TURN_BUTTON_Y, InGameAction, InGameUiModel, MENU_BAR_HEIGHT, MenuRect,
-};
+use super::ui_model::{InGameAction, InGameUiModel};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
 /// Runtime frame delay.
 const FRAME_DELAY: Duration = Duration::from_millis(16);
 /// Default SDL window width.
-pub(super) const DEFAULT_WINDOW_WIDTH: u32 = 1024;
+pub(super) const DEFAULT_WINDOW_WIDTH: u32 = 800;
 /// Default SDL window height.
-pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 768;
-/// Right-side panel width.
-pub(super) const SIDE_PANEL_WIDTH: u32 = 160;
+pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 600;
 /// Candidate fonts used to draw gameplay labels over original-style chrome.
 const FONT_CANDIDATES: [&str; 8] = [
     "C:/Windows/Fonts/timesbd.ttf",
     "/usr/share/fonts/truetype/msttcorefonts/timesbd.ttf",
     "/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
@@ -46,19 +42,28 @@ const FONT_CANDIDATES: [&str; 8] = [
 ];
 /// Authoritative server state alignment helpers.
 mod authority;
+/// Labeled controls shared by accessible automation and SDL pointer events.
+pub mod controls;
+/// Native-frame composition and uniform final scaling.
+mod frame;
+/// Original drawing/hit-test geometry.
+mod layout;
 /// CTP2-style movement input handling.
 mod movement;
 /// Gameplay frame rendering.
 mod render;
+/// Explicit opt-in framebuffer previews and capture.
+pub mod snapshot;
 /// Original CTP2 texture loading.
 mod textures;
 /// Camera and screen/tile coordinate conversion.
 mod view;
 
 use authority::{
-    RuntimeAuthority, server_tile_ids_for_path, server_unit_id_for_position,
+    RuntimeAuthority, server_tile_ids_for_path, server_unit_id_for_unit,
     state_from_authority_projection,
 };
+use layout::{click_in_non_map_ui, end_turn_button_rect};
 use movement::{MovementInputState, begin_or_activate_unit_drag};
 use view::Camera;
 
@@ -175,12 +180,11 @@ fn run_sdl_game_on_canvas(
         &texture_creator,
         config.server.required,
     )?;
+    let mut frame_texture = texture_creator
+        .create_texture_target(None, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        .map_err(|error| runtime_error(error.to_string()))?;
     let ttf_context = sdl2::ttf::init().ok();
-    let font_path = find_existing_font();
-    let font = match (ttf_context.as_ref(), font_path.as_ref()) {
-        (Some(context), Some(path)) => context.load_font(path, 13).ok(),
-        _ => None,
-    };
+    let font = ttf_context.as_ref().and_then(load_gameplay_font);
     let mut authority = if config.server.required {
         let client = ServerClient::from_config(&config.server)?;
         let session =
@@ -205,16 +209,37 @@ fn run_sdl_game_on_canvas(
         })
         .unwrap_or_else(|| GameState::new(64, 48, config.empire_count, config.seed));
     if let Some(active_authority) = authority.as_ref() {
-        state.queue_server_connected_popup(active_authority.session.game_id);
+        // Connection diagnostics belong in the log, not a fabricated modal
+        // covering the original first-turn interface after the loading screen.
+        state.popups.clear();
+        log::info!(
+            "Gameplay uses authoritative server game #{}",
+            active_authority.session.game_id
+        );
     }
     let mut ui = InGameUiModel::default();
+    if let Some(font) = font.as_ref() {
+        ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
+    }
     let mut movement = MovementInputState::default();
     let mut camera = Camera::centered_on_selected(&state);
     let mut outcome = None;
     let mut rendered_frames = 0_u32;
 
     while outcome.is_none() {
+        let mut capture_requested = false;
         for event in event_pump.poll_iter() {
+            if matches!(
+                event,
+                Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::F12),
+                    repeat: false,
+                    ..
+                }
+            ) {
+                capture_requested = true;
+                continue;
+            }
             if let Some(next) = handle_event(
                 &event,
                 &mut state,
@@ -226,8 +251,9 @@ fn run_sdl_game_on_canvas(
                 outcome = Some(next);
             }
         }
-        render::draw_frame(
+        frame::draw_scaled_frame(
             canvas,
+            &mut frame_texture,
             &mut textures,
             &state,
             &ui,
@@ -235,6 +261,13 @@ fn run_sdl_game_on_canvas(
             &movement,
             font.as_ref(),
         )?;
+        if capture_requested {
+            match snapshot::save_interactive_capture(canvas) {
+                Ok(path) => log::info!("Saved gameplay frame to {}", path.display()),
+                Err(error) => log::warn!("Gameplay screenshot failed: {error}"),
+            }
+        }
+        canvas.present();
         rendered_frames = rendered_frames.saturating_add(1);
         if frame_limit.is_some_and(|limit| rendered_frames >= limit) {
             outcome = Some(GameplayOutcome::Closed);
@@ -245,24 +278,11 @@ fn run_sdl_game_on_canvas(
     Ok(outcome.unwrap_or(GameplayOutcome::Closed))
 }
 
-/// Configures gameplay to render into the original 1024x768 coordinate space.
+/// Uniformly scales the reference game frame with minimal aspect-ratio borders.
 fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
-    ensure_native_gameplay_output_size(canvas)?;
     canvas.set_viewport(None);
     canvas
         .set_logical_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        .map_err(|error| runtime_error(error.to_string()))
-}
-
-/// Avoids SDL downscaling the native CTP2 gameplay frame below 1024x768.
-fn ensure_native_gameplay_output_size(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
-    let (width, height) = canvas.output_size().map_err(runtime_error)?;
-    if width >= DEFAULT_WINDOW_WIDTH && height >= DEFAULT_WINDOW_HEIGHT {
-        return Ok(());
-    }
-    canvas
-        .window_mut()
-        .set_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         .map_err(|error| runtime_error(error.to_string()))
 }
 
@@ -315,6 +335,18 @@ fn handle_event(
         Event::MouseMotion {
             x, y, mousestate, ..
         } => {
+            ui.hovered_tile = if click_in_non_map_ui(x, y) {
+                None
+            } else {
+                camera.screen_to_tile(x, y)
+            };
+            if ui.open_menu.is_some() {
+                if let Some(category) = ui.menu_button_at(x, y) {
+                    ui.open_menu = Some(category);
+                }
+                movement.cancel_drag();
+                return None;
+            }
             if mousestate.left() {
                 handle_mouse_motion(x, y, state, camera, movement);
             } else {
@@ -374,6 +406,10 @@ fn handle_left_click(
             return apply_ui_action(action, state, ui, camera, movement, authority);
         }
         return None;
+    }
+    if let Some(intent) = controls::intent_at(state, ui.active_tab, x, y) {
+        movement.cancel_drag();
+        return controls::apply_intent(intent, state, ui, camera, movement, authority);
     }
     if click_in_non_map_ui(x, y) {
         movement.cancel_drag();
@@ -559,7 +595,7 @@ fn apply_authoritative_action(
             };
             let city_id = format!("city-{}-{}", unit.position.x, unit.position.y);
             let payload = json!({
-                "unit_id": server_unit_id_for_position(authority, unit.position),
+                "unit_id": server_unit_id_for_unit(authority, unit.id),
                 "city_id": city_id,
                 "name": "New City"
             });
@@ -570,7 +606,7 @@ fn apply_authoritative_action(
             let Some(unit) = state.selected_unit() else {
                 return true;
             };
-            let payload = json!({"unit_id": server_unit_id_for_position(authority, unit.position)});
+            let payload = json!({"unit_id": server_unit_id_for_unit(authority, unit.id)});
             submit_authoritative_command(authority, state, "fortify", payload);
             true
         }
@@ -627,7 +663,7 @@ fn submit_authoritative_move_path(
         return;
     };
     let payload = json!({
-        "unit_id": server_unit_id_for_position(authority, unit.position),
+        "unit_id": server_unit_id_for_unit(authority, unit.id),
         "path": path_ids
     });
     submit_authoritative_command(authority, state, "move", payload);
@@ -665,26 +701,18 @@ fn replace_state_from_projection(
     projection: &ServerProjection,
 ) {
     let filters = state.filters;
+    let selected = state.selected_unit;
     let mut next = state_from_authority_projection(authority, projection);
+    if selected.is_some_and(|id| {
+        next.units
+            .iter()
+            .any(|unit| unit.id == id && unit.alive && unit.owner == super::model::PlayerId::Human)
+    }) {
+        next.selected_unit = selected;
+    }
     next.filters = filters;
     next.popups.clear();
     *state = next;
-}
-
-/// Returns the top edge of the bottom control panel.
-fn control_panel_top() -> i32 {
-    i32::try_from(DEFAULT_WINDOW_HEIGHT.saturating_sub(CONTROL_PANEL_HEIGHT))
-        .map_or(0_i32, |value| value)
-}
-
-/// Returns the original end-turn button rectangle in screen coordinates.
-fn end_turn_button_rect() -> MenuRect {
-    MenuRect {
-        x: END_TURN_BUTTON_X,
-        y: control_panel_top().saturating_add(END_TURN_BUTTON_Y),
-        width: END_TURN_BUTTON_WIDTH,
-        height: END_TURN_BUTTON_HEIGHT,
-    }
 }
 
 /// Returns whether a point hits the end-turn button.
@@ -692,18 +720,10 @@ fn click_in_end_turn_button(x: i32, y: i32) -> bool {
     end_turn_button_rect().contains(x, y)
 }
 
-/// Returns whether a point is inside non-map UI chrome.
-fn click_in_non_map_ui(x: i32, y: i32) -> bool {
-    let menu_height = i32::try_from(MENU_BAR_HEIGHT).map_or(0_i32, |height| height);
-    let side_panel_x = i32::try_from(DEFAULT_WINDOW_WIDTH.saturating_sub(SIDE_PANEL_WIDTH))
-        .map_or(i32::MAX, |value| value);
-    y < menu_height || y >= control_panel_top() || x >= side_panel_x
-}
-
 /// Returns whether a top-menu/dropdown click was consumed and any selected action.
 fn top_menu_click_action(x: i32, y: i32, ui: &mut InGameUiModel) -> (bool, Option<InGameAction>) {
     if let Some(category) = ui.menu_button_at(x, y) {
-        ui.open_menu = Some(category);
+        ui.open_menu = (ui.open_menu != Some(category)).then_some(category);
         return (true, None);
     }
     let Some(category) = ui.open_menu else {
@@ -716,6 +736,14 @@ fn top_menu_click_action(x: i32, y: i32, ui: &mut InGameUiModel) -> (bool, Optio
     (true, action)
 }
 
+/// Loads identical original-size font/hinting for live gameplay and previews.
+fn load_gameplay_font(context: &Sdl2TtfContext) -> Option<Font<'_, 'static>> {
+    let path = find_existing_font()?;
+    let mut font = context.load_font(path, 13_u16).ok()?;
+    font.set_hinting(Hinting::Mono);
+    Some(font)
+}
+
 /// Finds an installed font suitable for gameplay labels.
 fn find_existing_font() -> Option<PathBuf> {
     FONT_CANDIDATES
@@ -725,53 +753,19 @@ fn find_existing_font() -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-/// Restorable headless SDL environment.
+/// Scoped dummy SDL drivers for renderer tests.
 #[cfg(test)]
-struct HeadlessSdlEnvironment {
-    /// Previous video driver.
-    previous_video_driver: Option<std::ffi::OsString>,
-    /// Previous audio driver.
-    previous_audio_driver: Option<std::ffi::OsString>,
-}
+mod test_support;
+#[cfg(test)]
+use test_support::HeadlessSdlEnvironment;
 
 #[cfg(test)]
-impl HeadlessSdlEnvironment {
-    /// Applies dummy drivers.
-    fn apply() -> Self {
-        let environment = Self {
-            previous_video_driver: std::env::var_os("SDL_VIDEODRIVER"),
-            previous_audio_driver: std::env::var_os("SDL_AUDIODRIVER"),
-        };
-        // SAFETY: Gameplay smoke tests hold `SDL_GAMEPLAY_TEST_LOCK` while mutating
-        // process-wide SDL environment variables and restore them before unlock.
-        unsafe {
-            std::env::set_var("SDL_VIDEODRIVER", "dummy");
-            std::env::set_var("SDL_AUDIODRIVER", "dummy");
-        }
-        environment
-    }
-
-    /// Restores dummy drivers.
-    fn restore(self) {
-        restore_env_var("SDL_VIDEODRIVER", self.previous_video_driver);
-        restore_env_var("SDL_AUDIODRIVER", self.previous_audio_driver);
-    }
-}
-
-/// Restores one environment variable.
-#[cfg(test)]
-fn restore_env_var(key: &str, value: Option<std::ffi::OsString>) {
-    // SAFETY: The same test lock used by `HeadlessSdlEnvironment::apply` is
-    // still held, so no concurrent test observes a partial environment update.
-    unsafe {
-        match value {
-            Some(previous) => std::env::set_var(key, previous),
-            None => std::env::remove_var(key),
-        }
-    }
-}
-
+mod fidelity_tests;
 #[cfg(test)]
 mod movement_input_tests;
+#[cfg(test)]
+mod snapshot_tests;
+#[cfg(test)]
+mod stack_tests;
 #[cfg(test)]
 mod tests;

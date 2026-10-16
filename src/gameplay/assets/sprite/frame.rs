@@ -216,9 +216,9 @@ fn pixel_to_rgba_565(pixel: u16, alpha: u8) -> [u8; 4] {
     let green6 = (pixel >> 5) & 0x3F;
     let blue5 = pixel & 0x1F;
     [
-        u8::try_from(red5 << 3).map_or(u8::MAX, |value| value),
-        u8::try_from(green6 << 2).map_or(u8::MAX, |value| value),
-        u8::try_from(blue5 << 3).map_or(u8::MAX, |value| value),
+        crate::gameplay::assets::pixel::expand5(u8::try_from(red5).map_or(31_u8, |value| value)),
+        crate::gameplay::assets::pixel::expand6(u8::try_from(green6).map_or(63_u8, |value| value)),
+        crate::gameplay::assets::pixel::expand5(u8::try_from(blue5).map_or(31_u8, |value| value)),
         if pixel == 0 { 0 } else { alpha },
     ]
 }

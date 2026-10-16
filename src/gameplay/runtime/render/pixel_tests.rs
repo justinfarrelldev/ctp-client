@@ -5,6 +5,11 @@
 //! every framebuffer and deliberate corruption stays in memory. Missing art is
 //! an explicit test failure, never a silently skipped rendering regression.
 
+#![expect(
+    clippy::arithmetic_side_effects,
+    reason = "The independent pixel oracle uses bounded native-frame raster arithmetic, including deliberate one-pixel corruption"
+)]
+
 extern crate alloc;
 
 use alloc::string::String;
@@ -19,7 +24,7 @@ use super::draw_map;
 use crate::gameplay::model::{FogState, GameState, MapPoint, TerrainKind};
 use crate::gameplay::runtime::textures::GameplayTextures;
 use crate::gameplay::runtime::{
-    Camera, DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, HeadlessSdlEnvironment, MovementInputState,
+    Camera, DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MovementInputState,
 };
 
 /// Impossible RGB565 terrain color, exposing even one uncovered pixel.
@@ -199,8 +204,14 @@ fn terrain_only_map(seed: u64) -> (GameState, Camera) {
     state.units.clear();
     state.cities.clear();
     state.selected_unit = None;
-    for tile in &mut state.tiles {
+    for (index, tile) in state.tiles.iter_mut().enumerate() {
         tile.feature = None;
+        // Real forest/mountain hats legitimately occlude neighboring ground.
+        // Isolate flat coverage/fog contracts without mistaking an overhang for
+        // a seam. Retain generated flat cells and replace only non-flat families.
+        if !FLAT_TERRAINS.contains(&tile.terrain) {
+            tile.terrain = FLAT_TERRAINS[index % 3_usize];
+        }
     }
     (state, camera)
 }
@@ -344,15 +355,24 @@ fn check_fog_pixels(
 ) -> Result<(), String> {
     for probe in probes {
         let fog = state.tile(probe.point).expect("probe cell exists").fog;
-        // Preserve the former black-overlay alpha strengths: 0, 120 and 220.
-        let brightness = match fog {
-            FogState::Visible => 255_u16,
-            FogState::Explored => 135_u16,
-            FogState::Hidden => 35_u16,
-        };
+        // Independently reproduce the release's 16/32 RGB565 blend with black.
+        // Quantize BEFORE halving, then expand the channel as a displayed pixel.
+        // Simple 8-bit modulation is measurably wrong on odd 5/6-bit channels.
         for channel in 0_usize..3_usize {
             let original = u16::from(reference[probe.offset + channel]);
-            let expected = original.saturating_mul(brightness).div_euclid(255_u16);
+            let expected = match fog {
+                FogState::Visible => original,
+                FogState::Hidden => 0_u16,
+                FogState::Explored => {
+                    let (shift, replicate) = if channel == 1_usize {
+                        (2_u32, 4_u32)
+                    } else {
+                        (3_u32, 2_u32)
+                    };
+                    let half = (original >> shift).div_euclid(2_u16);
+                    (half << shift) | (half >> replicate)
+                }
+            };
             let actual = u16::from(pixels[probe.offset + channel]);
             if actual.abs_diff(expected) > 1_u16 {
                 return Err(format!(
@@ -379,28 +399,8 @@ fn screen_pixel(probe: Probe) -> (usize, usize) {
 fn with_canvas(
     check: impl FnOnce(&mut Canvas<Window>) -> Result<(), String>,
 ) -> Result<(), String> {
-    let guard = crate::sdl_test_lock::lock_sdl_for_test()?;
-    let environment = HeadlessSdlEnvironment::apply();
-    let result = (|| {
-        let sdl = sdl2::init()?;
-        let video = sdl.video()?;
-        let window = video
-            .window(
-                "terrain pixel regression",
-                DEFAULT_WINDOW_WIDTH,
-                DEFAULT_WINDOW_HEIGHT,
-            )
-            .hidden()
-            .build()
-            .map_err(|error| error.to_string())?;
-        let mut canvas = window
-            .into_canvas()
-            .software()
-            .build()
-            .map_err(|error| error.to_string())?;
-        check(&mut canvas)
-    })();
-    environment.restore();
-    drop(guard);
-    result
+    crate::gameplay::runtime::test_support::with_canvas(
+        (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT),
+        check,
+    )
 }

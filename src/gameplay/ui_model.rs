@@ -29,7 +29,7 @@ pub const MENU_DROPDOWN_BORDER: u32 = 2;
 pub const MENU_DROPDOWN_EXTRA_WINDOW_WIDTH: u32 = 4;
 /// Extra window height added by `ctp2_Menu::Resize`.
 pub const MENU_DROPDOWN_EXTRA_WINDOW_HEIGHT: u32 = 4;
-/// Minimum dropdown width from the `CTP2_MENU` LDL template.
+/// Initial LDL dropdown width, replaced (not enforced) by `ctp2_Menu::Resize`.
 pub const MENU_DROPDOWN_MIN_WIDTH: u32 = 150;
 /// Approximate 10-point Times menu glyph width for pure hit-test geometry.
 const MENU_APPROX_GLYPH_WIDTH: u32 = 7;
@@ -260,6 +260,11 @@ pub struct InGameUiModel {
     pub great_library: Option<GreatLibraryView>,
     /// Status bar text.
     pub status_text: String,
+    /// Measured original menu labels/shortcuts, shared by rendering and hit tests.
+    /// Empty in font-independent tests, which use the documented fallback metric.
+    pub menu_text_widths: Vec<(&'static str, u32)>,
+    /// Optional tile beneath the pointer, used by the original yellow map cursor.
+    pub hovered_tile: Option<MapPoint>,
 }
 
 impl Default for InGameUiModel {
@@ -267,15 +272,35 @@ impl Default for InGameUiModel {
         Self {
             menu_buttons: original_menu_buttons(),
             menu_items: original_menu_items(),
-            active_tab: ControlPanelTab::Domestic,
+            active_tab: ControlPanelTab::Unit,
             open_menu: None,
             great_library: None,
             status_text: String::new(),
+            menu_text_widths: Vec::new(),
+            hovered_tile: None,
         }
     }
 }
 
 impl InGameUiModel {
+    /// Updates menu geometry from the same font that paints its labels.
+    pub fn measure_menu_text(&mut self, measure: impl Fn(&str) -> u32) {
+        self.menu_text_widths = self
+            .menu_items
+            .iter()
+            .flat_map(|item| [item.label, item.shortcut])
+            .map(|text| (text, measure(text)))
+            .collect();
+    }
+
+    /// Returns installed-font width, or the pure-model fallback when no font exists.
+    fn measured_text_width(&self, text: &str) -> u32 {
+        self.menu_text_widths
+            .iter()
+            .find(|entry| entry.0 == text)
+            .map_or_else(|| text_width(text), |entry| entry.1)
+    }
+
     /// Returns menu rows for one category in original order.
     #[must_use]
     pub fn items_for(&self, category: MenuCategory) -> Vec<&MenuItem> {
@@ -318,7 +343,7 @@ impl InGameUiModel {
         Some(MenuRect {
             x: button.x,
             y: i32::try_from(MENU_BAR_HEIGHT).map_or(0_i32, |height| height),
-            width: dropdown_width_for_rows(&rows),
+            width: dropdown_width_for_rows(&rows, |text| self.measured_text_width(text)),
             height: row_count
                 .saturating_mul(MENU_DROPDOWN_ROW_HEIGHT)
                 .saturating_add(MENU_DROPDOWN_EXTRA_WINDOW_HEIGHT),
@@ -370,7 +395,10 @@ impl InGameUiModel {
         let rows = self.items_for(category);
         let max_shortcut_width = rows
             .iter()
-            .map(|item| text_width(item.shortcut).saturating_add(MENU_EXTRA_SHORTCUT_WIDTH))
+            .map(|item| {
+                self.measured_text_width(item.shortcut)
+                    .saturating_add(MENU_EXTRA_SHORTCUT_WIDTH)
+            })
             .max()
             .unwrap_or(0_u32);
         let right_padding = MENU_RIGHT_ITEM_MARGIN.saturating_add(MENU_DROPDOWN_BORDER);
@@ -417,10 +445,12 @@ impl InGameUiModel {
             }
             (Keycode::F8, false) | (Keycode::NUM_8, true) => InGameAction::OpenUnitManager,
             (Keycode::NUM_9 | Keycode::K, true) | (Keycode::W, false) => InGameAction::OpenInfo,
-            (Keycode::NUM_0, true) | (Keycode::F9, false) => InGameAction::OpenGameplayOptions,
+            (Keycode::NUM_0, true) | (Keycode::F9 | Keycode::F, false) => {
+                InGameAction::OpenGameplayOptions
+            }
             (Keycode::F, true) => InGameAction::OpenGraphicsOptions,
             (Keycode::P, true) => InGameAction::OpenAdvancedOptions,
-            (Keycode::V, true) => InGameAction::OpenSoundOptions,
+            (Keycode::V | Keycode::M, true) => InGameAction::OpenSoundOptions,
             (Keycode::PERIOD, false) => InGameAction::OpenArmyManager,
             (Keycode::C, false) => InGameAction::ToggleCityNames,
             (Keycode::QUOTE, false) => InGameAction::ToggleTradeRoutes,

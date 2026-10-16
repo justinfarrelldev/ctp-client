@@ -23,9 +23,9 @@ use crate::gameplay::model::MapPoint;
 use crate::gameplay::{GameplayError, runtime_error};
 
 /// CTP2 `COLOR_GREEN` used for legal movement feedback.
-const MOVEMENT_GO_COLOR: Color = Color::RGBA(32, 255, 64, 255);
+const MOVEMENT_GO_COLOR: Color = Color::RGBA(0, 255, 0, 255);
 /// CTP2 `COLOR_YELLOW` used for selected units that cannot currently move.
-const MOVEMENT_WAIT_COLOR: Color = Color::RGBA(255, 225, 32, 255);
+const MOVEMENT_WAIT_COLOR: Color = Color::RGBA(255, 255, 0, 255);
 /// CTP2 `COLOR_RED` used for invalid movement feedback.
 const MOVEMENT_STOP_COLOR: Color = Color::RGBA(230, 32, 32, 255);
 /// CTP2 `COLOR_BLACK` used for turn-box frames/text.

@@ -69,3 +69,16 @@ See [the detailed plan and red/green evidence](plans/terrain-pixel-seams.md).
 - [x] Test all four grassland/plains/water edges, full ground interiors, zoom 1-3, generated and mixed fog, and single-pixel negative controls. No snapshots, copied assets, live server, or file-mutating new tests.
 - [x] Run strict lint, full tests, dedicated build, coverage measurement and final review. Terrain renderer line coverage: 93.88%; overall coverage: 76.56% (below the repository-wide 80% target, principally unrelated GTK/video paths). Required fast coverage script remains absent.
 - [x] Conduct final review, update documentation, and prepare commit after running `cargo make lint-fix`.
+
+## CTP2 Original-Art Gameplay Fidelity Pass
+
+See [the detailed checklist and red/green evidence](plans/pixel-perfect-gameplay.md) and [snapshot usage and remaining limitations](GAMEPLAY_SNAPSHOTS.md).
+
+- [x] Compose the original 800×600 logical frame, full terrain transitions/hats/rivers, native actors/reticles, layered controls, dropdowns and radar chrome; leave the main menu intact.
+- [x] Provide offline previews and F12 capture with an isolated file sink; all new screenshot/PNG tests stay in memory and game-server calls remain mocked.
+- [x] Fix stacked-unit identity/ownership, hidden order hit boxes, no-selection order appearance, empty authoritative projections and local fog revealing unknown geography.
+- [x] Accept optional authoritative resource IDs and render original resource SPR actors with visibility-safe remembered shading; never invent missing server metadata.
+- [x] Add source-verified river/resource/ownership omissions and visibility-safe recommendations only to the explicitly authorized server report; no server implementation changes.
+- [x] Inspect 640×480, native 800×600 and larger 1280×960 captures. Document synthetic sightlines and remaining radar/dialog/stat/workflow limitations without claiming all-screen pixel parity.
+- [x] `cargo make lint-fix`, strict lint, full tests and dedicated native build pass. LLVM line coverage: **80.24%**. Required fast coverage script is absent; Windows binary validation remains environment-dependent.
+- [x] Review restricted paths, asset copyright, file sizes and authority boundaries; prepare normal commit with verification enabled.

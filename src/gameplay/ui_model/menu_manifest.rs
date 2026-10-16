@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 
 use super::{
     InGameAction, MENU_APPROX_GLYPH_WIDTH, MENU_BUTTON_WIDTH, MENU_DROPDOWN_EXTRA_WINDOW_WIDTH,
-    MENU_DROPDOWN_MIN_WIDTH, MENU_EXTRA_LEFT_SPACE, MENU_EXTRA_SHORTCUT_WIDTH,
-    MENU_LEFT_ITEM_MARGIN, MENU_RIGHT_ITEM_MARGIN, MenuButton, MenuCategory, MenuItem,
+    MENU_EXTRA_LEFT_SPACE, MENU_EXTRA_SHORTCUT_WIDTH, MENU_LEFT_ITEM_MARGIN,
+    MENU_RIGHT_ITEM_MARGIN, MenuButton, MenuCategory, MenuItem,
 };
 
 /// Estimates text width the same way for rendering and hit testing.
@@ -18,16 +18,16 @@ pub(super) fn text_width(text: &str) -> u32 {
 }
 
 /// Computes a CTP2-style dropdown width from item text and shortcuts.
-pub(super) fn dropdown_width_for_rows(rows: &[&MenuItem]) -> u32 {
+pub(super) fn dropdown_width_for_rows(rows: &[&MenuItem], measure: impl Fn(&str) -> u32) -> u32 {
     let max_text_width = rows
         .iter()
-        .map(|item| text_width(item.label))
+        .map(|item| measure(item.label))
         .max()
         .unwrap_or(0_u32)
         .max(20_u32);
     let max_shortcut_width = rows
         .iter()
-        .map(|item| text_width(item.shortcut).saturating_add(MENU_EXTRA_SHORTCUT_WIDTH))
+        .map(|item| measure(item.shortcut).saturating_add(MENU_EXTRA_SHORTCUT_WIDTH))
         .max()
         .unwrap_or(0_u32);
     max_text_width
@@ -36,7 +36,7 @@ pub(super) fn dropdown_width_for_rows(rows: &[&MenuItem]) -> u32 {
         .saturating_add(MENU_RIGHT_ITEM_MARGIN)
         .saturating_add(MENU_EXTRA_LEFT_SPACE)
         .saturating_add(MENU_DROPDOWN_EXTRA_WINDOW_WIDTH)
-        .max(MENU_DROPDOWN_MIN_WIDTH)
+        .saturating_add(MENU_LEFT_ITEM_MARGIN)
 }
 
 /// Builds top menu buttons in original order.
@@ -216,7 +216,7 @@ pub(super) fn original_menu_items() -> Vec<MenuItem> {
         menu_item(
             MenuCategory::Options,
             "Gameplay",
-            "F9",
+            "F",
             InGameAction::OpenGameplayOptions,
             true,
             "controlpanelwindow.cpp:1681",
@@ -224,7 +224,7 @@ pub(super) fn original_menu_items() -> Vec<MenuItem> {
         menu_item(
             MenuCategory::Options,
             "Graphics",
-            "Ctrl + F",
+            "ctrl + f",
             InGameAction::OpenGraphicsOptions,
             true,
             "controlpanelwindow.cpp:1683",
@@ -232,15 +232,31 @@ pub(super) fn original_menu_items() -> Vec<MenuItem> {
         menu_item(
             MenuCategory::Options,
             "Sound",
-            "Ctrl + V",
+            "ctrl + v",
             InGameAction::OpenSoundOptions,
             true,
             "controlpanelwindow.cpp:1685",
         ),
         menu_item(
             MenuCategory::Options,
+            "Music",
+            "ctrl + m",
+            InGameAction::OpenSoundOptions,
+            true,
+            "retail Options screenshot: Music",
+        ),
+        menu_item(
+            MenuCategory::Options,
+            "Chat screen",
+            "",
+            InGameAction::OutOfScope,
+            false,
+            "retail Options screenshot: Chat screen (unavailable in local mode)",
+        ),
+        menu_item(
+            MenuCategory::Options,
             "Advanced",
-            "Ctrl + P",
+            "ctrl + p",
             InGameAction::OpenAdvancedOptions,
             true,
             "controlpanelwindow.cpp:1687",
@@ -272,7 +288,7 @@ pub(super) fn original_menu_items() -> Vec<MenuItem> {
         menu_item(
             MenuCategory::Options,
             "Restart",
-            "Ctrl + Z",
+            "ctrl + z",
             InGameAction::NewGame,
             true,
             "controlpanelwindow.cpp:1698",
@@ -280,7 +296,7 @@ pub(super) fn original_menu_items() -> Vec<MenuItem> {
         menu_item(
             MenuCategory::Options,
             "New Game",
-            "Ctrl + X",
+            "ctrl + x",
             InGameAction::NewGame,
             true,
             "controlpanelwindow.cpp:1701",

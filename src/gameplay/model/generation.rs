@@ -31,6 +31,9 @@ pub(in crate::gameplay::model) fn generated_tiles(
                 (terrain.passable_by_land() && value % 37 == 0).then_some(TileFeature::Ruin);
             tiles.push(MapTile {
                 terrain,
+                art_base_type: None,
+                river: false,
+                good_id: None,
                 feature,
                 fog: FogState::Hidden,
             });

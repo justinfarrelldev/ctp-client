@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use super::super::model::{GameState, MapPoint, PlayerId};
+use super::super::model::{GameState, MapPoint, PlayerId, UnitId};
 use super::super::server::{ServerClient, ServerGameplaySession, ServerProjection};
 
 /// Live authoritative server state for an interactive runtime session.
@@ -32,11 +32,8 @@ pub(super) fn state_from_authority_projection(
     state
 }
 
-/// Returns the server unit id for a local selected unit position.
-pub(super) fn server_unit_id_for_position(
-    authority: &RuntimeAuthority,
-    position: MapPoint,
-) -> String {
+/// Returns the exact server identity, including for units sharing one tile.
+pub(super) fn server_unit_id_for_unit(authority: &RuntimeAuthority, unit_id: UnitId) -> String {
     let Some(projection) = authority.session.projection.as_ref() else {
         return String::new();
     };
@@ -44,14 +41,7 @@ pub(super) fn server_unit_id_for_position(
     projection
         .units
         .iter()
-        .find(|unit| {
-            unit.owner_id == human_owner_id
-                && projection
-                    .tiles
-                    .iter()
-                    .find(|tile| tile.id == unit.tile_id)
-                    .is_some_and(|tile| tile.x == position.x && tile.y == position.y)
-        })
+        .find(|unit| unit.owner_id == human_owner_id && UnitId::from_server_id(&unit.id) == unit_id)
         .map_or_else(String::new, |unit| unit.id.clone())
 }
 
@@ -83,19 +73,12 @@ fn apply_authority_owner_mapping(
 ) {
     let human_owner_id = format!("account-{}", authority.session.account_id);
     for server_unit in &projection.units {
-        let Some(tile) = projection
-            .tiles
-            .iter()
-            .find(|tile| tile.id == server_unit.tile_id)
-        else {
-            continue;
-        };
-        let point = MapPoint::new(tile.x, tile.y);
+        let id = UnitId::from_server_id(&server_unit.id);
         let owner = player_id_from_authority_owner(&server_unit.owner_id, &human_owner_id);
         if let Some(unit) = state
             .units
             .iter_mut()
-            .find(|unit| unit.position == point && unit.alive)
+            .find(|unit| unit.id == id && unit.alive)
         {
             unit.owner = owner;
         }

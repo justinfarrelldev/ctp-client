@@ -7,7 +7,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-use unciv::ZfsFile;
+use super::pixel::{expand5, expand6};
+use unciv::{RimFormat, ZfsFile};
 
 use crate::gameplay::{GameplayError, asset_error};
 
@@ -69,6 +70,18 @@ pub fn load_rim_rgba_entry(
     let mut data = rim.to_rgba_bytes();
     if let Some((key_red, key_green, key_blue)) = chroma_key {
         apply_chroma_key_alpha(&mut data, key_red, key_green, key_blue);
+    }
+    // unciv shifts channels but leaves their low bits empty. Restore the
+    // displayed 16-bit framebuffer range after matching the raw chroma key.
+    let six_bit_green = matches!(rim.fmt, RimFormat::RGB565);
+    for pixel in data.chunks_exact_mut(4_usize) {
+        pixel[0] = expand5(pixel[0] >> 3_u8);
+        pixel[1] = if six_bit_green {
+            expand6(pixel[1] >> 2_u8)
+        } else {
+            expand5(pixel[1] >> 3_u8)
+        };
+        pixel[2] = expand5(pixel[2] >> 3_u8);
     }
     Ok(RgbaImage {
         width: u32::from(rim.width),

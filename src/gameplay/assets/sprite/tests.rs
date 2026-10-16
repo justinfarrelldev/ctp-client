@@ -32,6 +32,38 @@ fn parses_minimal_regular_unit_sprite() {
     assert_eq!(parsed.actions.len(), 1, "one action should be present");
     assert_eq!(parsed.frame_count(), 1, "one frame should be loaded");
     assert!(parsed.has_action(0), "move action should exist");
+    assert_eq!(
+        parsed.actions[0].frames[0].hotpoint,
+        (3_i32, 7_i32),
+        "SPR hotspot must survive parsing; bounding-box centering distorts actors"
+    );
+}
+
+#[test]
+fn decodes_original_elephant_good_sprite_without_a_unit_shield_tail() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("ctp2")
+        .join(SPRITE_DIRECTORY)
+        .join("GG008.SPR");
+    let bytes = std::fs::read(path).expect("read-only original elephant art");
+    let sprite = SpriteGroupAsset::parse(&bytes)
+        .expect("resource SPR groups use their own one-action layout");
+    assert_eq!(
+        sprite.file_type,
+        super::SpriteFileType::Good,
+        "not misread as a unit"
+    );
+    assert!(sprite.frame_count() > 0_usize, "elephant frame decoded");
+    assert!(
+        sprite.shield_points.is_empty(),
+        "resources do not have unit shield metadata"
+    );
+    let frame = &sprite.actions[0_usize].frames[0_usize];
+    assert_eq!(
+        (frame.width, frame.height),
+        (96_u16, 72_u16),
+        "original resource canvas retained"
+    );
 }
 
 #[test]
@@ -69,8 +101,8 @@ fn minimal_regular_unit_sprite() -> Vec<u8> {
     bytes.extend_from_slice(&0_u16.to_le_bytes());
     bytes.extend_from_slice(&1_u16.to_le_bytes());
     bytes.extend_from_slice(&1_u16.to_le_bytes());
-    bytes.extend_from_slice(&0_i32.to_le_bytes());
-    bytes.extend_from_slice(&0_i32.to_le_bytes());
+    bytes.extend_from_slice(&3_i32.to_le_bytes());
+    bytes.extend_from_slice(&7_i32.to_le_bytes());
     bytes.extend_from_slice(&0_u16.to_le_bytes());
     bytes.extend_from_slice(&1_u16.to_le_bytes());
     bytes.extend_from_slice(&2_u32.to_le_bytes());

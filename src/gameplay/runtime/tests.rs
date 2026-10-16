@@ -30,7 +30,7 @@ fn dropdown_hit_testing_preserves_disabled_row_indexes() {
         ..InGameUiModel::default()
     };
     let save_row = ui
-        .dropdown_row_rect(MenuCategory::Options, 7)
+        .dropdown_row_rect(MenuCategory::Options, 9)
         .expect("Save Game row should be present");
     let x = save_row.x.saturating_add(4);
     let y = save_row.y.saturating_add(4);
@@ -128,8 +128,8 @@ fn enabled_dropdown_row_returns_action_from_exact_row() {
 #[test]
 fn original_end_turn_button_geometry_is_on_control_panel() {
     assert!(
-        click_in_end_turn_button(570, 650),
-        "original controlpanel.ldl TurnButton is at panel-relative 563,60"
+        click_in_end_turn_button(780, 500),
+        "TurnButton is at panel-relative 563,60 plus bottom-right anchoring"
     );
     assert!(
         !click_in_end_turn_button(960, 648),
@@ -150,8 +150,8 @@ fn lower_control_panel_click_does_not_move_selected_unit() {
     let mut movement = MovementInputState::default();
 
     let outcome = handle_left_click(
-        120,
-        610,
+        650,
+        510,
         &mut state,
         &mut ui,
         &mut camera,
@@ -183,8 +183,8 @@ fn side_panel_click_does_not_move_selected_unit() {
     let mut movement = MovementInputState::default();
 
     let outcome = handle_left_click(
-        900,
         100,
+        450,
         &mut state,
         &mut ui,
         &mut camera,
@@ -211,8 +211,8 @@ fn gameplay_popup_consumes_end_turn_click_without_advancing_turn() {
     let mut movement = MovementInputState::default();
 
     let outcome = handle_left_click(
-        570,
-        650,
+        780,
+        500,
         &mut state,
         &mut ui,
         &mut camera,
@@ -588,8 +588,8 @@ fn right_click_with_open_dropdown_cancels_only_dropdown() {
     let mut movement = MovementInputState::default();
 
     let outcome = handle_right_click(
-        570,
-        650,
+        780,
+        500,
         &mut state,
         &mut ui,
         &mut camera,
@@ -725,14 +725,14 @@ fn headless_gameplay_reuses_existing_sdl_window_and_scales_to_viewport() {
         assert_eq!(
             canvas.logical_size(),
             (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
-            "gameplay should render into a 1024x768 logical viewport instead of the physical top-left corner"
+            "gameplay should use the original 800×600 reference frame"
         );
         assert_eq!(
             canvas
                 .output_size()
                 .expect("dummy output size should be readable"),
-            (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
-            "menu-owned windows shorter than native CTP2 gameplay should resize instead of downscaling into a blurry low-resolution frame"
+            (1280_u32, 720_u32),
+            "the menu-owned physical window must not resize; scale the complete native frame uniformly"
         );
     }
     environment.restore();

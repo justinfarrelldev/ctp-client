@@ -4,3 +4,6 @@ temp.log
 
 ctp2
 ctp2_source
+
+# Local reference screenshots and explicitly captured application frames.
+/images/

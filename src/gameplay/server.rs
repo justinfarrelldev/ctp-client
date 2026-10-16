@@ -127,6 +127,13 @@ pub struct ServerTileProjection {
     /// Server terrain id.
     #[serde(default)]
     pub terrain: String,
+    /// River metadata when supplied by a viewer-safe server projection.
+    /// Older servers omit this field; omission must not fabricate rivers.
+    #[serde(default)]
+    pub river: bool,
+    /// Canonical resource ID, when exposed by the viewer-safe server contract.
+    #[serde(default)]
+    pub good_id: String,
     /// Whether this tile is remembered but currently not visible.
     #[serde(default)]
     pub stale: bool,

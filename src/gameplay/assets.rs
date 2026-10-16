@@ -10,6 +10,10 @@ use std::path::{Path, PathBuf};
 
 use super::{GameplayError, asset_error};
 
+/// Original resource identifiers and resource SPR loading (not generation).
+pub mod goods;
+/// Original channel expansion shared by terrain, actors and UI art.
+pub(crate) mod pixel;
 /// RIM/ZFS image loading for CTP2 UI art.
 pub mod rim;
 /// Sprite file parser for CTP2 `.SPR` files.

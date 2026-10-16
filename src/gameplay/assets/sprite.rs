@@ -41,8 +41,6 @@ const ACTION_MAX: usize = 16;
 const UNIT_ACTION_MAX: usize = 5;
 /// Number of facings stored for CTP2 faced sprites.
 const NUM_FACINGS: usize = 5;
-/// Size of one `POINT` from the original Win32 code.
-const POINT_BYTES: u64 = 8;
 /// LZW1 header size.
 const LZW1_FLAG_BYTES: usize = 4;
 /// LZW1 copy flag.
@@ -140,6 +138,8 @@ pub struct SpriteFrame {
     pub facing: u8,
     /// Frame index in animation order.
     pub frame_index: u16,
+    /// Original anchor relative to the sprite frame, before map zoom.
+    pub hotpoint: (i32, i32),
     /// RGBA bytes.
     pub rgba: Vec<u8>,
 }
@@ -187,6 +187,8 @@ pub struct SpriteGroupAsset {
     pub has_death: bool,
     /// Whether the unit has directional attack metadata.
     pub has_directional: bool,
+    /// Shield anchors per action and original facing.
+    pub shield_points: Vec<[(i32, i32); NUM_FACINGS]>,
 }
 
 impl SpriteGroupAsset {
@@ -198,14 +200,35 @@ impl SpriteGroupAsset {
     pub fn parse(bytes: &[u8]) -> Result<Self, GameplayError> {
         let mut reader = Cursor::new(bytes);
         let header = SpriteHeader::read(&mut reader)?;
+        if header.file_type == SpriteFileType::Good {
+            if !matches!(
+                header.version,
+                SPRITEFILE_VERSION0 | SPRITEFILE_VERSION1 | SPRITEFILE_VERSION2
+            ) {
+                return Err(asset_error(format!(
+                    "unsupported good SPR version {:08x}",
+                    header.version
+                )));
+            }
+            return Ok(Self {
+                version: header.version,
+                file_type: header.file_type,
+                actions: read_fixed_action_group(&mut reader, header.compression, 1_usize)?,
+                has_death: false,
+                has_directional: false,
+                shield_points: Vec::new(),
+            });
+        }
         if header.file_type != SpriteFileType::Unit {
             return Err(asset_error(format!(
-                "only unit SPR groups are currently supported, got {:?}",
+                "only unit and good SPR groups are currently supported, got {:?}",
                 header.file_type
             )));
         }
         let mut actions = match header.version {
-            SPRITEFILE_VERSION0 => read_unit_v13(&mut reader, header.compression)?,
+            SPRITEFILE_VERSION0 => {
+                read_fixed_action_group(&mut reader, header.compression, UNIT_ACTION_MAX)?
+            }
             SPRITEFILE_VERSION1 | SPRITEFILE_VERSION2 => {
                 read_unit_v20(&mut reader, header.compression)?
             }
@@ -217,13 +240,34 @@ impl SpriteGroupAsset {
             }
         };
         actions.sort_by_key(|action| action.action_index);
-        let (has_death, has_directional) = read_unit_tail(&mut reader).unwrap_or((false, false));
+        if header.version == SPRITEFILE_VERSION0 {
+            // v1.3 stores fire/work/move points before the shield table.
+            skip_bytes(
+                &mut reader,
+                2_u64.saturating_add(8_u64.saturating_mul(5_u64).saturating_mul(8_u64)),
+            )?;
+            skip_bytes(
+                &mut reader,
+                2_u64.saturating_add(9_u64.saturating_mul(5_u64).saturating_mul(8_u64)),
+            )?;
+        }
+        let mut shield_points = Vec::with_capacity(UNIT_ACTION_MAX);
+        for _ in 0..UNIT_ACTION_MAX {
+            let mut points = [(0_i32, 0_i32); NUM_FACINGS];
+            for point in &mut points {
+                *point = (read_i32(&mut reader)?, read_i32(&mut reader)?);
+            }
+            shield_points.push(points);
+        }
+        let has_death = read_u16(&mut reader)? != 0_u16;
+        let has_directional = read_u16(&mut reader)? != 0_u16;
         Ok(Self {
             version: header.version,
             file_type: header.file_type,
             actions,
             has_death,
             has_directional,
+            shield_points,
         })
     }
 
@@ -275,17 +319,18 @@ impl SpriteHeader {
     }
 }
 
-/// Reads a v1.3 unit group.
-fn read_unit_v13(
+/// Reads fixed action tables (five for v1.3 units, one for goods).
+fn read_fixed_action_group(
     reader: &mut Cursor<&[u8]>,
     compression: SpriteCompression,
+    action_count: usize,
 ) -> Result<Vec<SpriteActionAsset>, GameplayError> {
     skip_bytes(
         reader,
-        u64::try_from(UNIT_ACTION_MAX).map_or(0, |count| count.saturating_mul(4)),
+        u64::try_from(action_count).map_or(0, |count| count.saturating_mul(4)),
     )?;
     let mut actions = Vec::new();
-    for action_index in 0..UNIT_ACTION_MAX {
+    for action_index in 0..action_count {
         let present = read_u32(reader)? != 0;
         if present {
             actions.push(read_sprite_action(reader, compression, action_index)?);
@@ -310,21 +355,6 @@ fn read_unit_v20(
         }
     }
     Ok(actions)
-}
-
-/// Reads the shared unit tail, if enough bytes remain.
-fn read_unit_tail(reader: &mut Cursor<&[u8]>) -> Result<(bool, bool), GameplayError> {
-    skip_bytes(
-        reader,
-        u64::try_from(UNIT_ACTION_MAX)
-            .map_or(0, |actions| {
-                actions.saturating_mul(u64::try_from(NUM_FACINGS).map_or(0, |facings| facings))
-            })
-            .saturating_mul(POINT_BYTES),
-    )?;
-    let has_death = read_u16(reader)? != 0;
-    let has_directional = read_u16(reader)? != 0;
-    Ok((has_death, has_directional))
 }
 
 /// Reads one sprite+animation action.
@@ -354,7 +384,7 @@ fn read_normal_sprite(
 ) -> Result<Vec<SpriteFrame>, GameplayError> {
     let width = read_u16(reader)?;
     let height = read_u16(reader)?;
-    skip_bytes(reader, 8)?;
+    let hotpoint = (read_i32(reader)?, read_i32(reader)?);
     let _first_frame = read_u16(reader)?;
     let num_frames = read_u16(reader)?;
     let sprite_sizes = read_u32_vec(reader, usize::from(num_frames))?;
@@ -367,6 +397,7 @@ fn read_normal_sprite(
             height,
             facing: 0,
             frame_index: u16::try_from(frame_index).map_or(u16::MAX, |value| value),
+            hotpoint,
             rgba,
         });
     }
@@ -381,10 +412,10 @@ fn read_faced_sprite(
 ) -> Result<Vec<SpriteFrame>, GameplayError> {
     let width = read_u16(reader)?;
     let height = read_u16(reader)?;
-    skip_bytes(
-        reader,
-        u64::try_from(NUM_FACINGS).map_or(0, |facings| facings.saturating_mul(POINT_BYTES)),
-    )?;
+    let mut hotpoints = [(0_i32, 0_i32); NUM_FACINGS];
+    for point in &mut hotpoints {
+        *point = (read_i32(reader)?, read_i32(reader)?);
+    }
     let _first_frame = read_u16(reader)?;
     let num_frames = read_u16(reader)?;
     let frame_count = usize::from(num_frames);
@@ -395,7 +426,7 @@ fn read_faced_sprite(
         mini_sizes.push(read_u32_vec(reader, frame_count)?);
     }
     let mut frames = Vec::new();
-    for facing in 0..NUM_FACINGS {
+    for (facing, hotpoint) in hotpoints.iter().copied().enumerate() {
         for frame_index in 0..frame_count {
             let size = sprite_sizes
                 .get(facing)
@@ -408,6 +439,7 @@ fn read_faced_sprite(
                 height,
                 facing: u8::try_from(facing).map_or(u8::MAX, |value| value),
                 frame_index: u16::try_from(frame_index).map_or(u16::MAX, |value| value),
+                hotpoint,
                 rgba,
             });
         }
@@ -568,6 +600,13 @@ fn read_u16_vec(reader: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<u16>, Ga
 
 /// Reads bytes from the cursor.
 fn read_bytes(reader: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<u8>, GameplayError> {
+    let position =
+        usize::try_from(reader.position()).map_err(|error| asset_error(error.to_string()))?;
+    if count > reader.get_ref().len().saturating_sub(position) {
+        return Err(asset_error(
+            "SPR payload is truncated before allocation".to_owned(),
+        ));
+    }
     let mut bytes = vec![0_u8; count];
     reader.read_exact(&mut bytes).map_err(io_error)?;
     Ok(bytes)

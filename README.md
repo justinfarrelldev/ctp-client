@@ -61,6 +61,10 @@ cargo test
 RUST_LOG=debug cargo test
 ```
 
+### Gameplay screenshots
+
+See [CTP2 rendering and screenshot checks](GAMEPLAY_SNAPSHOTS.md) for offline previews, F12 live capture, synthetic-scene caveats, original-source references, and remaining server/UI limitations. Tests keep screenshots in memory; only explicit diagnostic commands write PNG files.
+
 ### Linting
 
 This project uses extremely strict linting rules to ensure code quality:

@@ -15,7 +15,7 @@ const GLYPH_SPACING: i32 = 1;
 /// Fallback glyph scale.
 const GLYPH_SCALE: u32 = 1;
 
-/// Draws original-style CTP2 title text with a faint gold shadow.
+/// Draws the release's grey title text with its pale offset shadow.
 pub(super) fn draw_shadowed_text(
     canvas: &mut Canvas<Window>,
     font: Option<&Font<'_, '_>>,
@@ -30,7 +30,7 @@ pub(super) fn draw_shadowed_text(
         text,
         x.saturating_add(1),
         y.saturating_add(1),
-        Color::RGB(20, 16, 10),
+        Color::RGB(255, 245, 245),
     )?;
     draw_text(canvas, font, text, x, y, color)
 }
@@ -44,6 +44,9 @@ pub(super) fn draw_text(
     y: i32,
     color: Color,
 ) -> Result<(), GameplayError> {
+    if text.is_empty() {
+        return Ok(());
+    }
     if let Some(font) = font {
         let surface = font
             .render(text)
@@ -57,6 +60,36 @@ pub(super) fn draw_text(
         return canvas.copy(&texture, None, target).map_err(runtime_error);
     }
     draw_bitmap_text(canvas, text, x, y, color)
+}
+
+/// Centers a label in an LDL control using actual font metrics.
+pub(super) fn draw_centered_text(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    text: &str,
+    rect: Rect,
+    color: Color,
+    shadow: bool,
+) -> Result<(), GameplayError> {
+    let (width, height) = font
+        .and_then(|font| font.size_of(text).ok())
+        .unwrap_or_else(|| {
+            (
+                u32::try_from(text.len()).map_or(0_u32, |v| v.saturating_mul(6_u32)),
+                7_u32,
+            )
+        });
+    let x = rect.x().saturating_add(
+        i32::try_from(rect.width().saturating_sub(width).div_euclid(2_u32)).map_or(0_i32, |v| v),
+    );
+    let y = rect.y().saturating_add(
+        i32::try_from(rect.height().saturating_sub(height).div_euclid(2_u32)).map_or(0_i32, |v| v),
+    );
+    if shadow {
+        draw_shadowed_text(canvas, font, text, x, y, color)
+    } else {
+        draw_text(canvas, font, text, x, y, color)
+    }
 }
 
 /// Draws text with a tiny built-in ASCII bitmap font.
