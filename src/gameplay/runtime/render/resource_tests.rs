@@ -17,7 +17,7 @@ fn resource_visibility_and_exact_fog_variants_use_only_projected_good_ids() {
         let creator = canvas.texture_creator();
         let mut textures =
             GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
-        let projection: ServerProjection = serde_json::from_str(r#"{"tiles":[{"id":"tile-6-4","x":6,"y":4,"terrain":"TERRAIN_PLAINS","good_id":"TERRAIN_PLAINS_GOOD_TWO"}]}"#).map_err(|error| error.to_string())?;
+        let projection: ServerProjection = serde_json::from_str(r#"{"revision":1,"turn":1,"tiles":[{"id":"tile-6-4","x":6,"y":4,"terrain":"TERRAIN_PLAINS","good_id":"TERRAIN_PLAINS_GOOD_TWO"}]}"#).map_err(|error| error.to_string())?;
         let mut state = GameState::from_server_projection(&projection, 5_u8, 42_u64);
         let index = 102_usize;
         let good = state.tiles[index].good_id.take();

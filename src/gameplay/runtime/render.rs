@@ -142,6 +142,8 @@ mod pixel_tests;
 #[cfg(test)]
 mod resource_tests;
 #[cfg(test)]
+mod start_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod visual_tests;

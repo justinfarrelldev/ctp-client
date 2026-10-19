@@ -6,9 +6,10 @@ use std::thread;
 
 use serde_json::json;
 
+use super::test_support::{starting_resync_event, synthetic_starting_resync_event};
 use super::{
     HttpEndpoint, ServerClient, ServerConfig, ServerGameplaySession, ServerProjection,
-    decode_chunked_body, parse_resync_projection,
+    decode_chunked_body,
 };
 
 #[test]
@@ -21,13 +22,13 @@ fn endpoint_parses_localhost_with_default_port() {
 
 #[test]
 fn resync_projection_parses_sse_payload() {
-    let projection = parse_resync_projection(
-            "id: 1\nevent: resync\ndata: {\"revision\":2,\"turn\":1,\"tiles\":[{\"id\":\"t\",\"x\":1,\"y\":2,\"terrain\":\"plains\"}]}\n\n",
-        )
-        .expect("projection should parse");
-
-    assert_eq!(projection.revision, 2);
-    assert_eq!(projection.tiles[0].terrain, "plains");
+    let projection = ServerProjection::from_resync_event(&starting_resync_event())
+        .expect("real server envelope parses");
+    assert_eq!(projection.revision, 1_i64, "snapshot revision retained");
+    assert_eq!(
+        projection.tiles[0_usize].terrain, "TERRAIN_PLAINS",
+        "viewer terrain retained"
+    );
 }
 
 #[test]
@@ -92,10 +93,7 @@ fn bootstrap_retries_capacity_limited_setup_request() {
             ),
             (200_u16, json!({"id":44_i32}).to_string()),
             (200_u16, json!({"id":44_i32}).to_string()),
-            (
-                200_u16,
-                "event: resync\ndata: {\"revision\":1,\"turn\":1}\n\n".to_owned(),
-            ),
+            (200_u16, synthetic_starting_resync_event()),
         ];
         let mut add_ai_requests = 0_u8;
         for (status, response) in responses {
@@ -156,7 +154,7 @@ fn bootstrap_posts_authoritative_setup_sequence() {
             json!({"id":44_i32}).to_string(),
             json!({"id":44_i32}).to_string(),
             json!({"id":44_i32}).to_string(),
-            "event: resync\ndata: {\"revision\":1,\"turn\":1}\n\n".to_owned(),
+            synthetic_starting_resync_event(),
         ];
         for response in responses {
             let (mut stream, _) = listener.accept().expect("client should connect");
@@ -174,6 +172,18 @@ fn bootstrap_posts_authoritative_setup_sequence() {
                     || request_text.contains("/game/44/events?session_id=11"),
                 "unexpected request: {request_text}"
             );
+            if request_text.starts_with("GET /game/44/events?") {
+                assert!(
+                    request_text.contains("X-Gameplay-Resync: current\r\n"),
+                    "bootstrap must request the one-shot current resync"
+                );
+            }
+            if request_text.starts_with("POST /game/create_game ") {
+                assert!(
+                    request_text.contains("\"starting_settlers\":1"),
+                    "client explicitly requests a server-spawned settler"
+                );
+            }
             let message = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
                 response.len(),
@@ -196,12 +206,35 @@ fn bootstrap_posts_authoritative_setup_sequence() {
 
     assert_eq!(session.game_id, 44);
     assert_eq!(session.session_id, 11);
+    let projection = session.projection.expect("projection should exist");
     assert_eq!(
-        session
-            .projection
-            .expect("projection should exist")
-            .revision,
-        1
+        projection.revision, 1_i64,
+        "real snapshot revision retained"
+    );
+    assert_eq!(
+        projection.units.len(),
+        1_usize,
+        "launch receives server-spawned settler"
+    );
+    assert_eq!(
+        projection.tiles.len(),
+        13_usize,
+        "launch receives server sight radius"
+    );
+    assert!(
+        projection.cities.is_empty(),
+        "Go nil cities are accepted at launch"
+    );
+    assert_eq!(
+        projection.units[0_usize].type_id, "UNIT_SYNTHETIC",
+        "default server starter type retained"
+    );
+    assert!(
+        projection.units[0_usize]
+            .effects
+            .iter()
+            .any(|effect| effect.kind == "settler"),
+        "starter capability retained even when its type name is opaque"
     );
     handle.join().expect("server thread should finish");
 }

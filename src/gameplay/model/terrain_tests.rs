@@ -1,7 +1,8 @@
 //! Viewer-safe terrain detail must survive conversion to the render model.
 
-use crate::gameplay::model::GameState;
+use crate::gameplay::model::{GameState, UnitKind};
 use crate::gameplay::server::ServerProjection;
+use serde_json::{Value, json};
 
 #[test]
 fn empty_authoritative_projection_never_invents_settlers_or_explored_geography() {
@@ -21,9 +22,39 @@ fn empty_authoritative_projection_never_invents_settlers_or_explored_geography()
 }
 
 #[test]
+fn opaque_unit_types_use_the_exact_server_settler_capability_not_id_heuristics() {
+    for (effects, expected) in [
+        (
+            json!([{"id":"settler","kind":"settler"}]),
+            UnitKind::Settler,
+        ),
+        (Value::Null, UnitKind::Warrior),
+        (json!([]), UnitKind::Warrior),
+        (json!([{"id":"settler","kind":"combat"}]), UnitKind::Warrior),
+        (
+            json!([{"id":"raid","kind":"special_settler_slave_raid"}]),
+            UnitKind::Warrior,
+        ),
+    ] {
+        let projection: ServerProjection = serde_json::from_value(json!({
+            "revision":1_i64,"turn":1_u32,
+            "tiles":[{"id":"tile-0-0","x":0_u16,"y":0_u16,"terrain":"plains"}],
+            "units":[{"id":"settler-7-1","type_id":"UNIT_SYNTHETIC","owner_id":"account-7","tile_id":"tile-0-0","effects":effects}],
+            "cities":null
+        })).expect("canonical effects and Go nil slices parse");
+        let state = GameState::from_server_projection(&projection, 2_u8, 42_u64);
+        assert_eq!(
+            state.units[0_usize].kind, expected,
+            "only exact settler capability classifies an opaque unit as a settler"
+        );
+    }
+}
+
+#[test]
 fn projection_preserves_original_biomes_and_optional_river_metadata() {
     let projection: ServerProjection = serde_json::from_str(
         r#"{
+        "revision":1,"turn":1,
         "tiles":[
             {"id":"tile-0-0","x":0,"y":0,"terrain":"TERRAIN_WATER_BEACH","river":true},
             {"id":"tile-1-0","x":1,"y":0,"terrain":"TERRAIN_WHITE_MOUNTAIN"},

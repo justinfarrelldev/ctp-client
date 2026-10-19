@@ -7,7 +7,7 @@ use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use crate::gameplay::server::ServerProjection;
+use crate::gameplay::server::{ServerProjection, ServerUnitProjection};
 
 use super::generation::{generated_contacts, new_unit, start_popup};
 use super::{
@@ -72,10 +72,11 @@ fn terrain_art_base(terrain: &str) -> Option<u8> {
     }
 }
 
-/// Converts an authoritative server unit id into a render unit family.
-fn unit_kind_from_server_id(unit_type: &str) -> UnitKind {
-    let lowered = unit_type.to_ascii_lowercase();
-    if lowered.contains("settler") {
+/// Uses canonical capabilities for opaque starter types, retaining known
+/// retail type-name artwork fallbacks. Instance IDs never determine abilities.
+fn unit_kind_from_server_unit(unit: &ServerUnitProjection) -> UnitKind {
+    let lowered = unit.type_id.to_ascii_lowercase();
+    if unit.effects.iter().any(|effect| effect.kind == "settler") || lowered.contains("settler") {
         UnitKind::Settler
     } else if lowered.contains("barbarian") {
         UnitKind::Barbarian
@@ -133,7 +134,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
             let position = *tile_lookup.get(&unit.tile_id)?;
             let mut converted = new_unit(
                 UnitId::from_server_id(&unit.id),
-                unit_kind_from_server_id(&unit.type_id),
+                unit_kind_from_server_unit(unit),
                 player_id_from_server_owner(&unit.owner_id),
                 position,
             );

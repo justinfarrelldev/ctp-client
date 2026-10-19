@@ -19,6 +19,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{GameplayError, asset_error, runtime_error};
 
+/// Viewer snapshot envelope and Go nil-slice decoding.
+mod projection;
+use projection::deserialize_nullable_vec;
+
 /// Default local server endpoint.
 pub const DEFAULT_SERVER_URL: &str = "http://localhost:9000";
 /// Environment variable overriding the authoritative server endpoint.
@@ -92,20 +96,18 @@ pub struct ServerGameplaySession {
 /// Minimal viewer-safe server projection needed by the renderer.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 pub struct ServerProjection {
-    /// Canonical revision.
-    #[serde(default)]
+    /// Required canonical revision; a wrapper must not become a default world.
     pub revision: i64,
-    /// Current turn.
-    #[serde(default)]
+    /// Required authoritative turn.
     pub turn: u32,
-    /// Visible/remembered tiles.
-    #[serde(default)]
+    /// Visible/remembered tiles; Go nil slices encode as null.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub tiles: Vec<ServerTileProjection>,
-    /// Visible units.
-    #[serde(default)]
+    /// Visible units; Go nil slices encode as null.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub units: Vec<ServerUnitProjection>,
-    /// Visible/remembered cities.
-    #[serde(default)]
+    /// Visible/remembered cities; nil before the first settlement.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub cities: Vec<ServerCityProjection>,
     /// Diplomacy and resource summary.
     #[serde(default)]
@@ -160,6 +162,16 @@ pub struct ServerUnitProjection {
     /// Maximum movement points.
     #[serde(default)]
     pub max_movement: i16,
+    /// Viewer-exposed canonical capabilities, including synthetic starter settlement.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
+    pub effects: Vec<ServerUnitEffectProjection>,
+}
+
+/// Minimal capability projection; opaque IDs/values are not needed for art roles.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct ServerUnitEffectProjection {
+    /// Exact canonical effect kind, such as `settler`.
+    pub kind: String,
 }
 
 /// Minimal server city projection.
@@ -398,7 +410,16 @@ impl ServerClient {
                 response.status
             )));
         }
-        parse_resync_projection(&response.body)
+        let projection = ServerProjection::from_resync_event(&response.body)?;
+        log::info!(
+            "Open CTP game #{game_id} resync: revision {}, turn {}, {} tiles, {} units, {} cities",
+            projection.revision,
+            projection.turn,
+            projection.tiles.len(),
+            projection.units.len(),
+            projection.cities.len()
+        );
+        Ok(projection)
     }
 
     /// Sends JSON and parses JSON response.
@@ -639,29 +660,6 @@ fn decode_chunked_body(bytes: &[u8]) -> Result<String, GameplayError> {
     Ok(body)
 }
 
-/// Parses the SSE current projection payload.
-fn parse_resync_projection(body: &str) -> Result<ServerProjection, GameplayError> {
-    for event_block in body.split("\n\n") {
-        let mut event_name = "";
-        let mut data = String::new();
-        for line in event_block.lines() {
-            if let Some(value) = line.strip_prefix("event: ") {
-                event_name = value.trim();
-            } else if let Some(value) = line.strip_prefix("data: ") {
-                data.push_str(value.trim());
-            }
-        }
-        if event_name == "resync" {
-            return serde_json::from_str(&data).map_err(|error| {
-                asset_error(format!("server resync projection was not JSON: {error}"))
-            });
-        }
-    }
-    Err(runtime_error(
-        "server resync did not include a projection".to_owned(),
-    ))
-}
-
 /// Builds a unique idempotency token for one client command.
 fn unique_client_key(command: &str) -> Result<String, GameplayError> {
     let suffix = SystemTime::now()
@@ -680,5 +678,9 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
     })
 }
 
+#[cfg(test)]
+mod projection_tests;
+#[cfg(test)]
+pub(super) mod test_support;
 #[cfg(test)]
 mod tests;

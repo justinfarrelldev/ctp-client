@@ -82,3 +82,13 @@ See [the detailed checklist and red/green evidence](plans/pixel-perfect-gameplay
 - [x] Inspect 640×480, native 800×600 and larger 1280×960 captures. Document synthetic sightlines and remaining radar/dialog/stat/workflow limitations without claiming all-screen pixel parity.
 - [x] `cargo make lint-fix`, strict lint, full tests and dedicated native build pass. LLVM line coverage: **80.24%**. Required fast coverage script is absent; Windows binary validation remains environment-dependent.
 - [x] Review restricted paths, asset copyright, file sizes and authority boundaries; prepare normal commit with verification enabled.
+
+## Missing Starting Settlers and Visibility
+
+See [source evidence and red/green regressions](plans/starting-settlers-projection.md).
+
+- [x] Verify server starter creation, owner/viewer mapping, fog refresh and SSE wire format read-only; confirm the running server uses its default synthetic rules.
+- [x] Reproduce and fix client loss of the nested resync snapshot, Go null-slice rejection and misclassification of opaque settler-capable starters. Do not invent local units/terrain or modify the server.
+- [x] Correct bootstrap mocks to match the actual envelope. Test both default synthetic and retail starter profiles through decoding, selection, command identity, centered camera, actual actor/terrain/radar rendering and semantic Move/Settle controls, all in memory.
+- [x] Strict lint, full tests (308 library, 326 binary, 19 integration), native build and LLVM line coverage **80.35%** pass. Required fast coverage script remains absent; no Windows binary validation claimed.
+- [x] Document fixes/review, run pre-commit lint-fix and commit with normal verification enabled.
