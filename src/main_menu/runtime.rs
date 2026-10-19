@@ -347,11 +347,13 @@ fn run_sdl_event_loop_with_options_and_audio(
         .then_some(gameplay_config)
         .flatten();
     if let Some(config) = launch_config {
+        let mut configured = config.clone();
+        configured.graphics = shell_state.gameplay_graphics();
         log::info!("Launching single-player gameplay in the existing SDL menu window");
         drop(textures);
         drop(font_cache);
         crate::gameplay::runtime::run_sdl_game_on_existing_window(
-            config,
+            &configured,
             &mut canvas,
             &mut event_pump,
         )

@@ -38,6 +38,7 @@ const SELECTION_BRACKET_LENGTH: i32 = 12;
 #[cfg(test)]
 const SELECTION_BRACKET_MARGIN: i32 = 4;
 /// Half extent of the original CTP2 map-icon selection bracket square.
+#[cfg(test)]
 const CTP2_SELECTION_HALF_EXTENT: i32 = 25;
 /// Half-size of the original CTP2 turn box in pixels.
 const TURN_BOX_EDGE_SIZE: i32 = 8;
@@ -149,20 +150,31 @@ pub(super) const fn selection_feedback_color(can_move: bool) -> Color {
 }
 
 /// Draws selected-unit brackets at the original CTP2 tile-centered bracket position.
-pub(super) fn draw_tile_selection_brackets(
+pub(super) fn draw_screen_selection_brackets(
     canvas: &mut Canvas<Window>,
     camera: &Camera,
-    point: MapPoint,
+    position: (i32, i32),
     color: Color,
 ) -> Result<(), GameplayError> {
-    canvas.set_draw_color(color);
-    for segment in tile_selection_bracket_segments(camera, point) {
+    let center_x = position
+        .0
+        .saturating_add(i32::try_from(camera.tile_width().div_euclid(2)).unwrap_or(0_i32));
+    let center_y = position
+        .1
+        .saturating_add(i32::try_from(camera.tile_height().div_euclid(2)).unwrap_or(0_i32));
+    for segment in bracket_segments_for_bounds(
+        center_x.saturating_sub(25),
+        center_y.saturating_sub(25),
+        center_x.saturating_add(25),
+        center_y.saturating_add(25),
+    ) {
         draw_thick_line(canvas, segment, color)?;
     }
     Ok(())
 }
 
 /// Returns selected-unit bracket line segments at the original CTP2 tile-centered position.
+#[cfg(test)]
 pub(super) fn tile_selection_bracket_segments(
     camera: &Camera,
     point: MapPoint,
@@ -314,6 +326,7 @@ fn tile_line_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint {
 }
 
 /// Returns the original CTP2 selected-unit bracket anchor for a tile.
+#[cfg(test)]
 fn tile_selection_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint {
     let (screen_x, screen_y) = camera.tile_to_screen(point);
     let half_width = i32::try_from(camera.tile_width())

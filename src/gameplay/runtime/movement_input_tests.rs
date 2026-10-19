@@ -82,7 +82,7 @@ fn mouse_motion_without_left_button_updates_ctp2_hover_path_for_active_unit() {
         start_y,
         &mut state,
         &ui,
-        &mut camera,
+        &camera,
         &mut movement,
         None,
     );
@@ -151,7 +151,7 @@ fn clicking_hovered_ctp2_path_destination_moves_active_settler() {
         start_y,
         &mut state,
         &ui,
-        &mut camera,
+        &camera,
         &mut movement,
         None,
     );
@@ -250,7 +250,7 @@ fn drag_release_applies_computed_path_around_blocker_in_local_fallback() {
         target_y,
         &mut state,
         &ui,
-        &mut camera,
+        &camera,
         &mut movement,
         None,
     );

@@ -28,6 +28,8 @@ pub(super) struct MovementInputState {
     preview: Option<MovementPathPreview>,
     /// In-progress click-drag state from `StartMoveClick`/`MoveDrag`.
     drag: Option<MovementDrag>,
+    /// Presentation clocks and accepted paths; never used for command validation.
+    pub(super) actors: super::animation::ActorAnimations,
 }
 
 /// Drawable legal and stop-feedback paths for one activated unit.

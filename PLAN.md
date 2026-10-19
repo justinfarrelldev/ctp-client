@@ -92,3 +92,16 @@ See [source evidence and red/green regressions](plans/starting-settlers-projecti
 - [x] Correct bootstrap mocks to match the actual envelope. Test both default synthetic and retail starter profiles through decoding, selection, command identity, centered camera, actual actor/terrain/radar rendering and semantic Move/Settle controls, all in memory.
 - [x] Strict lint, full tests (308 library, 326 binary, 19 integration), native build and LLVM line coverage **80.35%** pass. Required fast coverage script remains absent; no Windows binary validation claimed.
 - [x] Document fixes/review, run pre-commit lint-fix and commit with normal verification enabled.
+
+## CTP2 Reference Interaction Pass (partial; full request remains open)
+
+See [the 33-image context inventory, source evidence and unfinished checklist](plans/reference-interaction-fidelity.md).
+
+- [x] View all references individually and preserve filename context; identify missing manager/context/city/message workflows rather than claiming parity.
+- [x] Implement original-art gameplay cursors/hotspots and clock-driven edge scrolling, with focus/modal cancellation and stationary-pointer path refresh.
+- [x] Present accepted submitted movement using directional SPR frames and one travel/frame clock for the currently supported Settler/Warrior/barbarian art. Preserve shell speed/animation settings and do not consume animations during network waits.
+- [x] Reproduce/fix foreign actors rendered with missing tile facts; test hidden/stale/visible/missing cases using real SDL pixel readback.
+- [x] Add fileless visual regressions for original cursor pixels and eight directions × four animation phases, plus deterministic opt-in motion previews. Keep the main-menu layout intact.
+- [x] Strict lint, 326 library/344 binary/19 integration tests and native build pass; LLVM line coverage **80.88%**. Required coverage script is absent. Windows cross-check attempted, blocked by GIO/GLib cross-compilation pkg-config/sysroot.
+- [ ] Complete all remaining manager/dialog/control-panel/context workflows, full unit roster/action animation and source/server metadata integration. Optimize Sliders has no established working callback in the supplied source; do not invent behavior.
+- [ ] Certify full-reference pixel parity and complete accessible click workflows only after that remaining work is implemented and validated.

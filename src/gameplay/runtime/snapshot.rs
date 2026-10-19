@@ -4,10 +4,7 @@
 //! does not replace server-authoritative state during an interactive session.
 //! Tests can inspect the RGBA result without invoking the separate file sink.
 
-use super::{
-    Camera, MovementInputState, configure_gameplay_canvas, frame, load_gameplay_font,
-    textures::GameplayTextures,
-};
+use super::{configure_gameplay_canvas, frame, load_gameplay_font, textures::GameplayTextures};
 use crate::gameplay::ui_model::{InGameUiModel, MenuCategory};
 use crate::gameplay::{GameplayError, runtime_error};
 use sdl2::image::SaveSurface;
@@ -168,7 +165,7 @@ pub fn render_preview_scene(
     let mut textures = GameplayTextures::load(root, &creator, true)?;
     let ttf = sdl2::ttf::init().map_err(|error| runtime_error(error.to_string()))?;
     let font = load_gameplay_font(&ttf);
-    let state = preview_state(scene);
+    let mut state = preview_state(scene);
     let mut ui = InGameUiModel {
         open_menu: menu,
         ..InGameUiModel::default()
@@ -176,7 +173,7 @@ pub fn render_preview_scene(
     if let Some(font) = font.as_ref() {
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |metrics| metrics.0));
     }
-    let camera = Camera::centered_on_selected(&state);
+    let (camera, input) = scene::preview_presentation(scene, &mut state, &textures, &mut ui);
     let mut frame_texture = creator
         .create_texture_target(
             None,
@@ -191,7 +188,7 @@ pub fn render_preview_scene(
         &state,
         &ui,
         &camera,
-        &MovementInputState::default(),
+        &input,
         font.as_ref(),
     )?;
     capture_canvas(&canvas)

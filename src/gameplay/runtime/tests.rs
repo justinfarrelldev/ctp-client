@@ -282,7 +282,7 @@ fn plain_left_click_on_map_tile_does_not_move_unit() {
     let (x, y) = camera.tile_click_center_to_screen(target);
 
     let down = handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
-    let up = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
+    let up = handle_left_release(x, y, &mut state, &ui, &camera, &mut movement, None);
 
     assert_eq!(
         down, None,
@@ -349,7 +349,7 @@ fn plain_left_click_with_authority_does_not_submit_move_request() {
         y,
         &mut state,
         &ui,
-        &mut camera,
+        &camera,
         &mut movement,
         Some(&mut authority),
     );
@@ -502,7 +502,7 @@ fn first_unit_click_drag_release_moves_along_computed_path() {
         target_y,
         &mut state,
         &ui,
-        &mut camera,
+        &camera,
         &mut movement,
         None,
     );
@@ -533,7 +533,7 @@ fn mouse_up_without_drag_path_submits_nothing() {
 
     let _activate_and_drag_start =
         handle_left_click(x, y, &mut state, &mut ui, &mut camera, &mut movement, None);
-    let outcome = handle_left_release(x, y, &mut state, &ui, &mut camera, &mut movement, None);
+    let outcome = handle_left_release(x, y, &mut state, &ui, &camera, &mut movement, None);
 
     assert_eq!(
         outcome, None,
@@ -672,6 +672,7 @@ fn headless_gameplay_smoke_opens_and_closes() {
         leader_name: "Tester".to_owned(),
         seed: 42,
         server: crate::gameplay::server::ServerConfig::disabled_for_test(),
+        graphics: crate::config::ctp2_options::Ctp2GraphicsOptions::default(),
     })
     .expect("headless gameplay should run");
 
@@ -710,6 +711,7 @@ fn headless_gameplay_reuses_existing_sdl_window_and_scales_to_viewport() {
                 leader_name: "Tester".to_owned(),
                 seed: 42,
                 server: crate::gameplay::server::ServerConfig::disabled_for_test(),
+                graphics: crate::config::ctp2_options::Ctp2GraphicsOptions::default(),
             },
             &mut canvas,
             &mut event_pump,

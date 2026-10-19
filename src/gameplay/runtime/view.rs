@@ -260,6 +260,12 @@ impl Camera {
         u32::try_from(TILE_HEIGHT.saturating_mul(self.zoom)).map_or(1, |value| value)
     }
 
+    /// Pans the viewport in screen pixels without changing its zoom or selection.
+    pub(super) const fn pan_pixels(&mut self, dx: i32, dy: i32) {
+        self.offset_x = self.offset_x.saturating_sub(dx);
+        self.offset_y = self.offset_y.saturating_sub(dy);
+    }
+
     /// Zooms in.
     pub(super) fn zoom_in(&mut self) {
         self.zoom = self.zoom.saturating_add(1_i32).min(3_i32);

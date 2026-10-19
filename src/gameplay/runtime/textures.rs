@@ -13,9 +13,9 @@ use sdl2::surface::Surface;
 use sdl2::video::WindowContext;
 use std::path::{Path, PathBuf};
 
+use crate::gameplay::assets::PICTURE_ARCHIVE;
 use crate::gameplay::assets::rim::{RgbaImage, load_rim_rgba_entry};
 use crate::gameplay::assets::tile::TileSet;
-use crate::gameplay::assets::{PICTURE_ARCHIVE, load_unit_sprite};
 use crate::gameplay::model::{FogState, GameState, MapPoint, TerrainKind, UnitKind};
 use crate::gameplay::{GameplayError, asset_error, runtime_error};
 
@@ -23,6 +23,8 @@ use crate::gameplay::{GameplayError, asset_error, runtime_error};
 mod art;
 #[cfg(test)]
 mod tests;
+/// Directional action/frame uploads and sequence sampling.
+mod units;
 
 /// Terrain cache key: family, variant, four edges, river and packed-channel fog.
 type TerrainTextureKey = (u8, u16, [u8; 4], Option<usize>, bool);
@@ -72,14 +74,16 @@ pub(super) struct GameplayTextures<'texture> {
     icons: BTreeMap<u16, RgbaImage>,
     /// Uploaded map icons keyed by index and replacement color.
     colored_icons: BTreeMap<(u16, [u8; 3]), Texture<'texture>>,
-    /// Idle actor textures keyed by client unit family.
-    units: Vec<(UnitKind, UnitTexture<'texture>)>,
+    /// Full directional/action sprite groups with lazily uploaded frames.
+    units: units::UnitTextures<'texture>,
     /// Original resource namespace; this maps art, not deposit locations.
     goods_ids: BTreeMap<String, u16>,
     /// Lazily uploaded resource frames, shared by kind and remembered-fog variant.
     goods: BTreeMap<(u16, bool), SpriteTexture<'texture>>,
     /// Installation root for resource art first encountered during play.
     root: PathBuf,
+    /// Original software cursors, uploaded on first use with black chroma key.
+    cursors: BTreeMap<super::cursor::CursorKind, Texture<'texture>>,
 }
 
 impl<'texture> GameplayTextures<'texture> {
@@ -93,10 +97,11 @@ impl<'texture> GameplayTextures<'texture> {
             ui: Vec::new(),
             icons: BTreeMap::new(),
             colored_icons: BTreeMap::new(),
-            units: Vec::new(),
+            units: units::UnitTextures::default(),
             goods_ids: BTreeMap::new(),
             goods: BTreeMap::new(),
             root: PathBuf::new(),
+            cursors: BTreeMap::new(),
         }
     }
 
@@ -118,7 +123,7 @@ impl<'texture> GameplayTextures<'texture> {
             ui: Vec::new(),
             icons: BTreeMap::new(),
             colored_icons: BTreeMap::new(),
-            units: Vec::new(),
+            units: units::UnitTextures::default(),
             goods_ids: match goods::load_catalog(root) {
                 Ok(catalog) => catalog,
                 Err(error) if strict => return Err(error),
@@ -126,6 +131,7 @@ impl<'texture> GameplayTextures<'texture> {
             },
             goods: BTreeMap::new(),
             root: root.to_path_buf(),
+            cursors: BTreeMap::new(),
         };
         for &name in art::UI_NAMES {
             match load_ui_rgba(root, name).and_then(|mut image| {
@@ -162,17 +168,7 @@ impl<'texture> GameplayTextures<'texture> {
                 Err(_) => {}
             }
         }
-        for (kind, sprite_id) in [
-            (UnitKind::Settler, 2_u16),
-            (UnitKind::Warrior, 3_u16),
-            (UnitKind::Barbarian, 3_u16),
-        ] {
-            match load_idle_actor(root, creator, sprite_id) {
-                Ok(texture) => textures.units.push((kind, texture)),
-                Err(error) if strict => return Err(error),
-                Err(_) => {}
-            }
-        }
+        textures.units = units::UnitTextures::load(root, strict)?;
         Ok(textures)
     }
 
@@ -230,6 +226,46 @@ impl<'texture> GameplayTextures<'texture> {
         Ok(self.terrain.get(&key))
     }
 
+    /// Loads installed cursor art read-only; no copyrighted data is embedded.
+    pub(super) fn cursor_texture(
+        &mut self,
+        kind: super::cursor::CursorKind,
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        if let alloc::collections::btree_map::Entry::Vacant(entry) = self.cursors.entry(kind) {
+            let (number, _) = kind.art();
+            let path = self
+                .root
+                .join("ctp2_data/default/graphics/cursors")
+                .join(format!("UC{number:03}.tga"));
+            let surface = Surface::from_file(path)
+                .and_then(|image| image.convert_format(PixelFormatEnum::RGBA32))
+                .map_err(asset_error)?;
+            let mut data = surface
+                .without_lock()
+                .ok_or_else(|| asset_error("cursor surface requires locking".to_owned()))?
+                .to_vec();
+            for pixel in data.chunks_exact_mut(4) {
+                pixel[0] = crate::gameplay::assets::pixel::expand5(pixel[0] >> 3);
+                pixel[1] = crate::gameplay::assets::pixel::expand6(pixel[1] >> 2);
+                pixel[2] = crate::gameplay::assets::pixel::expand5(pixel[2] >> 3);
+                if pixel[..3] == [0, 0, 0] {
+                    pixel[3] = 0;
+                }
+            }
+            entry.insert(texture_from_pixels(
+                creator,
+                surface.width(),
+                surface.height(),
+                &data,
+                usize::try_from(surface.pitch()).map_err(|error| asset_error(error.to_string()))?,
+            )?);
+        }
+        Ok(self.cursors.get(&kind))
+    }
+
     /// Returns original UI art by filename.
     pub(super) fn ui_texture(&self, name: &str) -> Option<&Texture<'texture>> {
         self.ui
@@ -238,12 +274,23 @@ impl<'texture> GameplayTextures<'texture> {
             .map(|entry| &entry.1)
     }
 
-    /// Returns the original idle actor and its hotspot/shield metadata.
-    pub(super) fn unit_texture(&self, kind: UnitKind) -> Option<&UnitTexture<'texture>> {
-        self.units
-            .iter()
-            .find(|entry| entry.0 == kind)
-            .map(|entry| &entry.1)
+    /// Shared duration for actor travel and its MOVE animation.
+    pub(super) fn move_duration(&self, kind: UnitKind, speed: i32, enabled: bool) -> u64 {
+        self.units.duration(kind, speed, enabled)
+    }
+
+    /// Returns the sampled original actor with directional and sequence metadata.
+    pub(super) fn unit_texture(
+        &mut self,
+        kind: UnitKind,
+        pose: super::animation::ActorPose,
+        duration: u64,
+        enabled: bool,
+    ) -> Result<Option<units::UnitDraw<'_, 'texture>>, GameplayError> {
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        self.units.sample(creator, kind, pose, duration, enabled)
     }
 
     /// Returns original resource art only for an explicitly projected good ID.
@@ -378,40 +425,6 @@ fn texture_from_frame<'texture>(
             usize::from(frame.width).saturating_mul(4_usize),
         )?,
         hotpoint: frame.hotpoint,
-    })
-}
-
-/// Uses `UNITACTION_IDLE` and default facing 3, falling back to MOVE like `UnitActor`.
-fn load_idle_actor<'texture>(
-    root: &Path,
-    creator: &'texture TextureCreator<WindowContext>,
-    sprite_id: u16,
-) -> Result<UnitTexture<'texture>, GameplayError> {
-    let sprite = load_unit_sprite(root, sprite_id)?;
-    let action = sprite
-        .actions
-        .iter()
-        .find(|action| action.action_index == 2_usize)
-        .or_else(|| {
-            sprite
-                .actions
-                .iter()
-                .find(|action| action.action_index == 0_usize)
-        })
-        .ok_or_else(|| asset_error(format!("unit {sprite_id} has no idle/move action")))?;
-    let frame = action
-        .frames
-        .iter()
-        .find(|frame| frame.facing == 3_u8)
-        .or_else(|| action.frames.first())
-        .ok_or_else(|| asset_error(format!("unit {sprite_id} has no idle frame")))?;
-    let shield = sprite
-        .shield_points
-        .get(action.action_index)
-        .map_or((70_i32, 10_i32), |points| points[0]);
-    Ok(UnitTexture {
-        sprite: texture_from_frame(creator, frame)?,
-        shield,
     })
 }
 

@@ -124,9 +124,10 @@ pub(super) fn draw_units(
     input: &MovementInputState,
 ) -> Result<(), GameplayError> {
     for unit in state.units.iter().filter(|unit| unit.alive) {
-        if state
-            .tile(unit.position)
-            .is_some_and(|tile| tile.fog != FogState::Visible && unit.owner != PlayerId::Human)
+        if unit.owner != PlayerId::Human
+            && state
+                .tile(unit.position)
+                .is_none_or(|tile| tile.fog != FogState::Visible)
         {
             continue;
         }
@@ -142,16 +143,35 @@ pub(super) fn draw_units(
         if top.is_some_and(|top| top.id != unit.id) {
             continue;
         }
-        let (x, y) = camera.tile_to_screen(unit.position);
+        let duration = textures.move_duration(unit.kind, input.actors.speed, input.actors.enabled);
+        let pose = input.actors.pose(unit, camera, duration);
+        let (x, y) = pose.position;
         let zoom = i32::try_from(camera.tile_width()).map_or(1_i32, |v| v.div_euclid(94_i32));
-        let shield = if let Some(actor) = textures.unit_texture(unit.kind) {
-            let size = actor.sprite.texture.query();
-            let target =
-                unit_target_rect(size.width, size.height, actor.sprite.hotpoint, (x, y), zoom);
+        let shield = if let Some(actor) =
+            textures.unit_texture(unit.kind, pose, duration, input.actors.enabled)?
+        {
+            let size = actor.frame.sprite.texture.query();
+            let hotpoint = pose.facing.hotpoint(
+                actor.frame.sprite.hotpoint,
+                u16::try_from(size.width).map_or(u16::MAX, |width| width),
+            );
+            let position = (
+                x.saturating_add(actor.delta.0.saturating_mul(zoom)),
+                y.saturating_add(actor.delta.1.saturating_mul(zoom)),
+            );
+            let target = unit_target_rect(size.width, size.height, hotpoint, position, zoom);
             canvas
-                .copy(&actor.sprite.texture, None, target)
+                .copy_ex(
+                    &actor.frame.sprite.texture,
+                    None,
+                    target,
+                    0.0_f64,
+                    None,
+                    actor.flipped,
+                    false,
+                )
                 .map_err(runtime_error)?;
-            actor.shield
+            actor.frame.shield
         } else {
             canvas.set_draw_color(owner_color(unit.owner));
             canvas
@@ -192,7 +212,7 @@ pub(super) fn draw_units(
                 canvas,
                 textures,
                 camera,
-                unit.position,
+                pose.position,
                 unit.movement_points > 0_i16,
             )?;
         }
@@ -265,11 +285,11 @@ fn draw_selection(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     camera: &Camera,
-    point: MapPoint,
+    position: (i32, i32),
     can_move: bool,
 ) -> Result<(), GameplayError> {
     let color = movement::selection_feedback_color(can_move);
-    let (x, y) = camera.tile_to_screen(point);
+    let (x, y) = position;
     let center_x = x
         .saturating_add(i32::try_from(camera.tile_width()).map_or(47_i32, |v| v.div_euclid(2_i32)));
     let center_y = y.saturating_add(
@@ -282,7 +302,7 @@ fn draw_selection(
         (11, false, true),
     ] {
         let Some(icon) = textures.map_icon(index, color)? else {
-            return movement::draw_tile_selection_brackets(canvas, camera, point, color);
+            return movement::draw_screen_selection_brackets(canvas, camera, position, color);
         };
         let size = icon.query();
         let left = if right {

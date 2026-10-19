@@ -5,6 +5,54 @@ use crate::gameplay::ui_model::MenuCategory;
 use std::path::Path;
 
 #[test]
+fn motion_probe_captures_real_window_at_an_injected_animation_phase() -> Result<(), String> {
+    let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;
+    let environment = HeadlessSdlEnvironment::apply();
+    let result = (|| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let initial = snapshot::render_preview_scene(
+            &root,
+            (800, 600),
+            None,
+            snapshot::scene::PreviewScene::Motion {
+                direction: 7,
+                quarter: 0,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let middle = snapshot::render_preview_scene(
+            &root,
+            (800, 600),
+            None,
+            snapshot::scene::PreviewScene::Motion {
+                direction: 7,
+                quarter: 2,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let repeated = snapshot::render_preview_scene(
+            &root,
+            (800, 600),
+            None,
+            snapshot::scene::PreviewScene::Motion {
+                direction: 7,
+                quarter: 2,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        if initial == middle {
+            return Err("movement probe did not advance actual window pixels".to_owned());
+        }
+        if middle != repeated {
+            return Err("injected phase is not deterministic".to_owned());
+        }
+        Ok(())
+    })();
+    environment.restore();
+    result
+}
+
+#[test]
 fn deterministic_snapshots_use_actual_renderer_and_requested_output_size() -> Result<(), String> {
     let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;
     let environment = HeadlessSdlEnvironment::apply();

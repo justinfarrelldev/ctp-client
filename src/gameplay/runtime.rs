@@ -7,7 +7,6 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use std::path::{Path, PathBuf};
-use std::thread;
 use std::time::Duration;
 
 use sdl2::EventPump;
@@ -19,7 +18,7 @@ use sdl2::video::Window;
 use serde_json::{Value, json};
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind, UnitId};
-use super::server::{ServerClient, ServerProjection};
+use super::server::ServerProjection;
 use super::ui_model::{InGameAction, InGameUiModel};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
@@ -40,10 +39,14 @@ const FONT_CANDIDATES: [&str; 8] = [
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
 ];
+/// Directional actor presentation with an injectable monotonic clock.
+mod animation;
 /// Authoritative server state alignment helpers.
 mod authority;
 /// Labeled controls shared by accessible automation and SDL pointer events.
 pub mod controls;
+/// Original software cursor art and edge-scrolling policy.
+mod cursor;
 /// Native-frame composition and uniform final scaling.
 mod frame;
 /// Original drawing/hit-test geometry.
@@ -52,6 +55,8 @@ mod layout;
 mod movement;
 /// Gameplay frame rendering.
 mod render;
+/// Bootstrap and the live SDL presentation loop.
+mod session;
 /// Explicit opt-in framebuffer previews and capture.
 pub mod snapshot;
 /// Original CTP2 texture loading.
@@ -65,6 +70,7 @@ use authority::{
 };
 use layout::{click_in_non_map_ui, end_turn_button_rect};
 use movement::{MovementInputState, begin_or_activate_unit_drag};
+use session::run_sdl_game_on_canvas;
 use view::Camera;
 
 /// Event-loop options used by production and tests.
@@ -166,118 +172,6 @@ pub(crate) fn run_sdl_game_on_existing_window(
     run_sdl_game_on_canvas(config, canvas, event_pump, None)
 }
 
-/// Runs gameplay on the provided SDL canvas and event pump.
-fn run_sdl_game_on_canvas(
-    config: &SinglePlayerLaunchConfig,
-    canvas: &mut Canvas<Window>,
-    event_pump: &mut EventPump,
-    frame_limit: Option<u32>,
-) -> Result<GameplayOutcome, GameplayError> {
-    configure_gameplay_canvas(canvas)?;
-    let texture_creator = canvas.texture_creator();
-    let mut textures = textures::GameplayTextures::load(
-        &config.installation_root,
-        &texture_creator,
-        config.server.required,
-    )?;
-    let mut frame_texture = texture_creator
-        .create_texture_target(None, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let ttf_context = sdl2::ttf::init().ok();
-    let font = ttf_context.as_ref().and_then(load_gameplay_font);
-    let mut authority = if config.server.required {
-        let client = ServerClient::from_config(&config.server)?;
-        let session =
-            client.bootstrap_local_singleplayer(&config.leader_name, config.empire_count)?;
-        Some(RuntimeAuthority {
-            client,
-            session,
-            empire_count: config.empire_count,
-            seed: config.seed,
-        })
-    } else {
-        None
-    };
-    let mut state = authority
-        .as_ref()
-        .and_then(|authority| {
-            authority
-                .session
-                .projection
-                .as_ref()
-                .map(|projection| state_from_authority_projection(authority, projection))
-        })
-        .unwrap_or_else(|| GameState::new(64, 48, config.empire_count, config.seed));
-    if let Some(active_authority) = authority.as_ref() {
-        // Connection diagnostics belong in the log, not a fabricated modal
-        // covering the original first-turn interface after the loading screen.
-        state.popups.clear();
-        log::info!(
-            "Gameplay uses authoritative server game #{}",
-            active_authority.session.game_id
-        );
-    }
-    let mut ui = InGameUiModel::default();
-    if let Some(font) = font.as_ref() {
-        ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
-    }
-    let mut movement = MovementInputState::default();
-    let mut camera = Camera::centered_on_selected(&state);
-    let mut outcome = None;
-    let mut rendered_frames = 0_u32;
-
-    while outcome.is_none() {
-        let mut capture_requested = false;
-        for event in event_pump.poll_iter() {
-            if matches!(
-                event,
-                Event::KeyDown {
-                    keycode: Some(sdl2::keyboard::Keycode::F12),
-                    repeat: false,
-                    ..
-                }
-            ) {
-                capture_requested = true;
-                continue;
-            }
-            if let Some(next) = handle_event(
-                &event,
-                &mut state,
-                &mut ui,
-                &mut camera,
-                &mut movement,
-                authority.as_mut(),
-            ) {
-                outcome = Some(next);
-            }
-        }
-        frame::draw_scaled_frame(
-            canvas,
-            &mut frame_texture,
-            &mut textures,
-            &state,
-            &ui,
-            &camera,
-            &movement,
-            font.as_ref(),
-        )?;
-        if capture_requested {
-            match snapshot::save_interactive_capture(canvas) {
-                Ok(path) => log::info!("Saved gameplay frame to {}", path.display()),
-                Err(error) => log::warn!("Gameplay screenshot failed: {error}"),
-            }
-        }
-        canvas.present();
-        rendered_frames = rendered_frames.saturating_add(1);
-        if frame_limit.is_some_and(|limit| rendered_frames >= limit) {
-            outcome = Some(GameplayOutcome::Closed);
-        }
-        thread::sleep(FRAME_DELAY);
-    }
-
-    Ok(outcome.unwrap_or(GameplayOutcome::Closed))
-}
-
 /// Uniformly scales the reference game frame with minimal aspect-ratio borders.
 fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
     canvas.set_viewport(None);
@@ -295,6 +189,20 @@ fn handle_event(
     movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
+    match *event {
+        Event::MouseMotion { x, y, .. }
+        | Event::MouseButtonDown { x, y, .. }
+        | Event::MouseButtonUp { x, y, .. } => ui.pointer = Some((x, y)),
+        Event::Window {
+            win_event: sdl2::event::WindowEvent::Leave | sdl2::event::WindowEvent::FocusLost,
+            ..
+        } => {
+            ui.pointer = None;
+            ui.hovered_tile = None;
+            movement.cancel_drag();
+        }
+        _ => {}
+    }
     match event.clone() {
         Event::Quit { .. } => Some(GameplayOutcome::Closed),
         Event::KeyDown { repeat: false, .. } if !state.popups.is_empty() => {
@@ -417,7 +325,7 @@ fn handle_left_click(
     }
     if let Some(point) = camera.screen_to_tile(x, y) {
         if let Some((unit_id, path)) = movement.finish_preview_order_to(state, point) {
-            apply_finalized_move_path(state, camera, movement, authority, unit_id, path);
+            apply_finalized_move_path(state, movement, authority, unit_id, &path);
             return None;
         }
         if begin_or_activate_unit_drag(state, movement, point) {
@@ -467,7 +375,7 @@ fn handle_left_release(
     y: i32,
     state: &mut GameState,
     ui: &InGameUiModel,
-    camera: &mut Camera,
+    camera: &Camera,
     movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
@@ -479,30 +387,36 @@ fn handle_left_release(
         movement.extend_drag_to(state, point);
     }
     let (unit_id, path) = movement.finish_drag()?;
-    apply_finalized_move_path(state, camera, movement, authority, unit_id, path);
+    apply_finalized_move_path(state, movement, authority, unit_id, &path);
     None
 }
 
 /// Applies or submits one finalized CTP2 movement path.
 fn apply_finalized_move_path(
     state: &mut GameState,
-    camera: &mut Camera,
     movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
     unit_id: UnitId,
-    path: Vec<MapPoint>,
+    path: &[MapPoint],
 ) {
     if !state.select_unit(unit_id) {
         movement.retain_selectable(state);
         return;
     }
+    let before = state
+        .units
+        .iter()
+        .filter(|unit| unit.id == unit_id)
+        .cloned()
+        .collect::<Vec<_>>();
     if let Some(active_authority) = authority {
-        submit_authoritative_move_path(active_authority, state, unit_id, &path);
+        submit_authoritative_move_path(active_authority, state, unit_id, path);
     } else {
-        state.order_selected_along_path(path);
+        state.order_selected_along_path(path.to_vec());
     }
+    movement.actors.confirm(&before, state, path);
     movement.retain_selectable(state);
-    *camera = Camera::centered_on_selected(state);
+    // Keep the viewport stable while the accepted move is animated.
 }
 
 /// Handles a right click.
@@ -558,6 +472,14 @@ fn apply_ui_action(
             None
         }
         InGameAction::None => None,
+        InGameAction::MoveBy(dx, dy) => {
+            if let Some(unit) = state.selected_unit() {
+                if let Some(target) = unit.position.offset(dx, dy, state.width, state.height) {
+                    apply_finalized_move_path(state, movement, authority, unit.id, &[target]);
+                }
+            }
+            None
+        }
         other => {
             if let Some(active_authority) = authority {
                 if apply_authoritative_action(active_authority, state, other) {
@@ -763,6 +685,8 @@ use test_support::HeadlessSdlEnvironment;
 mod fidelity_tests;
 #[cfg(test)]
 mod movement_input_tests;
+#[cfg(test)]
+mod presentation_tests;
 #[cfg(test)]
 mod snapshot_tests;
 #[cfg(test)]

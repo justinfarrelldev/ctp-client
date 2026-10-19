@@ -10,6 +10,13 @@ pub enum PreviewScene {
     /// Known land, connected river, shore, stacked settlers and explored terrain.
     /// This is diagnostic fixture data, never a substitute for a server projection.
     Terrain,
+    /// A single confirmed synthetic move with original cursor and injected clock.
+    Motion {
+        /// Clockwise screen direction, north=0 through northwest=7 (clamped).
+        direction: u8,
+        /// Elapsed quarters of one travel/animation cycle, 0–4 (clamped).
+        quarter: u8,
+    },
 }
 
 /// Creates a reproducible scene without reading or writing configuration files.
@@ -58,4 +65,43 @@ pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameSt
     }
     state.gold = 100_i32;
     state
+}
+
+/// Configures a deterministic accepted movement without invoking a network client.
+/// This fixture is intentionally synthetic, not evidence about server movement.
+pub(in crate::gameplay::runtime) fn preview_presentation(
+    scene: PreviewScene,
+    state: &mut GameState,
+    textures: &super::super::textures::GameplayTextures<'_>,
+    ui: &mut crate::gameplay::ui_model::InGameUiModel,
+) -> (super::super::Camera, super::super::MovementInputState) {
+    let camera = super::super::Camera::centered_on_selected(state);
+    let mut input = super::super::MovementInputState::default();
+    if let PreviewScene::Motion { direction, quarter } = scene {
+        state.units.truncate(1);
+        let before = state.units.clone();
+        if let Some(unit) = state.units.first_mut() {
+            let deltas: [(i16, i16); 8] = [
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (1, 0),
+                (1, 1),
+                (0, 1),
+                (-1, 1),
+                (-1, 0),
+            ];
+            let (dx, dy) = deltas[usize::from(direction.min(7))];
+            if let Some(target) = unit.position.offset(dx, dy, state.width, state.height) {
+                unit.position = target;
+                let duration = textures.move_duration(unit.kind, 5, true);
+                input.actors.confirm(&before, state, &[target]);
+                input.actors.now_ms = duration
+                    .saturating_mul(u64::from(quarter.min(4)))
+                    .div_euclid(4);
+                ui.pointer = Some((650_i32, 260_i32));
+            }
+        }
+    }
+    (camera, input)
 }

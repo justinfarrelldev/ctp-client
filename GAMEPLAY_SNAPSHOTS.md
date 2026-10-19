@@ -21,6 +21,21 @@ Replace `ctp2` with the installed game root. Use `800 600` for native-pixel insp
 
 **The `terrain` scene is a deliberately hand-built visual fixture.** It mixes biome edges, water, river connections, visible/explored/unknown cells, and a selected stack in one small area. Its visibility is not calculated from the settler's position and is not evidence about server sightlines. Its visibility layout has intentionally been left unchanged. The default scene instead uses the existing deterministic local preview generator. Neither scene is a playable or authoritative game.
 
+## Directional motion inspection
+
+The opt-in diagnostic also accepts `motion DIRECTION QUARTER`: clockwise screen directions 0–7 (north through northwest) and phases 0–4 (origin through arrival). It uses an explicitly synthetic, accepted single-unit path and the production animation renderer; no live server or settings are involved.
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  cargo run --example gameplay-snapshot -- ctp2 images/motion-nw.png 800 600 none motion 7 2
+```
+
+Tests invoke the same capture API entirely in memory. Additional SDL readback tests compare all eight directions at four phases for the supported Settler/Warrior art against independently selected retail SPR frames, including western mirroring/hotspots, sequence indices, deltas and alpha. Cursor tests compare the original hand and all four edge cursors pixel-by-pixel, with exact LDL hotspots and transparent black. The software pointer is included in live F12 captures and uniformly scaled with the frame. OS cursor visibility is restored when gameplay returns or fails.
+
+Movement and frame timing share one elapsed-time clock. Only the accepted prefix of a submitted path is presented; rejected commands do not animate, and network wait time does not consume the animation. The shell's unit speed/animation toggle is handed off without rereading settings. Edge scrolling uses original thresholds, vertical corner priority, the source default 300ms delay, 50ms acceleration and a bounded time-step; losing focus or opening an existing modal cancels it.
+
+**This is not full unit/system parity.** The model still recognizes only Settler, Warrior and the Warrior-art barbarian family. Hoplite/Archer and other canonical unit art/type mappings, attack/death/fortification state, animation of moves occurring during end-turn, wrap/boundary camera behavior, moving-stack hit testing and full UI workflow parity remain unfinished. The `motion` fixture is not evidence that these features are supported. See [the full reference inventory and remaining checklist](plans/reference-interaction-fidelity.md).
+
 ## Live capture
 
 Press **F12** during gameplay to capture the newly composed framebuffer before presentation. The default destination is `images/gameplay.png`; set `CTP_GAMEPLAY_CAPTURE` to choose another PNG path. An explicit capture replaces that destination and creates its parent directory if necessary. Normal rendering does not write screenshots.
@@ -53,5 +68,7 @@ cargo make test
 cargo build
 cargo llvm-cov --all-features --all-targets --summary-only
 ```
+
+Latest validation for the reference-interaction pass: strict lint, 326 library tests, 344 binary tests, 19 integration tests and the dedicated native build pass. LLVM line coverage is **80.88%**. The Windows x86_64 check was attempted but is blocked before client compilation by `gio-sys`/GLib pkg-config cross-compilation setup; no Windows binary validation is claimed.
 
 Tests include in-memory semantic interactions, exact native artwork placement, reticle masks, both pixel formats, all retail terrain-pair/rule combinations, river/mouth masks, resource visibility/fog, malformed data, scaled framebuffers and PNG round trips. Installed art is read-only. Server tests use mock HTTP/SSE responses, not a running local server. The requested `./scripts/check-coverage-fast.sh` is absent; `cargo llvm-cov` provides the available line-coverage measurement instead. Windows source portability is reviewed, but Windows binaries require validation on a configured Windows/SDL build host.

@@ -38,10 +38,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             .ok_or("unknown menu title; use Empire, Cities, Units, Diplomacy, Stats or Options")
         })
         .transpose()?;
-    let scene = if args.get(5_usize).is_some_and(|value| value == "terrain") {
-        PreviewScene::Terrain
-    } else {
-        PreviewScene::Generated
+    let scene = match args.get(5_usize).map(String::as_str) {
+        Some("motion") => PreviewScene::Motion {
+            direction: args
+                .get(6_usize)
+                .map_or(Ok(3_u8), |value| value.parse::<u8>())?,
+            quarter: args
+                .get(7_usize)
+                .map_or(Ok(2_u8), |value| value.parse::<u8>())?,
+        },
+        Some("terrain") => PreviewScene::Terrain,
+        _ => PreviewScene::Generated,
     };
     let mut frame = render_preview_scene(Path::new(root), (width, height), menu, scene)?;
     frame.save_png(Path::new(output))?;

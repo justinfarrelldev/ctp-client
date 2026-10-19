@@ -93,6 +93,8 @@ pub struct SinglePlayerLaunchConfig {
     pub seed: u64,
     /// Authoritative server connection settings.
     pub server: server::ServerConfig,
+    /// Graphics options selected in the shell, including unit travel/animation speed.
+    pub graphics: crate::config::ctp2_options::Ctp2GraphicsOptions,
 }
 
 impl SinglePlayerLaunchConfig {
@@ -105,6 +107,7 @@ impl SinglePlayerLaunchConfig {
             leader_name: "Leader".to_owned(),
             seed: 0x4354_5032_u64,
             server: server::ServerConfig::interactive_default(),
+            graphics: crate::config::ctp2_options::Ctp2GraphicsOptions::default(),
         }
     }
 }
@@ -136,5 +139,6 @@ pub fn run_headless_gameplay_smoke_for_test(
         leader_name: "Tester".to_owned(),
         seed: 1,
         server: server::ServerConfig::disabled_for_test(),
+        graphics: crate::config::ctp2_options::Ctp2GraphicsOptions::default(),
     })
 }

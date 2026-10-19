@@ -265,6 +265,8 @@ pub struct InGameUiModel {
     pub menu_text_widths: Vec<(&'static str, u32)>,
     /// Optional tile beneath the pointer, used by the original yellow map cursor.
     pub hovered_tile: Option<MapPoint>,
+    /// Logical-frame pointer location; absent outside/unfocused SDL windows.
+    pub pointer: Option<(i32, i32)>,
 }
 
 impl Default for InGameUiModel {
@@ -278,6 +280,7 @@ impl Default for InGameUiModel {
             status_text: String::new(),
             menu_text_widths: Vec::new(),
             hovered_tile: None,
+            pointer: None,
         }
     }
 }

@@ -23,6 +23,9 @@ use super::{
 
 /// Individual shell control drawing helpers.
 mod controls;
+/// Launch option handoff regressions without filesystem effects.
+#[cfg(test)]
+mod launch_tests;
 /// Original listbox chrome drawing helpers.
 pub(in crate::main_menu::runtime) mod listbox;
 /// Shell screen rendering helpers.
@@ -429,7 +432,12 @@ impl ShellRuntimeState {
         }
     }
 
-    /// Queues the current options for persistence.
+    /// Current graphics choices for gameplay launch, without reading settings again.
+    pub(super) fn gameplay_graphics(&self) -> crate::config::ctp2_options::Ctp2GraphicsOptions {
+        self.model.options().to_persisted().graphics
+    }
+
+    /// Queues options persistence separately from immediate runtime effects.
     fn record_persisted_options(&mut self) {
         self.pending_effects.persisted_options = Some(self.model.options().to_persisted());
     }

@@ -65,7 +65,39 @@ pub(super) fn draw_frame(
         radar::draw_radar(canvas, textures, state)?;
     }
     menus::draw_top_menu(canvas, textures, state, ui, font)?;
-    draw_popups(canvas, textures, state, font)
+    draw_popups(canvas, textures, state, font)?;
+    draw_cursor(canvas, textures, state, ui, input)
+}
+
+/// Draws the retail pointer last, so captures include the same visible cursor.
+fn draw_cursor(
+    canvas: &mut Canvas<Window>,
+    textures: &mut GameplayTextures<'_>,
+    state: &GameState,
+    ui: &InGameUiModel,
+    input: &MovementInputState,
+) -> Result<(), GameplayError> {
+    let Some((x, y)) = ui.pointer else {
+        return Ok(());
+    };
+    let kind = super::cursor::cursor_for_frame(state, ui, input);
+    let (_, hotspot) = kind.art();
+    if let Some(texture) = textures.cursor_texture(kind)? {
+        let size = texture.query();
+        canvas
+            .copy(
+                texture,
+                None,
+                Rect::new(
+                    x.saturating_sub(hotspot.0),
+                    y.saturating_sub(hotspot.1),
+                    size.width,
+                    size.height,
+                ),
+            )
+            .map_err(runtime_error)?;
+    }
+    Ok(())
 }
 
 /// Draws the diagnostic tile grid at its actual zoomed ground vertices.
@@ -137,6 +169,12 @@ const fn tile_color(terrain: TerrainKind) -> Color {
     Color::RGB(red, green, blue)
 }
 
+#[cfg(test)]
+mod animation_tests;
+#[cfg(test)]
+mod cursor_tests;
+#[cfg(test)]
+mod fog_tests;
 #[cfg(test)]
 mod pixel_tests;
 #[cfg(test)]
