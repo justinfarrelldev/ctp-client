@@ -1,6 +1,8 @@
 //! Source dropdown lifecycle and exact current owned-city selection.
 
-use super::{ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, data};
+use super::{
+    ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, data, government,
+};
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::MenuRect;
@@ -16,12 +18,68 @@ fn city_path(kind: ManagerKind, path: &str) -> bool {
 
 /// Exact source city dropdown roots; arbitrary path-like keys are not choosers.
 pub(super) fn valid_path(kind: ManagerKind, path: &str) -> bool {
-    city_path(kind, path) && matches!(path, "SingleCityChooser.Pulldown" | "CityList.Pulldown")
+    (city_path(kind, path) && matches!(path, "SingleCityChooser.Pulldown" | "CityList.Pulldown"))
+        || (kind == ManagerKind::Empire && path == government::PICKER)
 }
 
 /// Identifies detached popup rows rather than treating them as buildable entries.
 pub(super) fn city_list(kind: ManagerKind, path: &str) -> bool {
     city_path(kind, path) && path.ends_with(".Pulldown.window.listbox")
+}
+
+/// Exact source popup list roots, shared across city and government identities.
+pub(super) fn list_path(kind: ManagerKind, path: &str) -> bool {
+    path.strip_suffix(".window.listbox")
+        .is_some_and(|owner| valid_path(kind, owner))
+}
+
+/// Source-created item identity controls actual caption, row and page geometry.
+pub(super) fn template(kind: ManagerKind, path: &str) -> Option<&'static str> {
+    if !valid_path(kind, path) && !list_path(kind, path) {
+        return None;
+    }
+    Some(if kind == ManagerKind::Empire {
+        "GovernmentListItem"
+    } else {
+        "cw_CityItem"
+    })
+}
+
+/// Fresh authorized chooser rows; arbitrary original dropdowns are not callbacks.
+pub(super) fn options(
+    ui: &ManagementUi,
+    state: &GameState,
+    view: &ManagerView,
+    path: &str,
+) -> Vec<(String, String)> {
+    if !valid_path(view.kind, path) {
+        return Vec::new();
+    }
+    if view.kind == ManagerKind::Empire {
+        government::ids(state)
+            .into_iter()
+            .map(|id| {
+                let label = data::label(ui, &id);
+                (id, label)
+            })
+            .collect()
+    } else {
+        choices(state)
+    }
+}
+
+/// Stable highlight or selected identity; government choices never borrow a city ID.
+pub(super) fn selected(view: &ManagerView) -> Option<&str> {
+    view.selections
+        .get("dropdown-highlight")
+        .map(String::as_str)
+        .or_else(|| {
+            if view.kind == ManagerKind::Empire {
+                view.selections.get("government").map(String::as_str)
+            } else {
+                view.city_id.as_deref()
+            }
+        })
 }
 
 /// Fresh owned choices; visibility or a shared label cannot authorize a foreign city.
@@ -45,6 +103,17 @@ pub(super) fn binding(
     view: &ManagerView,
     path: &str,
 ) -> Option<(Option<ManagerIntent>, Option<String>)> {
+    let picker = path.strip_suffix(".autobutton").unwrap_or(path);
+    if view.kind == ManagerKind::Empire && picker == government::PICKER {
+        return Some(if government::ids(state).is_empty() {
+            (
+                None,
+                Some("No currently eligible alternative government".to_owned()),
+            )
+        } else {
+            (Some(toggle(view, picker)), None)
+        });
+    }
     if !city_path(view.kind, path) {
         return None;
     }
@@ -88,23 +157,25 @@ pub(super) fn binding(
                 Some("No currently owned city is available".to_owned()),
             ));
         }
-        return Some((
-            Some(ManagerIntent::Select(
-                "dropdown".to_owned(),
-                if view
-                    .selections
-                    .get("dropdown")
-                    .is_some_and(|open| open == selector_path)
-                {
-                    String::new()
-                } else {
-                    selector_path.to_owned()
-                },
-            )),
-            None,
-        ));
+        return Some((Some(toggle(view, selector_path)), None));
     }
     None
+}
+
+/// Opening is explicit and only toggles this source chooser's detached popup.
+fn toggle(view: &ManagerView, path: &str) -> ManagerIntent {
+    ManagerIntent::Select(
+        "dropdown".to_owned(),
+        if view
+            .selections
+            .get("dropdown")
+            .is_some_and(|open| open == path)
+        {
+            String::new()
+        } else {
+            path.to_owned()
+        },
+    )
 }
 
 /// Reports actual popup dismissal instead of claiming an absent popup changed.
@@ -141,11 +212,19 @@ pub(super) fn caption(
     path: &str,
     rect: MenuRect,
 ) -> Option<ManagerWidget> {
-    if !city_path(view.kind, path) {
+    if !valid_path(view.kind, path) {
         return None;
     }
-    let city = data::city(state, view)?;
-    let item = ui.row_templates.get("cw_CityItem")?;
+    let caption = if view.kind == ManagerKind::Empire {
+        let id = view.selections.get("government")?;
+        options(ui, state, view, path)
+            .into_iter()
+            .find(|choice| choice.0 == *id)?
+            .1
+    } else {
+        data::city_name(data::city(state, view)?)
+    };
+    let item = ui.row_templates.get(template(view.kind, path)?)?;
     let label = item.children.first()?;
     let height = label
         .integer("heightpix")
@@ -156,7 +235,7 @@ pub(super) fn caption(
     node.children.clear();
     Some(ManagerWidget {
         id: format!("{path}/selected"),
-        label: data::city_name(city),
+        label: caption,
         rect: MenuRect {
             x: rect.x.saturating_add(2_i32),
             y: rect.y.saturating_add(2_i32),
@@ -178,7 +257,7 @@ pub(super) fn popup(
     widgets: &[ManagerWidget],
 ) -> Option<(LayoutNode, String, MenuRect)> {
     let path = view.selections.get("dropdown")?;
-    if !city_path(view.kind, path) || !path.ends_with(".Pulldown") {
+    if !valid_path(view.kind, path) {
         return None;
     }
     let owner = widgets.iter().find(|widget| widget.id == *path)?;
@@ -187,10 +266,10 @@ pub(super) fn popup(
         source = source.child(part)?;
     }
     let mut window = source.child("window")?.clone();
-    let rows = choices(state).len();
+    let rows = options(ui, state, view, path).len();
     let row_height = ui
         .row_templates
-        .get("cw_CityItem")
+        .get(template(view.kind, path)?)
         .and_then(|item| item.integer("heightpix"))
         .and_then(|height| u32::try_from(height).ok())
         .unwrap_or(22_u32);

@@ -68,6 +68,7 @@ Implementation substeps (do not equate a framework or disabled button with compl
 - [ ] Build Manager: automatic opening after settlement, Units/Buildings/Wonders, independent list/queue selections, descriptions, Add/Insert/Remove/Clear/Move Up/Down, Suggest/Load/custom queues, rush buy and library links.
 - [ ] Empire Manager: policies, tax/PW, happiness, government, Details and source-verified Optimize Sliders (or precise demonstrated source/contract blocker).
   - [x] Bind source rations/workday/wages sliders and science/PW spinners to revision-checked typed parameter commands, with native range geometry/input, untouched companion values, mocked receipt tests and no live counterfactual policy probing.
+  - [x] Restore source Empire Details/Summary visibility, keep Details inside Empire rather than substituting National Manager, and preserve the mode across tabs.
   - [ ] Integrate government comparison/eligible enactment and source-valued displays without inventing unavailable economy totals.
 - [ ] National Manager: Resources/Status/Specialists and selection-gated city/build/disband controls.
 - [ ] Unit/Army Manager: stats/tactical/advice/readiness/disband/army composition.
@@ -226,5 +227,15 @@ Lint-fix/strict lint, **419 library + 437 binary + 19 integration = 875 executio
 - `empire-populated` is a separate explicit policy fixture. Inspect ignored native/reference-sized `images/policy-empire-{native,reference}.png`; installed slider/arrow pixels pass independent memory-only source oracles, but Empire summary/detail labels still overlap, some installed text keys are absent, and the retail root/column/spinner placement differs substantially from the reference's Apolyton layout. Those are outstanding client layout/lifecycle work, not server blockers or accepted screenshot matches. Public community `ctp2_data/default/uidata/layouts/civstatus.ldl` establishes the 800x558 root, 152-pixel social sliders, top-level `PWSpinner`/`ScieTaxSpinner`, expanded columns and Optimize button.
 
 Policy checkpoint validation: lint-fix/strict lint, **445 library + 463 binary + 19 integration = 927 executions**, dedicated native build and **83.79%** LLVM line coverage pass (41,530 lines; 6,731 missed). Repeated required fast-script command exits127 because the script is absent. Windows checking still stops before client compilation in GTK/GLib cross-compiling pkg-config/sysroot setup. No server implementation, installed art or restricted paths changed; tests do not write files or contact a running server. Continue with government/layout and the main plan.
+
+## UI-first continuation (current request; reuse this plan)
+
+- [ ] Reconcile Empire's full-screen reference geometry and non-overlapping summary columns with source-backed visual tests.
+- [ ] Restore reference Graphics/Sound presentation (second graphics slider, twelve switches, native grooves/ticks/thumbs), without claiming unbound options functional.
+- [ ] Restore all five lower-panel bodies from source artwork/geometry; test empty/populated viewer-safe cases and inspect native/reference captures.
+- [ ] Reconcile remaining manager/advisor/reference scenarios, inspect all 33 outputs and record precise visual gaps rather than certifying component tests as parity.
+- [ ] Run full lint/tests/coverage/build and commit UI changes atomically before reporting progress.
+
+Incoming government/Details work was already present at the start of this continuation. Its fileless tests now pass: exact eligible government identity/comparison, stale command rejection and domestic Summary/Details lifecycle. No additional feature work is prioritized ahead of visuals.
 
 The unchecked items are deliberately still required. Do not mark the complete user request satisfied merely because the parser/framework, component screenshots, or a verified partial milestone is committed.

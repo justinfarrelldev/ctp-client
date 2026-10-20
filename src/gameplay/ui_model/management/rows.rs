@@ -18,6 +18,7 @@ pub(super) fn templates(
         "ScienceAdvanceListItem",
         "SciListItem",
         "cw_CityItem",
+        "GovernmentListItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -221,8 +222,8 @@ fn clip(node: &mut LayoutNode, bounds: MenuRect) {
 
 /// Source item class shared by instantiation and scroll-capacity measurement.
 fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
-    if super::selectors::city_list(kind, path) {
-        return Some("cw_CityItem");
+    if super::selectors::list_path(kind, path) {
+        return super::selectors::template(kind, path);
     }
     match kind {
         ManagerKind::Build if path == "QueueGroup.QueueList" => Some("eq_QueueListItem"),

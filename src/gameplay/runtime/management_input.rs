@@ -13,6 +13,9 @@ pub(super) mod editor_input;
 /// Fileless native-event text editing regressions.
 #[cfg(test)]
 mod editor_tests;
+/// Government chooser navigation, stale identities and exact isolated HTTP receipts.
+#[cfg(test)]
+mod government_tests;
 /// Source thumb capture and keyboard range behavior.
 mod scroll_input;
 /// Source ranger capture and accessible-value regressions.
@@ -235,10 +238,8 @@ pub(super) fn apply(
         ManagerIntent::Scroll(path, delta) => {
             ui.management.scroll(&path, delta, state);
         }
-        ManagerIntent::Select(key, id) if key == "city" => {
-            if !ui.management.select_city(&id, state) {
-                "The selected city is no longer owned or visible".clone_into(&mut ui.status_text);
-            }
+        ManagerIntent::Select(key, id) if matches!(key.as_str(), "city" | "government") => {
+            select_identity(ui, state, &key, &id);
         }
         ManagerIntent::Article(id) => {
             if ui.management.library.navigate(&id) {
@@ -259,6 +260,24 @@ pub(super) fn apply(
                 ui.great_library = None;
             }
         }
+    }
+}
+
+/// Presentation identities are rechecked against the actual current receipt.
+fn select_identity(ui: &mut InGameUiModel, state: &GameState, key: &str, id: &str) {
+    let (valid, reason) = if key == "city" {
+        (
+            ui.management.select_city(id, state),
+            "The selected city is no longer owned or visible",
+        )
+    } else {
+        (
+            ui.management.select_government(id, state),
+            "The selected government is no longer eligible",
+        )
+    };
+    if !valid {
+        reason.clone_into(&mut ui.status_text);
     }
 }
 

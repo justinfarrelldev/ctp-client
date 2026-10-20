@@ -88,8 +88,9 @@ pub(super) fn rows(
     view: &ManagerView,
     path: &str,
 ) -> Vec<(String, String)> {
-    if super::selectors::city_list(view.kind, path) {
-        return super::selectors::choices(state);
+    if super::selectors::list_path(view.kind, path) {
+        let owner = path.strip_suffix(".window.listbox").unwrap_or(path);
+        return super::selectors::options(ui, state, view, owner);
     }
     if view.kind == ManagerKind::Library {
         return super::index::rows(ui, state);
@@ -323,7 +324,9 @@ pub(super) fn text(
             let id = articles::selected_description(view)?;
             Some(label(ui, id))
         }
-        ManagerKind::Empire => empire_value(ui, state, path),
+        ManagerKind::Empire => {
+            super::government::text(ui, state, view, path).or_else(|| empire_value(ui, state, path))
+        }
         _ => None,
     }
 }
@@ -335,8 +338,6 @@ fn empire_value(ui: &ManagementUi, state: &GameState, path: &str) -> Option<Stri
         "science_percent"
     } else if path.contains("PublicWorks") {
         "public_works_percent"
-    } else if path.contains("CurrentGovernment") {
-        "government_id"
     } else {
         return None;
     };

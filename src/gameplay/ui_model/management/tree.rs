@@ -385,13 +385,8 @@ impl Walker<'_> {
         for (index, row) in rows.iter().skip(offset).take(visible).enumerate() {
             let id = &row.0;
             let label = &row.1;
-            let selected = if selectors::city_list(self.view.kind, path) {
-                self.view
-                    .selections
-                    .get("dropdown-highlight")
-                    .map(String::as_str)
-                    .or(self.view.city_id.as_deref())
-                    == Some(id.as_str())
+            let selected = if selectors::list_path(self.view.kind, path) {
+                selectors::selected(self.view) == Some(id.as_str())
             } else if self.view.kind == ManagerKind::Library {
                 self.ui.library.current.as_ref() == Some(id)
             } else {
@@ -517,8 +512,12 @@ fn source_label(ui: &ManagementUi, node: &LayoutNode) -> String {
 
 /// Separates source lists that must not steal one another's selection.
 fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
-    if selectors::city_list(kind, path) {
-        return "city";
+    if selectors::list_path(kind, path) {
+        return if kind == ManagerKind::Empire {
+            "government"
+        } else {
+            "city"
+        };
     }
     match kind {
         ManagerKind::Build if path == "QueueGroup.QueueList" => "queue",
@@ -545,6 +544,26 @@ fn hidden(view: &ManagerView, path: &str) -> bool {
     if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) && path == "AcceptButton" {
         // The original callbacks instantiate AddClose, never this obsolete block.
         return true;
+    }
+    if view.kind == ManagerKind::Empire {
+        if path == "DetailsButton"
+            && view
+                .selections
+                .get("tab:TabGroup")
+                .is_some_and(|tab| tab != "Tab1")
+        {
+            return true;
+        }
+        let details = view
+            .selections
+            .get("empire-details")
+            .is_some_and(|value| value == "true");
+        if path.ends_with(".InformationDetails") {
+            return !details;
+        }
+        if path.ends_with(".InformationSummary") {
+            return details;
+        }
     }
     if view.kind == ManagerKind::Build {
         if [

@@ -2,7 +2,7 @@
 
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::InGameUiModel;
-use crate::gameplay::ui_model::management::ManagerIntent;
+use crate::gameplay::ui_model::management::{ManagerIntent, ManagerKind};
 use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
@@ -60,7 +60,7 @@ pub(super) fn consume(event: &Event, ui: &mut InGameUiModel, state: &GameState) 
         }
         Event::MouseMotion { x, y, .. } => {
             if let Some(ManagerIntent::Select(key, id)) = popup_intent(ui, state, &path, x, y) {
-                if key == "city" {
+                if matches!(key.as_str(), "city" | "government") {
                     ui.management
                         .apply_local(ManagerIntent::Select("dropdown-highlight".to_owned(), id));
                 }
@@ -115,7 +115,13 @@ fn keyboard(
         .selections
         .get("dropdown-highlight")
         .map(String::as_str)
-        .or(view.city_id.as_deref());
+        .or_else(|| {
+            if view.kind == ManagerKind::Empire {
+                view.selections.get("government").map(String::as_str)
+            } else {
+                view.city_id.as_deref()
+            }
+        });
     let current_choice = choices
         .iter()
         .position(|choice| Some(choice.0.as_str()) == selected);
@@ -127,13 +133,19 @@ fn keyboard(
         }
         Keycode::RETURN | Keycode::KP_ENTER | Keycode::SPACE => {
             if current_choice.is_none() {
-                "Highlighted city is no longer available; choose a current owned city"
+                "Highlighted selection is no longer available; choose a current eligible item"
                     .clone_into(&mut ui.status_text);
                 dismiss(ui);
                 return true;
             }
-            if !ui.management.select_city(&choices[current].0, state) {
-                "City selection is no longer available".clone_into(&mut ui.status_text);
+            let government = view.kind == ManagerKind::Empire;
+            let valid = if government {
+                ui.management.select_government(&choices[current].0, state)
+            } else {
+                ui.management.select_city(&choices[current].0, state)
+            };
+            if !valid {
+                "Selection is no longer available".clone_into(&mut ui.status_text);
             }
             return true;
         }
@@ -201,7 +213,18 @@ fn page_size(ui: &InGameUiModel, state: &GameState, path: &str) -> usize {
     let row = ui
         .management
         .row_templates
-        .get("cw_CityItem")
+        .get(
+            if ui
+                .management
+                .view
+                .as_ref()
+                .is_some_and(|view| view.kind == ManagerKind::Empire)
+            {
+                "GovernmentListItem"
+            } else {
+                "cw_CityItem"
+            },
+        )
         .and_then(|item| item.integer("heightpix"))
         .and_then(|item_height| usize::try_from(item_height).ok())
         .unwrap_or(22_usize)

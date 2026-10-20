@@ -20,6 +20,9 @@ pub(super) fn binding(
     if let Some(binding) = super::selectors::binding(state, view, path) {
         return binding;
     }
+    if let Some(binding) = super::government::binding(state, view, path) {
+        return binding;
+    }
     let name = node.name.as_str();
     if matches!(
         name,
@@ -59,9 +62,13 @@ pub(super) fn binding(
         ManagerKind::Diplomacy if name == "MessageButton" => disabled(
             "Select a specific authoritative diplomatic proposal; a contact alone does not identify a proposal",
         ),
-        ManagerKind::Empire if name == "DetailsButton" => {
-            enabled(ManagerIntent::Open(ManagerKind::National))
-        }
+        ManagerKind::Empire if name == "DetailsButton" => enabled(ManagerIntent::Select(
+            "empire-details".to_owned(),
+            view.selections
+                .get("empire-details")
+                .is_none_or(|details| details != "true")
+                .to_string(),
+        )),
         _ => {
             if node
                 .field("objecttype")

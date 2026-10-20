@@ -29,6 +29,11 @@ mod chart;
 mod chart_tests;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
+/// Source Empire Details/Summary lifecycle and government comparison regressions.
+#[cfg(test)]
+mod empire_tests;
+/// Source government comparisons and exact currently eligible enactment identities.
+mod government;
 /// Source category-index sorting and noninteractive age headers.
 mod index;
 /// Age sorting and reference-control regressions.
@@ -595,7 +600,12 @@ impl ManagementUi {
         self.apply_local(ManagerIntent::Select("city".to_owned(), id.to_owned()))
     }
 
-    /// Current owned popup choices; an arbitrary selection key cannot open a chooser.
+    /// Revalidates comparison identity against this receipt before changing the view.
+    pub fn select_government(&mut self, id: &str, state: &GameState) -> bool {
+        government::select(self, state, id)
+    }
+
+    /// Current authorized popup choices; arbitrary keys cannot open a chooser.
     #[must_use]
     pub fn dropdown_choices(&self, state: &GameState) -> Vec<(String, String)> {
         self.view
@@ -605,7 +615,11 @@ impl ManagementUi {
                     .get("dropdown")
                     .is_some_and(|path| selectors::valid_path(view.kind, path))
             })
-            .map_or_else(Vec::new, |_view| selectors::choices(state))
+            .map_or_else(Vec::new, |view| {
+                view.selections
+                    .get("dropdown")
+                    .map_or_else(Vec::new, |path| selectors::options(self, state, view, path))
+            })
     }
 
     /// Flattens the active source tree and inserts only viewer-safe dynamic rows.

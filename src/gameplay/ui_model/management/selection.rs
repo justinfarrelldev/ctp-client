@@ -7,6 +7,9 @@ pub(super) fn apply(view: &mut ManagerView, key: String, value: String) -> bool 
     if key == "city" {
         selectors::change_city(view, &value);
     }
+    if key == "government" {
+        selectors::dismiss(view);
+    }
     if key == "dropdown" && value.is_empty() {
         return selectors::dismiss(view);
     }

@@ -24,7 +24,7 @@ use crate::gameplay::ui_model::InGameUiModel;
 use crate::gameplay::ui_model::management::{ManagementUi, ManagerIntent, ManagerKind};
 
 /// Exact viewer contract, using authenticated account ownership and non-index IDs.
-fn snapshot() -> Value {
+pub(super) fn snapshot() -> Value {
     json!({
         "revision":17_i64,"turn":3_u32,"tiles":[{"id":"a","x":0_u16,"y":0_u16,"terrain":"TERRAIN_PLAINS"},{"id":"b","x":1_u16,"y":0_u16,"terrain":"TERRAIN_PLAINS"}],
         "units":[{"id":"guard-7","owner_id":"account-7","tile_id":"a","type_id":"UNIT_HOPLITE"}],
@@ -43,7 +43,7 @@ fn snapshot() -> Value {
 }
 
 /// Creates a client pointing only at the test's ephemeral listener (or unused port).
-fn authority(port: u16, value: Value) -> RuntimeAuthority {
+pub(super) fn authority(port: u16, value: Value) -> RuntimeAuthority {
     RuntimeAuthority {
         client: ServerClient::from_config(&ServerConfig {
             base_url: format!("http://127.0.0.1:{port}"),
@@ -62,7 +62,7 @@ fn authority(port: u16, value: Value) -> RuntimeAuthority {
 }
 
 /// Reads installed source definitions without changing configuration or any files.
-fn ui() -> InGameUiModel {
+pub(super) fn ui() -> InGameUiModel {
     InGameUiModel {
         management: ManagementUi::new(
             LayoutBook::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2"))
@@ -74,7 +74,7 @@ fn ui() -> InGameUiModel {
 }
 
 /// Explicit keyboard event, avoiding coordinate-dependent manager automation.
-fn key(keycode: Keycode) -> Event {
+pub(super) fn key(keycode: Keycode) -> Event {
     Event::KeyDown {
         timestamp: 0_u32,
         window_id: 0_u32,
@@ -448,11 +448,11 @@ fn settle_uses_server_recommended_unique_identity_and_name_then_opens_that_city(
 }
 
 /// Request observed by the isolated gateway stub, not by a real server/database.
-struct Request {
+pub(super) struct Request {
     /// Exact HTTP request line.
-    line: String,
+    pub(super) line: String,
     /// Parsed authenticated/revision-bound command envelope.
-    body: Value,
+    pub(super) body: Value,
 }
 
 /// Bounded read of one mock HTTP command, retaining content-length semantics.
@@ -490,7 +490,7 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
 }
 
 /// Mock-only responder with a bounded wait, so a missing dispatch fails not hangs.
-fn respond(listener: &TcpListener, projection: &Value) -> Result<Request, String> {
+pub(super) fn respond(listener: &TcpListener, projection: &Value) -> Result<Request, String> {
     listener
         .set_nonblocking(true)
         .map_err(|error| error.to_string())?;
@@ -525,7 +525,7 @@ fn respond(listener: &TcpListener, projection: &Value) -> Result<Request, String
 }
 
 /// Checks gateway metadata separately from operation-specific payload assertions.
-fn payload_after_validating_envelope(body: &Value) -> Value {
+pub(super) fn payload_after_validating_envelope(body: &Value) -> Value {
     let mut fields = body.as_object().expect("command envelope").clone();
     assert_eq!(
         fields.remove("session_id"),
