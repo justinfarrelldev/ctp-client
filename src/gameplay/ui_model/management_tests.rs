@@ -191,6 +191,265 @@ fn research_change_uses_available_goal_even_when_gateway_suggestions_omit_it() {
 }
 
 #[test]
+fn library_uses_a_real_edit_field_and_never_draws_obsolete_search_or_missing_title_keys() {
+    let state = fixture();
+    let mut management = ui();
+    management.open(ManagerKind::Library, &state, None);
+    let widgets = management.widgets(&state);
+    assert!(
+        !widgets.iter().any(|widget| widget.id == "SearchLabel"),
+        "obsolete negative-position search caption is not part of the reference UI"
+    );
+    assert!(
+        widgets
+            .iter()
+            .any(|widget| widget.id == "Title" && widget.label == "GREAT LIBRARY"),
+        "missing retail uppercase key falls back to the installed localized title"
+    );
+    assert!(
+        widgets
+            .iter()
+            .any(|widget| widget.id == "Category" && widget.label == "ADVANCES"),
+        "original localized uppercase category"
+    );
+    let field = widgets
+        .iter()
+        .find(|widget| widget.id == "SearchWord")
+        .expect("source field");
+    assert_eq!(
+        field.rect,
+        super::MenuRect {
+            x: 126_i32,
+            y: 81_i32,
+            width: 138_u32,
+            height: 20_u32
+        },
+        "original text-field geometry"
+    );
+    assert_eq!(
+        field.node.field("textfocused"),
+        Some("true"),
+        "native painting knows which local field owns input"
+    );
+}
+
+#[test]
+fn selected_queue_description_follows_last_interaction_without_losing_buildable_selection() {
+    let state = fixture();
+    let mut management = ui();
+    management.open(ManagerKind::Build, &state, Some("city-a"));
+    let left = management
+        .activate_id("ItemsBox.UnitsList/UNIT_SETTLER", &state)
+        .expect("settler");
+    assert!(management.apply_local(left), "select buildable");
+    let queue = management
+        .activate_id("QueueGroup.QueueList/UNIT_HOPLITE", &state)
+        .expect("queue");
+    assert!(management.apply_local(queue), "select queue");
+    let view = management.view.as_ref().expect("view");
+    assert_eq!(
+        view.selections.get("description").map(String::as_str),
+        Some("UNIT_HOPLITE"),
+        "queue click controls the description"
+    );
+    assert_eq!(
+        view.selections.get("buildable").map(String::as_str),
+        Some("UNIT_SETTLER"),
+        "left selection is independent"
+    );
+    assert_eq!(
+        management.activate_id("LibraryButton", &state),
+        Some(ManagerIntent::Article("UNIT_HOPLITE".to_owned())),
+        "library opens the described topic, not a first item or stale left selection"
+    );
+}
+
+#[test]
+fn library_historical_tab_changes_content_not_game_state_and_missing_panels_are_disabled() {
+    let state = fixture();
+    let mut management = ui();
+    management.open(ManagerKind::Library, &state, None);
+    let history = management
+        .activate_id("Tabs.Historical.TabButton", &state)
+        .expect("installed history");
+    assert!(management.apply_local(history), "select historical panel");
+    let widgets = management.widgets(&state);
+    assert!(
+        widgets.iter().any(|widget| widget
+            .id
+            .starts_with("Tabs.Historical.TabPanel.HistoricalText/word-")),
+        "actual historical text is painted"
+    );
+    assert!(
+        !widgets.iter().any(|widget| widget
+            .id
+            .starts_with("Tabs.Gameplay.TabPanel.GameplayText/word-")),
+        "inactive body is not layered over history"
+    );
+    let tree = widgets
+        .iter()
+        .find(|widget| widget.id == "Tabs.TechTreeTab.TabButton")
+        .expect("retained source tab");
+    assert!(
+        tree.intent.is_none() && tree.unavailable.is_some(),
+        "unimplemented chart is not a fake-enabled blank panel"
+    );
+    management
+        .library
+        .catalog
+        .articles
+        .get_mut("ADVANCE_BALLISTICS")
+        .expect("topic")
+        .sections
+        .remove(&crate::gameplay::assets::library::LibrarySection::Historical);
+    assert!(
+        management
+            .activate_id("Tabs.Historical.TabButton", &state)
+            .is_none(),
+        "source disables unavailable article sections"
+    );
+    assert_eq!(
+        management.library.current.as_deref(),
+        Some("ADVANCE_BALLISTICS"),
+        "tab navigation never selects a research goal"
+    );
+}
+
+#[test]
+fn article_and_index_scroll_limits_allow_immediate_recovery_from_extreme_input() {
+    let state = fixture();
+    let mut management = ui();
+    let text = (0_u32..40_u32)
+        .map(|line| format!("line-{line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    management
+        .library
+        .catalog
+        .articles
+        .get_mut("ADVANCE_BALLISTICS")
+        .expect("topic")
+        .sections
+        .insert(
+            crate::gameplay::assets::library::LibrarySection::Gameplay,
+            crate::gameplay::assets::library::LibraryDocument::parse(&text),
+        );
+    management.open(ManagerKind::Library, &state, None);
+    let path = "Tabs.Gameplay.TabPanel.GameplayText";
+    assert!(
+        management.scroll(path, i32::MAX, &state),
+        "bounded article scroll"
+    );
+    let bottom = management.view.as_ref().expect("view").scroll[path];
+    assert!(
+        bottom > 0_usize && bottom < 40_usize,
+        "offset is bounded by real line count"
+    );
+    assert!(
+        management
+            .widgets(&state)
+            .iter()
+            .any(|widget| widget.label == "line-39"),
+        "last page remains visible"
+    );
+    assert!(
+        management.scroll(path, -1_i32, &state),
+        "one upward event works immediately"
+    );
+    assert_eq!(
+        management.view.as_ref().expect("view").scroll[path],
+        bottom.saturating_sub(1_usize),
+        "not stuck at an enormous invisible offset"
+    );
+    assert!(
+        management.scroll("IndexSheet", i32::MAX, &state),
+        "empty original index clamps to zero"
+    );
+    assert_eq!(
+        management.view.as_ref().expect("view").scroll["IndexSheet"],
+        0_usize,
+        "no phantom index pages"
+    );
+    assert!(
+        !management.scroll("not-a-control", 1_i32, &state),
+        "unknown path cannot acquire scroll state"
+    );
+}
+
+#[test]
+fn related_research_and_library_close_restore_parent_city_and_queue_selections() {
+    let state = fixture();
+    let mut management = ui();
+    management.open(ManagerKind::Build, &state, Some("city-a"));
+    let select = management
+        .activate_id("ItemsBox.UnitsList/UNIT_SETTLER", &state)
+        .expect("settler");
+    assert!(
+        management.apply_local(select),
+        "select before library navigation"
+    );
+    let parent = management.view.clone();
+    management.open_related(ManagerKind::Library, &state);
+    management.open_related(ManagerKind::Science, &state);
+    management.open_related(ManagerKind::Research, &state);
+    assert!(
+        management.apply_local(ManagerIntent::Close),
+        "cancel research"
+    );
+    assert_eq!(
+        management.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::Science),
+        "restore original research parent"
+    );
+    management.open_related(ManagerKind::Build, &state);
+    assert_eq!(
+        management.view, parent,
+        "returning to an existing manager restores its exact selections"
+    );
+    assert!(
+        management.parents.is_empty(),
+        "navigation cycles do not grow duplicate windows"
+    );
+}
+
+#[test]
+fn library_variables_use_current_projected_rules_and_never_execute_source_expressions() {
+    let mut state = fixture();
+    state.viewer.as_mut().expect("viewer").interface.rules =
+        Some(json!({"advances":[{"id":"ADVANCE_BALLISTICS","cost":731_i32}]}));
+    let mut management = ui();
+    management
+        .library
+        .catalog
+        .articles
+        .get_mut("ADVANCE_BALLISTICS")
+        .expect("installed topic")
+        .sections
+        .insert(
+            crate::gameplay::assets::library::LibrarySection::Prerequisites,
+            crate::gameplay::assets::library::LibraryDocument::parse(
+                "Cost: {AdvanceDB(Advance[0]).Cost}\nUnknown: {arbitrary_script()}",
+            ),
+        );
+    management.open(ManagerKind::Library, &state, None);
+    let controls = management.widgets(&state);
+    assert!(
+        controls.iter().any(|widget| widget.label == "731"),
+        "current server cost, not retail 570 or an invented zero"
+    );
+    assert!(
+        controls.iter().any(|widget| widget.label == "—"),
+        "unsupported expressions remain unknown and are never evaluated"
+    );
+    assert!(
+        controls
+            .iter()
+            .any(|widget| widget.node.field("image00") == Some("upap012l.rim")),
+        "correct active original still picture"
+    );
+}
+
+#[test]
 fn statistics_menu_entries_open_their_distinct_original_tabs_and_shortcuts_agree() {
     let mut state = fixture();
     let mut model = super::InGameUiModel {

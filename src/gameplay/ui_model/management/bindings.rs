@@ -25,12 +25,19 @@ pub(super) fn binding(
         return enabled(ManagerIntent::Close);
     }
     match view.kind {
-        ManagerKind::Build => build(state, view, path),
-        ManagerKind::Science if matches!(name, "ChangeResearch" | "AdvanceProgress") => {
+        ManagerKind::Build => build(ui, state, view, path),
+        ManagerKind::Science
+            if matches!(
+                path,
+                "ChangeResearch"
+                    | "CurrentResearch.AdvanceProgress.IconBorder.IconButton"
+                    | "CurrentResearch.AdvanceProgress.IconBorder.IconButton.RadialButton"
+            ) =>
+        {
             enabled(ManagerIntent::Open(ManagerKind::Research))
         }
         ManagerKind::Research if path == "Background.BackButton" => research(state, view),
-        ManagerKind::Library if name.ends_with("Button") => library(name),
+        ManagerKind::Library => library(ui, name),
         ManagerKind::National if name == "BuildQueueButton" => {
             selected_city_navigation(view, ManagerKind::Build)
         }
@@ -71,6 +78,7 @@ pub(super) fn binding(
 
 /// Independent buildable/queue selection is required before issuing an order.
 fn build(
+    ui: &ManagementUi,
     state: &GameState,
     view: &ManagerView,
     path: &str,
@@ -123,7 +131,12 @@ fn build(
         "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton" => disabled(
             "Applying a custom queue requires a safe authoritative queue-edit contract (QUEUE-02/03)",
         ),
-        "LibraryButton" => enabled(ManagerIntent::Open(ManagerKind::Library)),
+        "LibraryButton" => super::articles::selected_description(view)
+            .filter(|id| ui.library.catalog.article(id).is_some())
+            .map_or_else(
+                || disabled("Select an installed buildable/queue topic first"),
+                |id| enabled(ManagerIntent::Article(id.to_owned())),
+            ),
         "GotoCityButton" => enabled(ManagerIntent::Open(ManagerKind::City)),
         _ => (None, None),
     }
@@ -187,21 +200,22 @@ fn selected_action(
 }
 
 /// Local category switching does not change rules, research or discovery state.
-fn library(name: &str) -> (Option<ManagerIntent>, Option<String>) {
-    let category = match name {
-        "AdvancesButton" => "advances",
-        "UnitsButton" => "units",
-        "ImproveButton" | "WondersButton" => "production",
-        "TileImpButton" => "terrain_improvements",
-        "TerrainButton" => "terrains",
-        "GoodsButton" => "goods",
-        "ConceptsButton" => "concepts",
-        _ => return disabled("Library navigation has no active destination"),
-    };
-    enabled(ManagerIntent::Select(
-        "library-category".to_owned(),
-        category.to_owned(),
-    ))
+fn library(ui: &ManagementUi, name: &str) -> (Option<ManagerIntent>, Option<String>) {
+    if let Some(category) = crate::gameplay::ui_model::library::LibraryCategory::from_button(name) {
+        return enabled(ManagerIntent::LibraryCategory(category));
+    }
+    match name {
+        "SearchWord" => enabled(ManagerIntent::Focus("SearchWord".to_owned())),
+        "BackButton" if !ui.library.back.is_empty() => enabled(ManagerIntent::LibraryBack),
+        "ForwardButton" if !ui.library.forward.is_empty() => enabled(ManagerIntent::LibraryForward),
+        "BackButton" | "ForwardButton" => {
+            disabled("No article in this direction of browser history")
+        }
+        "SetGoalButton" => disabled(
+            "A persistent authoritative future research-goal contract is not exposed; Change Research selects only currently available advances",
+        ),
+        _ => (None, None),
+    }
 }
 
 /// Wraps only a registered viewer-advertised action.

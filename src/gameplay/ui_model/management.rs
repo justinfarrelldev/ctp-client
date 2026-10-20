@@ -8,12 +8,16 @@ use alloc::collections::BTreeMap;
 
 use serde_json::Value;
 
+use super::library::{LibraryBrowser, LibraryCategory};
 use super::{InGameAction, MenuRect};
 use crate::gameplay::GameplayError;
 use crate::gameplay::assets::layout::{LayoutBook, LayoutNode};
+use crate::gameplay::assets::library::LibraryCatalog;
 use crate::gameplay::model::GameState;
 use crate::gameplay::server::interface::LegalAction;
 
+/// Source articles, measured fragments and viewer-safe variable mappings.
+mod articles;
 /// Source-derived button and editable-control bindings.
 mod bindings;
 /// Viewer-safe dynamic list rows and accounting labels.
@@ -211,6 +215,16 @@ pub enum ManagerIntent {
     Select(String, String),
     /// Scroll one list without moving the world camera.
     Scroll(String, i32),
+    /// Focus an original local text field.
+    Focus(String),
+    /// Switch the library index category without changing game knowledge.
+    LibraryCategory(LibraryCategory),
+    /// Follow an installed internal article, opening the library when necessary.
+    Article(String),
+    /// Restore the previous library article.
+    LibraryBack,
+    /// Restore an article after Back.
+    LibraryForward,
     /// Submit one exact command through the authoritative runtime.
     Submit(ManagerCommand),
 }
@@ -270,6 +284,14 @@ pub struct ManagementUi {
     pub view: Option<ManagerView>,
     /// Explicit keyboard focus; Enter never activates an arbitrary first action.
     pub focused: Option<String>,
+    /// Installed article browser, separate from authoritative game research.
+    pub library: LibraryBrowser,
+    /// Native font word/glyph widths used by both painting and link rectangles.
+    pub text_widths: BTreeMap<String, u32>,
+    /// Native font line spacing, or a deterministic fallback in asset-free tests.
+    pub line_height: u32,
+    /// Related windows to restore on Close; duplicate kinds are not stacked.
+    pub parents: Vec<ManagerView>,
 }
 
 impl ManagementUi {
@@ -282,17 +304,37 @@ impl ManagementUi {
             .into_iter()
             .map(|kind| book.resolve(kind.root()).map(|node| (kind, node)))
             .collect::<Result<_, _>>()?;
+        let catalog = book
+            .installation_root()
+            .map(LibraryCatalog::load)
+            .transpose()?
+            .unwrap_or_default();
         Ok(Self {
             book,
             layouts,
             view: None,
             focused: None,
+            library: LibraryBrowser::new(catalog),
+            text_widths: BTreeMap::new(),
+            line_height: 16_u32,
+            parents: Vec::new(),
         })
     }
 
     /// Opens a view without changing units/cities/queues/research in the model.
     pub fn open(&mut self, kind: ManagerKind, state: &GameState, city_id: Option<&str>) {
-        self.focused = None;
+        self.focused = (kind == ManagerKind::Library).then(|| "SearchWord".to_owned());
+        self.parents.clear();
+        if kind == ManagerKind::Library && self.library.current.is_none() {
+            if let Some(id) = state
+                .viewer
+                .as_ref()
+                .and_then(|viewer| viewer.interface.research.as_ref())
+                .map(|research| research.target_id.as_str())
+            {
+                self.library.navigate(id);
+            }
+        }
         let mut selections = BTreeMap::new();
         selections.insert("build-category".to_owned(), "Units".to_owned());
         let selected_city = city_id
@@ -304,6 +346,86 @@ impl ManagementUi {
             selections,
             scroll: BTreeMap::new(),
         });
+    }
+
+    /// Opens a related source window while retaining its parent's selections.
+    /// Returning to an existing kind restores it rather than growing a loop of windows.
+    pub fn open_related(&mut self, kind: ManagerKind, state: &GameState) {
+        if self.view.as_ref().is_some_and(|view| view.kind == kind) {
+            return;
+        }
+        if let Some(index) = self.parents.iter().position(|view| view.kind == kind) {
+            self.view = self.parents.get(index).cloned();
+            self.parents.truncate(index);
+            self.focused = None;
+            return;
+        }
+        let previous = self.view.take();
+        let parents = core::mem::take(&mut self.parents);
+        let city = previous.as_ref().and_then(|view| view.city_id.clone());
+        self.open(kind, state, city.as_deref());
+        self.parents = parents;
+        if let Some(previous) = previous {
+            self.parents.push(previous);
+        }
+    }
+
+    /// Collects installed article metrics once from the same native font used to draw.
+    pub fn measure_text(&mut self, measure: impl Fn(&str) -> u32, line_height: u32) {
+        articles::measure(self, measure, line_height);
+    }
+
+    /// Executes the original all-category text search once, caching its matches.
+    pub fn search_library(&mut self) {
+        let labels: BTreeMap<_, _> = self
+            .library
+            .catalog
+            .articles
+            .keys()
+            .map(|id| (id.clone(), data::label(self, id)))
+            .collect();
+        self.library
+            .execute_search(|id| labels.get(id).cloned().unwrap_or_else(|| id.to_owned()));
+        if let Some(view) = self.view.as_mut() {
+            view.scroll.remove("IndexSheet");
+        }
+    }
+
+    /// Scrolls only a current list/text box, clamping the stored offset as well as
+    /// its rendering so a single reverse event immediately leaves the last page.
+    pub fn scroll(&mut self, path: &str, delta: i32, state: &GameState) -> bool {
+        let Some(view) = self.view.as_ref() else {
+            return false;
+        };
+        let Some(widget) = self.widgets(state).into_iter().find(|widget| {
+            widget.id == path
+                && widget.node.field("objecttype").is_some_and(|kind| {
+                    kind.eq_ignore_ascii_case("ctp2_ListBox")
+                        || kind.eq_ignore_ascii_case("ctp2_hypertextbox")
+                })
+        }) else {
+            return false;
+        };
+        let maximum =
+            articles::scroll_limit(self, state, view, path, widget.rect).unwrap_or_else(|| {
+                data::rows(self, state, view, path)
+                    .len()
+                    .saturating_sub(tree::visible_rows(view.kind, path, widget.rect))
+            });
+        let Some(current) = self.view.as_mut() else {
+            return false;
+        };
+        let offset = current.scroll.entry(path.to_owned()).or_default();
+        *offset = (*offset).min(maximum);
+        if delta < 0_i32 {
+            *offset =
+                offset.saturating_sub(usize::try_from(delta.unsigned_abs()).unwrap_or(usize::MAX));
+        } else {
+            *offset = offset
+                .saturating_add(usize::try_from(delta).unwrap_or(usize::MAX))
+                .min(maximum);
+        }
+        true
     }
 
     /// Flattens the active source tree and inserts only viewer-safe dynamic rows.
@@ -346,7 +468,7 @@ impl ManagementUi {
     /// runtime and return false rather than claiming a game order was executed.
     pub fn apply_local(&mut self, intent: ManagerIntent) -> bool {
         if intent == ManagerIntent::Close {
-            self.view = None;
+            self.view = self.parents.pop();
             self.focused = None;
             return true;
         }
@@ -358,21 +480,51 @@ impl ManagementUi {
                 if key == "city" {
                     view.city_id = Some(value.clone());
                 }
+                if matches!(key.as_str(), "buildable" | "queue") {
+                    view.selections
+                        .insert("description".to_owned(), value.clone());
+                }
                 view.selections.insert(key, value);
                 true
             }
-            ManagerIntent::Scroll(list, delta) => {
-                let offset = view.scroll.entry(list).or_default();
-                if delta < 0 {
-                    *offset = offset.saturating_sub(
-                        usize::try_from(delta.unsigned_abs()).unwrap_or(usize::MAX),
-                    );
-                } else {
-                    *offset = offset.saturating_add(usize::try_from(delta).unwrap_or(usize::MAX));
-                }
+            ManagerIntent::Focus(id) => {
+                self.focused = Some(id);
                 true
             }
-            ManagerIntent::Close | ManagerIntent::Open(_) | ManagerIntent::Submit(_) => false,
+            ManagerIntent::LibraryCategory(category) => {
+                self.library.set_category(category);
+                self.focused = None;
+                view.scroll.remove("IndexSheet");
+                true
+            }
+            ManagerIntent::Article(id) if view.kind == ManagerKind::Library => {
+                let changed = self.library.navigate(&id);
+                if changed {
+                    self.focused = None;
+                    view.selections.insert("article".to_owned(), id);
+                    view.scroll.clear();
+                }
+                changed
+            }
+            ManagerIntent::LibraryBack => {
+                let changed = self.library.go_back();
+                if changed {
+                    view.scroll.clear();
+                }
+                changed
+            }
+            ManagerIntent::LibraryForward => {
+                let changed = self.library.go_forward();
+                if changed {
+                    view.scroll.clear();
+                }
+                changed
+            }
+            ManagerIntent::Close
+            | ManagerIntent::Open(_)
+            | ManagerIntent::Submit(_)
+            | ManagerIntent::Article(_)
+            | ManagerIntent::Scroll(_, _) => false,
         }
     }
 }

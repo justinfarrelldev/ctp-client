@@ -201,6 +201,12 @@ impl LayoutBook {
         Ok(resolved)
     }
 
+    /// Returns the read-only installation origin, absent for in-memory layouts.
+    #[must_use]
+    pub(in crate::gameplay) fn installation_root(&self) -> Option<&Path> {
+        self.root.as_deref()
+    }
+
     /// Resolves a localized label while keeping missing keys visibly identifiable.
     #[must_use]
     pub fn label<'book>(&'book self, key: &'book str) -> &'book str {

@@ -5,7 +5,9 @@
     reason = "Original LDL fixed geometry is signed i32; dimensions are checked before conversion to u32"
 )]
 
-use super::{ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, bindings, data};
+use super::{
+    ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings, data,
+};
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::MenuRect;
@@ -83,44 +85,22 @@ impl Walker<'_> {
             rect.y = self.root_rect.y;
             rect.width = self.root_rect.width;
         }
-        // Clone only the flattened descriptor, not every descendant at every
-        // level (which makes a large manager traversal quadratic in its tree).
-        let flat = LayoutNode {
-            name: node.name.clone(),
-            bases: Vec::new(),
-            fields: node.fields.clone(),
-            children: Vec::new(),
-        };
-        let (intent, unavailable) = bindings::binding(self.ui, self.state, self.view, path, node);
-        let title = node.name == "TitleBar";
-        let label = if title {
-            self.ui
-                .layouts
-                .get(&self.view.kind)
-                .and_then(|root| root.field("title"))
-                .map(|key| self.ui.book.label(key).to_owned())
-        } else {
-            data::text(self.ui, self.state, self.view, path)
-        }
-        .unwrap_or_else(|| source_label(self.ui, node));
-        let selected = path
-            .strip_prefix("ItemsBox.")
-            .and_then(|name| name.strip_suffix("Button"))
-            .is_some_and(|category| {
-                self.view
-                    .selections
-                    .get("build-category")
-                    .is_some_and(|selected| selected == category)
-            });
-        self.widgets.push(ManagerWidget {
-            id: path.to_owned(),
-            label,
+        let widget_index = self.widgets.len();
+        self.widgets.push(self.descriptor(node, path, rect));
+        if articles::append_widgets(
+            self.ui,
+            self.state,
+            self.view,
+            node,
+            path,
             rect,
-            node: flat,
-            selected,
-            intent,
-            unavailable,
-        });
+            &mut self.widgets,
+        ) {
+            if let Some(text_box) = self.widgets.get_mut(widget_index) {
+                text_box.label.clear();
+            }
+            return;
+        }
         if node
             .field("objecttype")
             .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_ListBox"))
@@ -152,10 +132,20 @@ impl Walker<'_> {
                         let start = self.widgets.len();
                         self.walk(part, &join(&child_path, &part.name), rect);
                         for widget in &mut self.widgets[start..] {
-                            widget.intent =
-                                Some(ManagerIntent::Select(tab_key.clone(), child.name.clone()));
-                            widget.unavailable = None;
+                            widget.unavailable =
+                                articles::tab_unavailable(self.ui, self.view, &child.name);
+                            widget.intent = widget.unavailable.is_none().then(|| {
+                                ManagerIntent::Select(tab_key.clone(), child.name.clone())
+                            });
                             widget.selected = active == Some(child.name.as_str());
+                            let right = tabs.iter().position(|tab| tab.name == child.name)
+                                > tabs
+                                    .iter()
+                                    .position(|tab| Some(tab.name.as_str()) == active);
+                            widget.node.fields.insert(
+                                "tabside".to_owned(),
+                                if right { "right" } else { "left" }.to_owned(),
+                            );
                         }
                     } else if active == Some(child.name.as_str()) {
                         self.walk(part, &join(&child_path, &part.name), rect);
@@ -167,8 +157,62 @@ impl Walker<'_> {
         }
     }
 
-    /// Source header columns, clipped dynamic rows and original list-local ranger.
-    fn list(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
+    /// Clones only flattened properties, not every descendant at every level.
+    fn descriptor(&self, node: &LayoutNode, path: &str, rect: MenuRect) -> ManagerWidget {
+        let mut flat = LayoutNode {
+            name: node.name.clone(),
+            bases: Vec::new(),
+            fields: node.fields.clone(),
+            children: Vec::new(),
+        };
+        if let Some(image) = articles::image(self.ui, self.state, self.view, path) {
+            flat.fields.insert(
+                if self.view.kind == ManagerKind::Library {
+                    "image00"
+                } else {
+                    "image40"
+                }
+                .to_owned(),
+                image,
+            );
+        }
+        if self.ui.focused.as_deref() == Some(path) {
+            flat.fields
+                .insert("textfocused".to_owned(), "true".to_owned());
+        }
+        let (intent, unavailable) = bindings::binding(self.ui, self.state, self.view, path, node);
+        let label = if node.name == "TitleBar" {
+            self.ui
+                .layouts
+                .get(&self.view.kind)
+                .and_then(|root| root.field("title"))
+                .map(|key| self.ui.book.label(key).to_owned())
+        } else {
+            data::text(self.ui, self.state, self.view, path)
+        }
+        .unwrap_or_else(|| source_label(self.ui, node));
+        let selected = path
+            .strip_prefix("ItemsBox.")
+            .and_then(|name| name.strip_suffix("Button"))
+            .is_some_and(|category| {
+                self.view
+                    .selections
+                    .get("build-category")
+                    .is_some_and(|selected| selected == category)
+            });
+        ManagerWidget {
+            id: path.to_owned(),
+            label,
+            rect,
+            node: flat,
+            intent,
+            unavailable,
+            selected,
+        }
+    }
+
+    /// Source header columns are laid out above, not inside, the list rows.
+    fn list_header(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
         if let Some(header) = node.child("header") {
             let mut x = rect.x;
             for column in &header.children {
@@ -190,19 +234,14 @@ impl Walker<'_> {
                 x = x.saturating_add(i32::try_from(width).unwrap_or(0));
             }
         }
+    }
+
+    /// Clipped dynamic rows and original list-local ranger controls.
+    fn list(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
+        self.list_header(node, path, rect);
         let rows = data::rows(self.ui, self.state, self.view, path);
-        let height = if self.view.kind == ManagerKind::Build && path == "QueueGroup.QueueList" {
-            16_i32
-        } else if self.view.kind == ManagerKind::Science {
-            14
-        } else {
-            18
-        };
-        let visible = usize::try_from(rect.height)
-            .unwrap_or(0)
-            .checked_div(usize::try_from(height).unwrap_or(1))
-            .unwrap_or(0)
-            .max(1);
+        let height = row_height(self.view.kind, path);
+        let visible = visible_rows(self.view.kind, path, rect);
         let offset = self
             .view
             .scroll
@@ -214,11 +253,14 @@ impl Walker<'_> {
         for (index, row) in rows.iter().skip(offset).take(visible).enumerate() {
             let id = &row.0;
             let label = &row.1;
-            let selected = self
-                .view
-                .selections
-                .get(key)
-                .is_some_and(|value| value == id);
+            let selected = if self.view.kind == ManagerKind::Library {
+                self.ui.library.current.as_ref() == Some(id)
+            } else {
+                self.view
+                    .selections
+                    .get(key)
+                    .is_some_and(|value| value == id)
+            };
             self.widgets.push(ManagerWidget {
                 id: format!("{path}/{id}"),
                 label: label.clone(),
@@ -232,7 +274,11 @@ impl Walker<'_> {
                     height: u32::try_from(height).unwrap_or(0),
                 },
                 node: LayoutNode::default(),
-                intent: Some(ManagerIntent::Select(key.to_owned(), id.clone())),
+                intent: Some(if self.view.kind == ManagerKind::Library {
+                    ManagerIntent::Article(id.clone())
+                } else {
+                    ManagerIntent::Select(key.to_owned(), id.clone())
+                }),
                 unavailable: None,
                 selected,
             });
@@ -270,6 +316,26 @@ impl Walker<'_> {
     }
 }
 
+/// Uses the same row capacity for scroll accounting and native row descriptors.
+pub(super) fn visible_rows(kind: ManagerKind, path: &str, rect: MenuRect) -> usize {
+    usize::try_from(rect.height)
+        .unwrap_or(0_usize)
+        .checked_div(usize::try_from(row_height(kind, path)).unwrap_or(1_usize))
+        .unwrap_or(0_usize)
+        .max(1_usize)
+}
+
+/// Source-specific row spacing; not a guessed number of entries per page.
+fn row_height(kind: ManagerKind, path: &str) -> i32 {
+    if kind == ManagerKind::Build && path == "QueueGroup.QueueList" {
+        16_i32
+    } else if kind == ManagerKind::Science {
+        14_i32
+    } else {
+        18_i32
+    }
+}
+
 /// Unbound source number placeholders are unknown, but declared slider minima
 /// remain real zero labels. Dynamic authoritative overrides are handled before
 /// this fallback and must never be replaced merely because their value is zero.
@@ -303,6 +369,9 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
 
 /// Hides mutually exclusive source modes rather than painting all lists at once.
 fn hidden(view: &ManagerView, path: &str) -> bool {
+    if view.kind == ManagerKind::Library && path == "SearchLabel" {
+        return true;
+    }
     if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) && path == "AcceptButton" {
         // The original callbacks instantiate AddClose, never this obsolete block.
         return true;

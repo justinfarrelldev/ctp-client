@@ -167,6 +167,167 @@ fn manager_focus_blocks_turn_orders_mouse_release_and_zoom_until_explicit_close(
     );
 }
 
+/// Accessible control activation passes through the production dispatcher.
+fn activate(ui: &mut InGameUiModel, state: &mut crate::gameplay::model::GameState, id: &str) {
+    let intent = ui
+        .management
+        .activate_id(id, state)
+        .expect("enabled original control");
+    apply(intent, state, ui, None);
+}
+
+/// Link accessibility and pixel-hit descriptors must identify the same article.
+fn follow_link(
+    ui: &mut InGameUiModel,
+    state: &mut crate::gameplay::model::GameState,
+    target: &str,
+) {
+    let link = ui
+        .management
+        .widgets(state)
+        .into_iter()
+        .find(|widget| {
+            widget.node.field("richtext") == Some("true")
+                && widget.intent == Some(ManagerIntent::Article(target.to_owned()))
+        })
+        .expect("visible installed link");
+    assert_eq!(
+        ui.management.intent_at(
+            link.rect.x.saturating_add(1_i32),
+            link.rect.y.saturating_add(1_i32),
+            state
+        ),
+        link.intent,
+        "glyph and pointer targets agree"
+    );
+    activate(ui, state, &link.id);
+}
+
+#[test]
+fn library_search_links_history_and_close_are_fileless_view_only_workflows() {
+    let authority = authority(9_u16, snapshot());
+    let mut state = state_from_authority_projection(
+        &authority,
+        authority.session.projection.as_ref().expect("viewer"),
+    );
+    state.popups.clear();
+    let before = state.clone();
+    let mut ui = ui();
+    let mut movement = MovementInputState::default();
+    ui.management.open(ManagerKind::Library, &state, None);
+    assert_eq!(
+        ui.management.focused.as_deref(),
+        Some("SearchWord"),
+        "original library immediately accepts search typing"
+    );
+    assert!(
+        ui.management.library.entries(str::to_owned).is_empty(),
+        "article display does not fill the index"
+    );
+    let text = Event::TextInput {
+        timestamp: 0_u32,
+        window_id: 0_u32,
+        text: "UNIT_SETTLERx\n".to_owned(),
+    };
+    assert!(
+        super::consume(&text, &mut state, &mut ui, &mut movement, None),
+        "focused Unicode input consumed"
+    );
+    assert!(
+        super::consume(
+            &key(Keycode::BACKSPACE),
+            &mut state,
+            &mut ui,
+            &mut movement,
+            None
+        ),
+        "backspace consumed"
+    );
+    assert_eq!(
+        ui.management.library.query, "UNIT_SETTLER",
+        "control characters are not pasted"
+    );
+    assert!(
+        ui.management.library.search_results.is_none(),
+        "typing alone does not execute a search"
+    );
+    assert!(
+        super::consume(
+            &key(Keycode::RETURN),
+            &mut state,
+            &mut ui,
+            &mut movement,
+            None
+        ),
+        "Enter executes search, not End Turn"
+    );
+    activate(&mut ui, &mut state, "IndexSheet/UNIT_SETTLER");
+    assert_eq!(
+        ui.management.library.current.as_deref(),
+        Some("UNIT_SETTLER"),
+        "exact search result opened"
+    );
+    follow_link(&mut ui, &mut state, "CONCEPT_CITY");
+    assert_eq!(
+        ui.management.library.current.as_deref(),
+        Some("CONCEPT_CITY"),
+        "internal hyperlink follows its own target"
+    );
+    activate(&mut ui, &mut state, "BackButton");
+    assert_eq!(
+        ui.management.library.current.as_deref(),
+        Some("UNIT_SETTLER"),
+        "Back restores actual article"
+    );
+    activate(&mut ui, &mut state, "ForwardButton");
+    assert_eq!(
+        ui.management.library.current.as_deref(),
+        Some("CONCEPT_CITY"),
+        "Forward restores article without a new branch"
+    );
+    assert!(
+        super::consume(
+            &key(Keycode::ESCAPE),
+            &mut state,
+            &mut ui,
+            &mut movement,
+            None
+        ),
+        "Escape consumed"
+    );
+    assert!(ui.management.view.is_none(), "only local browser closes");
+    assert_eq!(
+        state, before,
+        "no game mutation, real HTTP or research substitution"
+    );
+}
+
+#[test]
+fn article_navigation_from_build_returns_to_the_exact_parent_selection() {
+    let authority = authority(9_u16, snapshot());
+    let mut state = state_from_authority_projection(
+        &authority,
+        authority.session.projection.as_ref().expect("viewer"),
+    );
+    state.popups.clear();
+    let mut ui = ui();
+    ui.management
+        .open(ManagerKind::Build, &state, Some("city-7"));
+    activate(&mut ui, &mut state, "ItemsBox.UnitsList/UNIT_SETTLER");
+    let parent = ui.management.view.clone();
+    activate(&mut ui, &mut state, "LibraryButton");
+    assert_eq!(
+        ui.management.library.current.as_deref(),
+        Some("UNIT_SETTLER"),
+        "selected description opens its own article"
+    );
+    activate(&mut ui, &mut state, "OkButton");
+    assert_eq!(
+        ui.management.view, parent,
+        "Close restores independent city/build/queue state"
+    );
+}
+
 #[test]
 fn newly_founded_city_opens_its_build_manager_once_without_stealing_old_selection() {
     let authority = authority(9_u16, snapshot());

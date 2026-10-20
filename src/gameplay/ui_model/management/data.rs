@@ -2,7 +2,7 @@
 
 use alloc::collections::BTreeMap;
 
-use super::{ManagementUi, ManagerKind, ManagerView};
+use super::{ManagementUi, ManagerKind, ManagerView, articles};
 use crate::gameplay::model::{CityId, GameState, PlayerId, UnitId};
 use crate::gameplay::server::interface::LegalAction;
 use crate::gameplay::server::{ServerCityProjection, ServerUnitProjection};
@@ -88,6 +88,9 @@ pub(super) fn rows(
     view: &ManagerView,
     path: &str,
 ) -> Vec<(String, String)> {
+    if view.kind == ManagerKind::Library {
+        return ui.library.entries(|id| label(ui, id));
+    }
     let Some(viewer) = state.viewer.as_ref() else {
         return Vec::new();
     };
@@ -141,26 +144,7 @@ pub(super) fn rows(
                     })
                     .collect()
             }),
-        ManagerKind::Library => {
-            let category = view
-                .selections
-                .get("library-category")
-                .map_or("advances", String::as_str);
-            viewer
-                .interface
-                .rules
-                .as_ref()
-                .and_then(|rules| rules[category].as_array())
-                .map_or_else(Vec::new, |records| {
-                    records
-                        .iter()
-                        .filter_map(|record| {
-                            let id = record["id"].as_str()?;
-                            Some((id.to_owned(), label(ui, id)))
-                        })
-                        .collect()
-                })
-        }
+
         ManagerKind::Army => owned_units(state)
             .iter()
             .map(|unit| {
@@ -175,7 +159,8 @@ pub(super) fn rows(
         | ManagerKind::Statistics
         | ManagerKind::Graphics
         | ManagerKind::Sound
-        | ManagerKind::Build => Vec::new(),
+        | ManagerKind::Build
+        | ManagerKind::Library => Vec::new(),
     }
 }
 
@@ -312,12 +297,15 @@ pub(super) fn text(
     view: &ManagerView,
     path: &str,
 ) -> Option<String> {
+    if let Some(text) = articles::text(ui, view, path) {
+        return Some(text);
+    }
     let viewer = state.viewer.as_ref()?;
     match view.kind {
         ManagerKind::Science => {
             let research = viewer.interface.research.as_ref()?;
             match path {
-                "CurrentResearch.AdvanceProgress.Label" => Some(label(ui, &research.target_id)),
+                "CurrentResearch.AdvanceProgress.Title" => Some(label(ui, &research.target_id)),
                 "CurrentResearch.Spent.Value" => Some(research.progress.to_string()),
                 "CurrentResearch.TotalCost.Value" => Some(
                     viewer
@@ -343,10 +331,7 @@ pub(super) fn text(
             city(state, view).map(city_name)
         }
         ManagerKind::Build if path == "ItemDescription" => {
-            let id = view
-                .selections
-                .get("buildable")
-                .or_else(|| view.selections.get("queue"))?;
+            let id = articles::selected_description(view)?;
             Some(label(ui, id))
         }
         ManagerKind::Empire => empire_value(ui, state, path),

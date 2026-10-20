@@ -10,12 +10,18 @@ use std::path::{Path, PathBuf};
 
 use super::{GameplayError, asset_error};
 
+/// Shared record scanning for installed visual metadata.
+mod database;
 /// Original resource identifiers and resource SPR loading (not generation).
 pub mod goods;
 /// Installed source-layout inheritance and management UI geometry.
 pub mod layout;
 #[cfg(test)]
 mod layout_tests;
+/// Read-only original articles and non-executable rich text.
+pub mod library;
+#[cfg(test)]
+mod library_tests;
 /// Original channel expansion shared by terrain, actors and UI art.
 pub(crate) mod pixel;
 /// RIM/ZFS image loading for CTP2 UI art.

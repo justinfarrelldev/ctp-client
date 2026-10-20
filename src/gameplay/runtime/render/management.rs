@@ -61,20 +61,66 @@ fn draw_widget(
     if bounds.width() == 0 || bounds.height() == 0 {
         return Ok(());
     }
+    let previous = canvas.clip_rect();
+    let clip = previous.map_or(Some(bounds), |parent| parent.intersection(bounds));
+    let Some(clip) = clip else {
+        return Ok(());
+    };
+    canvas.set_clip_rect(clip);
+    let result = paint_widget(canvas, textures, widget, font);
+    canvas.set_clip_rect(previous);
+    result
+}
+
+/// Paints within the source control's clip; oversized native art cannot erase siblings.
+fn paint_widget(
+    canvas: &mut Canvas<Window>,
+    textures: &mut GameplayTextures<'_>,
+    widget: &ManagerWidget,
+    font: Option<&Font<'_, '_>>,
+) -> Result<(), GameplayError> {
+    let bounds = rect(widget);
+    if widget
+        .node
+        .field("objecttype")
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_Textfield"))
+    {
+        return draw_text_field(canvas, widget, font);
+    }
     if let Some(pattern) = widget
         .node
         .field("pattern")
         .filter(|name| !name.eq_ignore_ascii_case("error.tga"))
     {
         if let Some(texture) = textures.dynamic_ui(&art_name(pattern))? {
-            tile_texture(
-                canvas,
-                texture,
-                bounds.x(),
-                bounds.y(),
-                bounds.width(),
-                bounds.height(),
-            )?;
+            if let (Some(x), Some(y), Some(width), Some(height)) = (
+                widget.node.integer("srcxpix"),
+                widget.node.integer("srcypix"),
+                widget.node.integer("srcwidthpix"),
+                widget.node.integer("srcheightpix"),
+            ) {
+                canvas
+                    .copy(
+                        texture,
+                        Rect::new(
+                            x,
+                            y,
+                            u32::try_from(width).unwrap_or(0_u32),
+                            u32::try_from(height).unwrap_or(0_u32),
+                        ),
+                        bounds,
+                    )
+                    .map_err(runtime_error)?;
+            } else {
+                tile_texture(
+                    canvas,
+                    texture,
+                    bounds.x(),
+                    bounds.y(),
+                    bounds.width(),
+                    bounds.height(),
+                )?;
+            }
         }
     }
     draw_images(canvas, textures, widget)?;
@@ -99,7 +145,13 @@ fn draw_widget(
                 canvas,
                 font,
                 label,
-                bounds.x().saturating_add(3),
+                bounds
+                    .x()
+                    .saturating_add(if widget.node.field("richtext") == Some("true") {
+                        0
+                    } else {
+                        3
+                    }),
                 bounds.y(),
                 color,
             )
@@ -108,6 +160,61 @@ fn draw_widget(
         };
         canvas.set_clip_rect(previous_clip);
         result?;
+        if widget.node.field("richtext") == Some("true") && widget.intent.is_some() {
+            let y = bounds
+                .y()
+                .saturating_add(font.map_or(7_i32, |font| font.ascent().saturating_add(1_i32)))
+                .min(bounds.bottom().saturating_sub(1_i32));
+            canvas.set_draw_color(color);
+            canvas
+                .draw_line((bounds.x(), y), (bounds.right().saturating_sub(1_i32), y))
+                .map_err(runtime_error)?;
+        }
+    }
+    Ok(())
+}
+
+/// Replaces the platform-specific Windows EDIT drawing with SDL's clipped,
+/// white text field while keeping the original logical bounds and Unicode value.
+fn draw_text_field(
+    canvas: &mut Canvas<Window>,
+    widget: &ManagerWidget,
+    font: Option<&Font<'_, '_>>,
+) -> Result<(), GameplayError> {
+    let bounds = rect(widget);
+    canvas.set_draw_color(Color::RGB(255_u8, 255_u8, 255_u8));
+    canvas.fill_rect(bounds).map_err(runtime_error)?;
+    canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
+    canvas.draw_rect(bounds).map_err(runtime_error)?;
+    let width = font.map_or_else(
+        || {
+            u32::try_from(widget.label.chars().count())
+                .unwrap_or(u32::MAX)
+                .saturating_mul(6_u32)
+        },
+        |font| font.size_of(&widget.label).map_or(0_u32, |size| size.0),
+    );
+    let excess = width.saturating_sub(bounds.width().saturating_sub(6_u32));
+    let x = bounds
+        .x()
+        .saturating_add(3_i32)
+        .saturating_sub(i32::try_from(excess).unwrap_or(i32::MAX));
+    draw_text(
+        canvas,
+        font,
+        &widget.label,
+        x,
+        bounds.y().saturating_add(2_i32),
+        Color::RGB(0_u8, 0_u8, 0_u8),
+    )?;
+    if widget.node.field("textfocused") == Some("true") {
+        let caret = x.saturating_add(i32::try_from(width).unwrap_or(i32::MAX));
+        canvas
+            .draw_line(
+                (caret, bounds.y().saturating_add(3_i32)),
+                (caret, bounds.bottom().saturating_sub(3_i32)),
+            )
+            .map_err(runtime_error)?;
     }
     Ok(())
 }
@@ -120,11 +227,23 @@ fn draw_images(
 ) -> Result<(), GameplayError> {
     let node = &widget.node;
     let enabled = widget.intent.is_some();
-    let layer = u8::from(enabled && node.field("image10").is_some());
     let count = node.integer("imagesperlayer").unwrap_or(1);
+    let layer = if node.field("layeractive1").is_some_and(truth) {
+        if widget.selected {
+            1_u8
+        } else if node.field("tabside") == Some("right") {
+            2_u8
+        } else {
+            0_u8
+        }
+    } else if widget.selected && count == 3_i32 && node.field("image40").is_some() {
+        4_u8
+    } else {
+        u8::from(enabled && node.field("image10").is_some())
+    };
     match count {
-        9 => draw_nine(canvas, textures, widget),
-        3 => draw_three(canvas, textures, widget, layer),
+        9 => draw_nine(canvas, textures, widget)?,
+        3 => draw_three(canvas, textures, widget, layer)?,
         _ => {
             let name = node
                 .field(&format!("image{layer}0"))
@@ -132,20 +251,41 @@ fn draw_images(
                 .or_else(|| node.field("image1"));
             if let Some(name) = name {
                 let tiled = node.field("imageblttype00") == Some("tile");
-                copy_image(
-                    canvas,
-                    textures,
-                    name,
-                    rect(widget),
-                    tiled,
-                    node.field("centerimage") == Some("true"),
-                )?;
+                if node.field("imageblttype") == Some("stretch") {
+                    if let Some(texture) = textures.dynamic_ui(&art_name(name))? {
+                        canvas
+                            .copy(texture, None, rect(widget))
+                            .map_err(runtime_error)?;
+                    }
+                } else {
+                    copy_image(
+                        canvas,
+                        textures,
+                        name,
+                        rect(widget),
+                        tiled,
+                        node.field("centerimage") == Some("true"),
+                    )?;
+                }
             } else if widget.id == "PopupClose" {
                 copy_image(canvas, textures, "upbt02u.rim", rect(widget), false, false)?;
             }
-            Ok(())
         }
     }
+    if count == 1_i32 {
+        if let Some(name) = node.field("image40") {
+            if node.field("imageblttype40") == Some("stretch") {
+                if let Some(texture) = textures.dynamic_ui(&art_name(name))? {
+                    canvas
+                        .copy(texture, None, rect(widget))
+                        .map_err(runtime_error)?;
+                }
+            } else {
+                copy_image(canvas, textures, name, rect(widget), false, false)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Nine cells retain native corners/side art; only declared middle strips tile.

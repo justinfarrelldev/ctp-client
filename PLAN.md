@@ -121,3 +121,16 @@ The full, expanded remaining checklist is maintained in [reference-interaction-f
 - [ ] Finish remaining client-side policy/government/specialist/army/trade/diplomacy/library/statistics/options workflows, lower-panel bodies, notifications, city rendering, event/action animation and all visual acceptance. These are not all server-blocked.
 - [ ] Reconcile Apolyton-specific layout additions and runtime-created controls with references; verify complete semantic journeys and all 33 native/reference-sized captures.
 - [ ] Resolve demonstrated server contract blockers through server-maintainer work; do not modify the server implementation or emulate destructive queue edits locally. See `$CTPSERVER/client-discovered-server-issues.md` (documentation commit `5ed6237`).
+
+## Great Library browsing continuation (not full reference acceptance)
+
+See [the component checklist](plans/great-library-workflows.md); continue afterward with [the full remaining plan](plans/reference-interaction-fidelity.md).
+
+- [x] Read installed articles and active `uniticon.txt` metadata; preserve sections, safe internal links and non-executable variables. Fix shared scanner confusion between quoted braces and record delimiters with a failing-then-passing in-memory regression.
+- [x] Implement explicit cached global search, local category indexes, bounded article history, Gameplay/Historical bodies and exact related-window return. Test production input/semantic dispatch without contacting a running server or altering the authoritative snapshot.
+- [x] Keep buildable/queue selections independent while the last interaction controls source descriptions/library links. Use current projected numbers only for verified expressions; unknown mappings remain unavailable.
+- [x] Reproduce/fix extreme scrolling, missing source portrait stretch and oversized title-art overdraw. Test original Library/Science/Build picture pixels, shared link rectangles/underlines, white edit fields, and SDL Unicode/IME state restoration entirely in memory.
+- [x] Inspect native and reference-sized Library captures. Fix the obsolete negative-position caption, missing uppercase title key and source pattern subrectangles without copying installed assets or modifying the main menu/server.
+- [x] Strict lint/lint-fix, 381 library + 399 binary + 19 integration test executions, native build and **82.09%** LLVM line coverage pass. Required fast coverage script is absent; repeated Windows MSVC validation remains blocked in GTK native dependencies by cross-compiling pkg-config/sysroots.
+- [ ] Complete the dependency chart, source-created sort/ranger controls, full text editing, remaining verified variable mappings and per-control typography/layout. The chart is explicitly disabled, not certified as a working blank tab; persistent research-goal contracts remain separate from immediate research selection.
+- [ ] Complete the rest of the parent plan, every manager/panel/animation workflow and all 33 reference acceptances. This browsing milestone is not completion of the original full request.

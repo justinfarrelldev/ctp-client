@@ -17,6 +17,10 @@ use super::model::{GameState, MapPoint};
 pub mod context;
 #[cfg(test)]
 mod context_tests;
+/// Local original-article browsing and shared rich-text link layout.
+pub mod library;
+#[cfg(test)]
+mod library_tests;
 /// Source-derived manager windows and authoritative semantic interactions.
 pub mod management;
 #[cfg(test)]
@@ -319,6 +323,7 @@ impl InGameUiModel {
             .flat_map(|item| [item.label, item.shortcut])
             .map(|text| (text, measure(text)))
             .collect();
+        self.management.measure_text(&measure, 16_u32);
     }
 
     /// Returns installed-font width, or the pure-model fallback when no font exists.

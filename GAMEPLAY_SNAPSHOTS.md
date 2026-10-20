@@ -48,17 +48,21 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
   cargo run --example gameplay-snapshot -- ctp2 images/manager-science.png 640 480 none science
 ```
 
-These scenes still use a synthetic map; empty manager bodies are not live game fixtures. The manager engine reads installed LDL/templates/localization and composes original nine-piece frames, preserving native corners, source positions and image-derived dimensions. It shares control descriptors with pointer/keyboard and accessible ID activation. Native tests render fourteen roots and check source corner pixels, but this is **not** a fourteen-screen pixel-parity certification.
+These scenes still use a synthetic map; manager bodies are not live game fixtures. The `library` diagnostic explicitly opens the installed Ballistics reference article; this does not invent a current research target in the game model. The manager engine reads installed LDL/templates/localization and composes original nine-piece frames, preserving native corners, source positions and image-derived dimensions. It shares control descriptors with pointer/keyboard and accessible ID activation. Native tests render fourteen roots and check source corner pixels, but this is **not** a fourteen-screen pixel-parity certification.
 
 Implemented management workflows include independently selecting buildables/queue entries, Add, Rush Buy and explicit available-research selection. Isolated mock HTTP tests verify exact route/entity/metadata, session/revision fields and receipt/selection handoff; they do not contact a running server. Founding uses the server's recommended unique city ID/name and opens that accepted city's Build Manager once. Other original controls remain unavailable until integrated; there are no cancel/re-add queue workarounds that silently destroy production.
 
-The inspected context/stack/info and native Build/Science diagnostic captures demonstrate real SDL output, not complete reference matches. Full advisor panes, runtime-created controls, data columns, article links, option bindings, fonts and Apolyton-specific layout additions remain tracked work. Public community layouts are under `ctp2_data/default/uidata/layouts`, not `english`; locating them does not mean the deltas are implemented.
+Library categories, explicit global search, internal hyperlinks, Gameplay/Historical text, Back/Forward and return to the selected Build window now use installed source articles. Source markup is non-executable; only verified expressions resolve against the viewer's current rule definitions. Unsupported expressions show an em dash. The missing dependency chart is explicitly unavailable, and Set Goal is not replaced with immediate Change Research.
+
+Native tests independently compare Ballistics Library/Science and selected Settler Build artwork at source coordinates, hyperlink underlines and search-field pixels. They also cover clipping and portrait scaling regressions. Library captures at 800x600 and 640x480 were inspected after integration; title/body typography, exact framing, source-created sort/ranger controls and remaining layout differences still prevent reference acceptance.
+
+The inspected context/stack/info, earlier Build/Science and current Library diagnostic captures demonstrate real SDL output, not complete reference matches. Full advisor panes, runtime-created controls, data columns, remaining Library chart/editor/value mappings, option bindings, fonts and Apolyton-specific layout additions remain tracked work. Public community layouts are under `ctp2_data/default/uidata/layouts`, not `english`; locating them does not mean the deltas are implemented.
 
 ## Live capture
 
 Press **F12** during gameplay to capture the newly composed framebuffer before presentation. The default destination is `images/gameplay.png`; set `CTP_GAMEPLAY_CAPTURE` to choose another PNG path. An explicit capture replaces that destination and creates its parent directory if necessary. Normal rendering does not write screenshots.
 
-`FrameCapture::read` and `FrameCapture::png_bytes` retain pixels/PNG data in memory. `save_png` is the separate, opt-in filesystem sink. Tests exercise rendering and PNG round trips in memory and never call that sink. `/images/` is ignored; do not commit reference images, screenshots, or extracted game art.
+`FrameCapture.rgba` and `FrameCapture::png_bytes` retain pixels/PNG data in memory. `save_png` is the separate, opt-in filesystem sink. Tests exercise rendering and PNG round trips in memory and never call that sink. `/images/` is ignored; do not commit reference images, screenshots, or extracted game art.
 
 ## Original references and implementation
 
@@ -87,6 +91,6 @@ cargo build
 cargo llvm-cov --all-features --all-targets --summary-only
 ```
 
-Latest continuation milestone validation: strict lint, 364 library tests, 382 binary tests, 19 integration tests and the dedicated native build pass. LLVM line coverage is **81.55%**. The Windows x86_64 check was repeated and is blocked before client compilation by GObject/GLib pkg-config cross-compilation/sysroot setup; no Windows binary validation is claimed.
+Latest Library continuation validation: `cargo make lint-fix`, strict lint, 381 library tests, 399 binary tests, 19 integration tests and the dedicated native build pass (799 test executions; binary/library suites share tests). LLVM line coverage is **82.09%**. The Windows x86_64 MSVC check was repeated and stops before client compilation in GTK-related native dependencies (including Pango/Cairo/GdkPixbuf): pkg-config is not configured for cross-compilation/sysroots. No Windows binary validation is claimed.
 
 Tests include in-memory semantic interactions, exact native artwork placement, reticle masks, both pixel formats, all retail terrain-pair/rule combinations, river/mouth masks, resource visibility/fog, malformed data, scaled framebuffers and PNG round trips. Installed art is read-only. Server tests use mock HTTP/SSE responses, not a running local server. The requested `./scripts/check-coverage-fast.sh` is absent; `cargo llvm-cov` provides the available line-coverage measurement instead. Windows source portability is reviewed, but Windows binaries require validation on a configured Windows/SDL build host.

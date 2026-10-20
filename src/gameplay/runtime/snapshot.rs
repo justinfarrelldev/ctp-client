@@ -177,6 +177,7 @@ pub fn render_preview_scene(
     }
     if let Some(font) = font.as_ref() {
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |metrics| metrics.0));
+        ui.management.line_height = u32::try_from(font.height()).unwrap_or(16_u32);
     }
     let (camera, input) = scene::preview_presentation(scene, &mut state, &textures, &mut ui);
     let mut frame_texture = creator

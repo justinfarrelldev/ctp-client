@@ -87,7 +87,13 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
     let mut input = super::super::MovementInputState::default();
     match scene {
         PreviewScene::Stack => ui.stack_expanded = true,
-        PreviewScene::Manager(kind) => ui.management.open(kind, state, None),
+        PreviewScene::Manager(kind) => {
+            if kind == crate::gameplay::ui_model::management::ManagerKind::Library {
+                // Explicit installed reference article, not invented game research.
+                ui.management.library.navigate("ADVANCE_BALLISTICS");
+            }
+            ui.management.open(kind, state, None);
+        }
         PreviewScene::Context => {
             if let Some(point) = state.selected_unit().map(|unit| unit.position) {
                 ui.context =

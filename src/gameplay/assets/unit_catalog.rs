@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+use super::database::{field, records};
 use crate::gameplay::{GameplayError, asset_error};
 use alloc::collections::BTreeMap;
 use std::path::Path;
@@ -103,85 +104,6 @@ pub fn parse(units: &str, sprites: &str, icons: &str) -> BTreeMap<String, UnitAr
             ))
         })
         .collect()
-}
-
-/// Finds an exact record field, not an incidental token in a comment.
-fn field<'data>(words: &'data [String], name: &str) -> Option<&'data str> {
-    words
-        .windows(2)
-        .find(|pair| pair[0] == name)
-        .map(|pair| pair[1].as_str())
-}
-
-/// Reads balanced top-level database records while ignoring comments/quoted braces.
-fn records(text: &str) -> Vec<(String, Vec<String>)> {
-    let tokens = tokenize(text);
-    let mut records = Vec::new();
-    let mut index = 0_usize;
-    while index.saturating_add(1) < tokens.len() {
-        if tokens[index.saturating_add(1)] != "{" {
-            index = index.saturating_add(1);
-            continue;
-        }
-        let name = tokens[index].clone();
-        index = index.saturating_add(2);
-        let start = index;
-        let mut depth = 1_u32;
-        while index < tokens.len() && depth > 0 {
-            match tokens[index].as_str() {
-                "{" => depth = depth.saturating_add(1),
-                "}" => depth = depth.saturating_sub(1),
-                _ => {}
-            }
-            index = index.saturating_add(1);
-        }
-        if depth == 0 {
-            records.push((name, tokens[start..index.saturating_sub(1)].to_vec()));
-        }
-    }
-    records
-}
-
-/// Minimal game-database lexer preserving strings and dropping line comments.
-fn tokenize(text: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut word = String::new();
-    let mut quoted = false;
-    let mut comment = false;
-    for character in text.chars() {
-        if comment {
-            if character == '\n' {
-                comment = false;
-            } else {
-                continue;
-            }
-        }
-        if character == '"' {
-            quoted = !quoted;
-            if !quoted {
-                tokens.push(core::mem::take(&mut word));
-            }
-            continue;
-        }
-        if !quoted && character == '#' {
-            comment = true;
-            continue;
-        }
-        if !quoted && (character.is_whitespace() || matches!(character, '{' | '}')) {
-            if !word.is_empty() {
-                tokens.push(core::mem::take(&mut word));
-            }
-            if matches!(character, '{' | '}') {
-                tokens.push(character.to_string());
-            }
-        } else {
-            word.push(character);
-        }
-    }
-    if !word.is_empty() {
-        tokens.push(word);
-    }
-    tokens
 }
 
 #[cfg(test)]

@@ -5,6 +5,11 @@ use std::time::Instant;
 
 use sdl2::EventPump;
 use sdl2::event::Event;
+use sdl2::keyboard::TextInputUtil;
+
+/// Native text-input scope regressions using only isolated SDL memory state.
+#[cfg(test)]
+mod tests;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
@@ -19,6 +24,32 @@ use crate::gameplay::model::GameState;
 use crate::gameplay::server::ServerClient;
 use crate::gameplay::ui_model::InGameUiModel;
 use crate::gameplay::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
+
+/// Restores the shell's text-input state after gameplay, including error exits.
+struct TextInputScope {
+    /// SDL's safe text-input handle keeps its video subsystem alive.
+    input: TextInputUtil,
+    /// Whether the calling shell already had text input active.
+    was_active: bool,
+}
+
+impl TextInputScope {
+    /// Enables SDL Unicode/IME events; only a focused local text field consumes them.
+    fn new(video: &sdl2::VideoSubsystem) -> Self {
+        let input = video.text_input();
+        let was_active = input.is_active();
+        input.start();
+        Self { input, was_active }
+    }
+}
+
+impl Drop for TextInputScope {
+    fn drop(&mut self) {
+        if !self.was_active {
+            self.input.stop();
+        }
+    }
+}
 
 /// Creates only server-authoritative state in interactive play; preview/test mode
 /// is explicitly selected by a disabled server configuration, never by a failure.
@@ -85,12 +116,14 @@ pub(super) fn run_sdl_game_on_canvas(
     }
     if let Some(font) = font.as_ref() {
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
+        ui.management.line_height = u32::try_from(font.height()).unwrap_or(16_u32);
     }
     let mut movement = MovementInputState::default();
     movement.actors.speed = config.graphics.unit_speed;
     movement.actors.enabled = config.graphics.unit_animation.enabled();
     let mut camera = Camera::centered_on_selected(&state);
     let _cursor_guard = SoftwareCursorGuard::new()?;
+    let _text_input = TextInputScope::new(canvas.window().subsystem());
     let mut edge_scroll = EdgeScroll::default();
     let clock = Instant::now();
     let mut outcome = None;

@@ -10,7 +10,7 @@ use crate::gameplay::ui_model::InGameUiModel;
 
 #[cfg(test)]
 mod tests;
-use crate::gameplay::ui_model::management::ManagerIntent;
+use crate::gameplay::ui_model::management::{ManagerIntent, ManagerKind};
 
 /// Consumes all non-window/quit input while a manager owns focus. Returns false
 /// when ordinary gameplay/popup dispatch should proceed. A modal click never
@@ -29,7 +29,32 @@ pub(super) fn consume(
         return false;
     }
     movement.cancel_drag();
-    let intent = match *event {
+    let editing = ui
+        .management
+        .view
+        .as_ref()
+        .is_some_and(|view| view.kind == ManagerKind::Library)
+        && ui.management.focused.as_deref() == Some("SearchWord");
+    let intent = match event.clone() {
+        Event::TextInput { text, .. } if editing => {
+            edit_query(ui, &text, false);
+            None
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::RETURN),
+            repeat: false,
+            ..
+        } if editing => {
+            ui.management.search_library();
+            None
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::BACKSPACE),
+            ..
+        } if editing => {
+            edit_query(ui, "", true);
+            None
+        }
         Event::KeyDown {
             keycode: Some(Keycode::ESCAPE),
             repeat: false,
@@ -65,22 +90,7 @@ pub(super) fn consume(
             x,
             y,
             ..
-        } => {
-            let intent = ui.management.intent_at(x, y, state);
-            if intent.is_none() {
-                if let Some(reason) = ui
-                    .management
-                    .widgets(state)
-                    .into_iter()
-                    .rev()
-                    .find(|widget| widget.rect.contains(x, y))
-                    .and_then(|widget| widget.unavailable)
-                {
-                    ui.status_text = reason;
-                }
-            }
-            intent
-        }
+        } => pointer_intent(ui, state, x, y),
         Event::MouseWheel { y, .. } => ui.pointer.and_then(|(x, pointer_y)| {
             ui.management
                 .widgets(state)
@@ -88,10 +98,10 @@ pub(super) fn consume(
                 .rev()
                 .find(|widget| {
                     widget.rect.contains(x, pointer_y)
-                        && widget
-                            .node
-                            .field("objecttype")
-                            .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_ListBox"))
+                        && widget.node.field("objecttype").is_some_and(|kind| {
+                            kind.eq_ignore_ascii_case("ctp2_ListBox")
+                                || kind.eq_ignore_ascii_case("ctp2_hypertextbox")
+                        })
                 })
                 .map(|widget| ManagerIntent::Scroll(widget.id, y.saturating_neg()))
         }),
@@ -101,6 +111,31 @@ pub(super) fn consume(
         apply(intent, state, ui, authority);
     }
     true
+}
+
+/// Shared pointer descriptors also expose explicit disabled reasons; empty
+/// decorative children cannot hide the enclosing disabled control's explanation.
+fn pointer_intent(
+    ui: &mut InGameUiModel,
+    state: &GameState,
+    x: i32,
+    y: i32,
+) -> Option<ManagerIntent> {
+    let intent = ui.management.intent_at(x, y, state);
+    ui.management.focused = None;
+    if intent.is_none() {
+        if let Some(reason) = ui
+            .management
+            .widgets(state)
+            .into_iter()
+            .rev()
+            .find(|widget| widget.rect.contains(x, y) && widget.unavailable.is_some())
+            .and_then(|widget| widget.unavailable)
+        {
+            ui.status_text = reason;
+        }
+    }
+    intent
 }
 
 /// Accessible activation and real SDL events execute this exact same dispatcher.
@@ -126,19 +161,47 @@ pub(super) fn apply(
                     .clone_into(&mut ui.status_text);
             }
         }
-        ManagerIntent::Open(kind) => {
-            let city = ui
-                .management
-                .view
-                .as_ref()
-                .and_then(|view| view.city_id.clone());
-            ui.management.open(kind, state, city.as_deref());
+        ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::Scroll(path, delta) => {
+            ui.management.scroll(&path, delta, state);
+        }
+        ManagerIntent::Article(id) => {
+            if ui.management.library.navigate(&id) {
+                ui.management.open_related(ManagerKind::Library, state);
+                ui.management.apply_local(ManagerIntent::Article(id));
+            } else {
+                ui.status_text = format!("Article {id} is not installed");
+            }
         }
         local => {
-            if ui.management.apply_local(local) && ui.management.view.is_none() {
+            if ui.management.apply_local(local)
+                && ui
+                    .management
+                    .view
+                    .as_ref()
+                    .is_none_or(|view| view.kind != ManagerKind::Library)
+            {
                 ui.great_library = None;
             }
         }
+    }
+}
+
+/// Bounded Unicode editing is local presentation state, not a server command.
+fn edit_query(ui: &mut InGameUiModel, text: &str, backspace: bool) {
+    let mut query = ui.management.library.query.clone();
+    if backspace {
+        query.pop();
+    } else {
+        query.extend(
+            text.chars()
+                .filter(|character| !character.is_control())
+                .take(128_usize),
+        );
+    }
+    ui.management.library.set_query(&query);
+    if let Some(view) = ui.management.view.as_mut() {
+        view.scroll.remove("IndexSheet");
     }
 }
 
