@@ -332,18 +332,24 @@ pub(super) fn text(
 }
 
 /// Known policy/government values; leave undisclosed economic subtotals unknown.
-fn empire_value(ui: &ManagementUi, state: &GameState, path: &str) -> Option<String> {
-    let facts = &state.viewer.as_ref()?.diplomacy.as_ref()?.facts;
-    let field = if path.contains("ScienceTax") {
-        "science_percent"
-    } else if path.contains("PublicWorks") {
-        "public_works_percent"
-    } else {
-        return None;
-    };
-    let value = facts.get(field)?;
-    value
-        .as_str()
-        .map(|id| label(ui, id))
-        .or_else(|| value.as_i64().map(|number| number.to_string()))
+fn empire_value(_ui: &ManagementUi, state: &GameState, path: &str) -> Option<String> {
+    match path {
+        "TabGroup.Tab1.TabPanel.CitiesValue" => Some(owned_city_ids(state).len().to_string()),
+        "TabGroup.Tab1.TabPanel.PopulationValue" => {
+            let viewer = state.viewer.as_ref()?;
+            let owned = owned_city_ids(state);
+            Some(
+                viewer
+                    .cities
+                    .iter()
+                    .filter(|city| owned.contains(&city.id))
+                    .fold(0_u64, |total, city| {
+                        total.saturating_add(u64::from(city.population))
+                    })
+                    .to_string(),
+            )
+        }
+        "TabGroup.Tab1.TabPanel.HappinessValue" => Some("—".to_owned()),
+        _ => None,
+    }
 }

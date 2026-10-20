@@ -32,8 +32,15 @@ mod data;
 /// Source Empire Details/Summary lifecycle and government comparison regressions.
 #[cfg(test)]
 mod empire_tests;
+/// Reference presentation and source-version layout deltas.
+#[cfg(test)]
+mod fidelity_tests;
 /// Source government comparisons and exact currently eligible enactment identities.
 mod government;
+/// Source-version presentation adaptation, independent of game authority.
+mod fidelity;
+/// Atomic original option-slider presentation.
+mod option_art;
 /// Source category-index sorting and noninteractive age headers.
 mod index;
 /// Age sorting and reference-control regressions.
@@ -408,6 +415,9 @@ impl ManagementUi {
             .into_iter()
             .map(|kind| book.resolve(kind.root()).map(|node| (kind, node)))
             .collect::<Result<_, _>>()?;
+        for (kind, root) in &mut layouts {
+            fidelity::configure(*kind, root, &book)?;
+        }
         if let Some(root) = layouts.get_mut(&ManagerKind::Library) {
             index::configure(root, &book)?;
         }

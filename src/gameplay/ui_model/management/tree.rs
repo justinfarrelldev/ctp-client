@@ -42,15 +42,15 @@ pub(super) fn widgets(ui: &ManagementUi, state: &GameState) -> Vec<ManagerWidget
                 x: rect
                     .x
                     .saturating_add(i32::try_from(rect.width).unwrap_or(0))
-                    .saturating_sub(86),
+                    .saturating_sub(87),
                 y: rect
                     .y
                     .saturating_add(i32::try_from(rect.height).unwrap_or(0))
-                    .saturating_sub(39),
-                width: 64,
-                height: 20,
+                    .saturating_sub(41),
+                width: 70,
+                height: 24,
             },
-            node: LayoutNode::default(),
+            node: ui.book.resolve("c3_PopupClose").unwrap_or_default(),
             intent: Some(ManagerIntent::Close),
             unavailable: None,
             selected: false,
@@ -144,6 +144,12 @@ impl Walker<'_> {
 
     /// Runtime-created atomic content owns its source descendants and clipping.
     fn atomic(&mut self, node: &LayoutNode, path: &str, rect: MenuRect, index: usize) -> bool {
+        if matches!(self.view.kind, ManagerKind::Graphics | ManagerKind::Sound)
+            && super::option_art::append(node, path, rect, &mut self.widgets)
+        {
+            self.widgets[index].label.clear();
+            return true;
+        }
         if self.view.kind == ManagerKind::Empire
             && policy::append(self.ui, self.state, node, path, rect, &mut self.widgets)
         {
@@ -220,6 +226,10 @@ impl Walker<'_> {
         } else {
             child_rect(node, parent)
         };
+        if let (Some(x), Some(y)) = (node.integer("reference-x"), node.integer("reference-y")) {
+            rect.x = self.root_rect.x.saturating_add(35_i32).saturating_add(x);
+            rect.y = self.root_rect.y.saturating_add(55_i32).saturating_add(y);
+        }
         if node.name == "TitleBar" {
             rect.x = self.root_rect.x;
             rect.y = self.root_rect.y;
@@ -541,7 +551,7 @@ fn hidden(view: &ManagerView, path: &str) -> bool {
     if view.kind == ManagerKind::Library && path == "SearchLabel" {
         return true;
     }
-    if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) && path == "AcceptButton" {
+    if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) && matches!(path, "AcceptButton" | "Background") {
         // The original callbacks instantiate AddClose, never this obsolete block.
         return true;
     }

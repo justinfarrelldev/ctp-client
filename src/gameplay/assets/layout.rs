@@ -171,7 +171,9 @@ impl LayoutBook {
             let strings = std::fs::read(root.join("ctp2_data/english/gamedata").join(filename))
                 .map_err(|error| asset_error(error.to_string()))?;
             let tokens = tokenize(&super::text::decode(&strings))?;
-            for pair in tokens.windows(2) {
+            // Entries are key/value pairs. Sliding windows would register an
+            // uppercase/numeric translation as a key pointing at the next ID.
+            for pair in tokens.chunks_exact(2) {
                 if pair[0].starts_with("str_")
                     || pair[0].chars().all(|character| {
                         character.is_ascii_uppercase()

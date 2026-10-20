@@ -200,6 +200,12 @@ mod pixel_tests;
 /// Independent source-art checks for native policy sliders and percentage controls.
 #[cfg(test)]
 mod policy_tests;
+/// Original option slider pixels and popup lifecycle.
+#[cfg(test)]
+mod option_tests;
+/// In-memory masked comparisons against supplied release captures.
+#[cfg(test)]
+mod reference_tests;
 #[cfg(test)]
 mod resource_tests;
 /// Independent source list-frame/content and discovery-column native pixel checks.

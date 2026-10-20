@@ -108,6 +108,13 @@ fn paint_widget(
             widget.node.field("pattern").unwrap_or("uptg20e.tga"),
             bounds.width(),
             bounds.height(),
+            widget.node.integer("ticks").and_then(|ticks| {
+                Some((
+                    u32::try_from(widget.node.integer("maxxval")?).ok()?,
+                    u32::try_from(ticks).ok()?,
+                    u32::try_from(widget.node.integer("minthumbsize").unwrap_or(9_i32)).ok()?,
+                ))
+            }),
         )? {
             canvas.copy(texture, None, bounds).map_err(runtime_error)?;
         }
@@ -128,7 +135,19 @@ fn paint_widget(
         .field("pattern")
         .filter(|name| !name.eq_ignore_ascii_case("error.tga"))
     {
-        if let Some(texture) = textures.dynamic_ui(&art_name(pattern))? {
+        let bevel = widget.node.integer("bevelwidth").unwrap_or(0_i32);
+        if bevel > 0_i32 && widget.node.integer("beveltype").unwrap_or(0_i32) <= 1_i32 {
+            if let Some(texture) = textures.beveled_pattern(
+                pattern,
+                (bounds.width(), bounds.height()),
+                (
+                    u32::try_from(bevel).unwrap_or(0_u32),
+                    widget.node.integer("beveltype") == Some(1_i32),
+                ),
+            )? {
+                canvas.copy(texture, None, bounds).map_err(runtime_error)?;
+            }
+        } else if let Some(texture) = textures.dynamic_ui(&art_name(pattern))? {
             if let (Some(x), Some(y), Some(width), Some(height)) = (
                 widget.node.integer("srcxpix"),
                 widget.node.integer("srcypix"),

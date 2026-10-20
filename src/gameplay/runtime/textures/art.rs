@@ -245,6 +245,21 @@ pub(super) fn c3_slider_track(
     Ok(image)
 }
 
+/// Source horizontal slider ticks, paired above/below the groove. Reject zero
+/// or excessive source spans before division/iteration on malformed layouts.
+pub(super) fn c3_slider_ticks(image: &mut RgbaImage, maximum: u32, ticks: u32, thumb: u32) {
+    if maximum == 0_u32 || maximum > 1024_u32 || ticks == 0_u32 || image.height < 24_u32 {
+        return;
+    }
+    let spacing = image.width.div_euclid(maximum).saturating_sub(1_u32);
+    for index in (0_u32..=maximum).rev().filter(|index| index.checked_rem(ticks) == Some(0_u32)) {
+        let x = index.saturating_mul(spacing).saturating_add(thumb.div_euclid(2_u32));
+        for y in [6_u32, image.height.saturating_sub(12_u32)] {
+            bevel_rect(image, (x, y, 3_u32, 6_u32), 1_u32, true);
+        }
+    }
+}
+
 /// Applies the existing source bevel to an internal rectangle without copying it.
 fn bevel_rect(image: &mut RgbaImage, bounds: (u32, u32, u32, u32), level: u32, pressed: bool) {
     let (x, y, width, height) = bounds;

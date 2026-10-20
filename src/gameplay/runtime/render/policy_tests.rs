@@ -42,9 +42,9 @@ fn original_policy_thumb_and_black_groove_are_drawn_at_literal_source_coordinate
             Some((248_u8, 0_u8, 248_u8)),
         )
         .map_err(|error| error.to_string())?;
-        // ctp2_Window::InitCommonLdl clamps centered X to k_STANDARD_MAIN_WINDOW_X=224.
-        // Root(224,108), tab(35,31), panel(0,24), food(6,50), modify(2,19),
-        // slider(20,33), thumb round((124-9)*2/4)=58 => (345,265).
+        // Full-screen reference root(0,28), tab(35,31), panel(0,24),
+        // food(5,50), modify(2,19), slider(20,33),
+        // thumb round((152-9)*2/4)=72 => (134,185).
         for y in 0_u32..20_u32 {
             for x in 0_u32..9_u32 {
                 let source = usize::try_from(y)
@@ -56,11 +56,11 @@ fn original_policy_thumb_and_black_groove_are_drawn_at_literal_source_coordinate
                             .saturating_mul(4_usize),
                     );
                 if thumb.data[source.saturating_add(3_usize)] == 255_u8 {
-                    let target = usize::try_from(265_u32.saturating_add(y))
+                    let target = usize::try_from(185_u32.saturating_add(y))
                         .unwrap_or(0_usize)
                         .saturating_mul(800_usize)
                         .saturating_add(
-                            usize::try_from(345_u32.saturating_add(x)).unwrap_or(0_usize),
+                            usize::try_from(134_u32.saturating_add(x)).unwrap_or(0_usize),
                         )
                         .saturating_mul(4_usize);
                     if pixels[target..target.saturating_add(3_usize)]
@@ -71,12 +71,49 @@ fn original_policy_thumb_and_black_groove_are_drawn_at_literal_source_coordinate
                 }
             }
         }
-        let center = 273_usize
+        let center = 193_usize
             .saturating_mul(800_usize)
-            .saturating_add(297_usize)
+            .saturating_add(72_usize)
             .saturating_mul(4_usize);
         if pixels[center..center.saturating_add(3_usize)] != [0_u8, 0_u8, 0_u8] {
             return Err("C3Slider black source channel was not drawn".to_owned());
+        }
+        let pattern = load_rim_rgba_entry(&root, PICTURE_ARCHIVE, "uptg20e.rim", None)
+            .map_err(|error| error.to_string())?;
+        for (local_x, light) in [(0_u32, false), (195_u32, true)] {
+            let source = usize::try_from(200_u32.checked_rem(pattern.height).unwrap_or(0_u32))
+                .unwrap_or(0_usize)
+                .saturating_mul(pattern.pitch)
+                .saturating_add(
+                    usize::try_from(local_x.checked_rem(pattern.width).unwrap_or(0_u32))
+                        .unwrap_or(0_usize)
+                        .saturating_mul(4_usize),
+                );
+            let target = 333_usize
+                .saturating_mul(800_usize)
+                .saturating_add(
+                    40_usize.saturating_add(usize::try_from(local_x).unwrap_or(0_usize)),
+                )
+                .saturating_mul(4_usize);
+            for (channel, shift, maximum) in [
+                (0_usize, 3_u8, 31_u8),
+                (1_usize, 2_u8, 63_u8),
+                (2_usize, 3_u8, 31_u8),
+            ] {
+                let packed = (pattern.data[source.saturating_add(channel)] >> shift)
+                    .saturating_add(if light { maximum } else { 0_u8 })
+                    .div_euclid(2_u8);
+                let expected = if shift == 2_u8 {
+                    (packed << 2_u8) | (packed >> 4_u8)
+                } else {
+                    (packed << 3_u8) | (packed >> 2_u8)
+                };
+                if pixels[target.saturating_add(channel)] != expected {
+                    return Err(format!(
+                        "missing original column bevel at x{local_x} channel{channel}"
+                    ));
+                }
+            }
         }
         Ok(())
     });

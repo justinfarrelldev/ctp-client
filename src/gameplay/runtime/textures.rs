@@ -360,18 +360,47 @@ impl<'texture> GameplayTextures<'texture> {
         pattern: &str,
         width: u32,
         height: u32,
+        ticks: Option<(u32, u32, u32)>,
     ) -> Result<Option<&Texture<'texture>>, GameplayError> {
         let Some(creator) = self.creator else {
             return Ok(None);
         };
-        let key = format!("c3-slider:{pattern}:{width}x{height}");
+        let key = format!("c3-slider:{pattern}:{width}x{height}:{ticks:?}");
         if !self.dynamic_ui.contains_key(&key) {
             let name = pattern.to_ascii_lowercase().replace(".tga", ".rim");
-            let image = match load_ui_rgba(&self.root, &name) {
+            let mut image = match load_ui_rgba(&self.root, &name) {
                 Ok(source) => art::c3_slider_track(&source, width, height)?,
                 Err(error) if self.strict => return Err(error),
                 Err(_error) => return Ok(None),
             };
+            if let Some((maximum, spacing, thumb)) = ticks {
+                art::c3_slider_ticks(&mut image, maximum, spacing, thumb);
+            }
+            self.dynamic_ui
+                .insert(key.clone(), texture_from_rgba(creator, &image)?);
+        }
+        Ok(self.dynamic_ui.get(&key))
+    }
+
+    /// Caches a native patterned static's packed-channel bevel, not stretched art.
+    pub(super) fn beveled_pattern(
+        &mut self,
+        pattern: &str,
+        size: (u32, u32),
+        bevel: (u32, bool),
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        let key = format!("static-bevel:{pattern}:{size:?}:{bevel:?}");
+        if !self.dynamic_ui.contains_key(&key) {
+            let name = pattern.to_ascii_lowercase().replace(".tga", ".rim");
+            let mut image = match load_ui_rgba(&self.root, &name) {
+                Ok(source) => art::tiled_pattern(&source, size.0, size.1)?,
+                Err(error) if self.strict => return Err(error),
+                Err(_error) => return Ok(None),
+            };
+            art::apply_original_bevel(&mut image, bevel.0, bevel.1);
             self.dynamic_ui
                 .insert(key.clone(), texture_from_rgba(creator, &image)?);
         }

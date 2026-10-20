@@ -140,6 +140,8 @@ fn installed_manager_geometry_and_chrome_are_original_not_guessed() {
         "Hoplite",
         "manager labels use installed content localization too"
     );
+    assert_eq!(book.label("GOLD"), "GOLD", "uppercase translated text is not another dictionary key");
+    assert_eq!(book.label("10"), "10", "numeric translated text must not alias the following key");
     let science = book.resolve("ScienceManagementDialog").expect("science");
     let spent = science
         .child("CurrentResearch")

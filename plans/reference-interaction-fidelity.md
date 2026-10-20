@@ -230,11 +230,13 @@ Policy checkpoint validation: lint-fix/strict lint, **445 library + 463 binary +
 
 ## UI-first continuation (current request; reuse this plan)
 
-- [ ] Reconcile Empire's full-screen reference geometry and non-overlapping summary columns with source-backed visual tests.
-- [ ] Restore reference Graphics/Sound presentation (second graphics slider, twelve switches, native grooves/ticks/thumbs), without claiming unbound options functional.
+- [x] Reconcile Empire's full-screen reference geometry and non-overlapping summary columns with source-backed visual tests. Full typography/art/data acceptance remains separate.
+- [x] Restore reference Graphics/Sound presentation (second graphics slider, twelve switches, native grooves/ticks/thumbs), without claiming unbound options functional.
 - [ ] Restore all five lower-panel bodies from source artwork/geometry; test empty/populated viewer-safe cases and inspect native/reference captures.
 - [ ] Reconcile remaining manager/advisor/reference scenarios, inspect all 33 outputs and record precise visual gaps rather than certifying component tests as parity.
 - [ ] Run full lint/tests/coverage/build and commit UI changes atomically before reporting progress.
+
+Visual milestone: three failing presentation tests reproduced the small Empire root, missing Graphics rows/slider and unpositioned Sound thumbs. Native SDL regressions now cover original option thumbs, paired C3 ticks, unobscured gold corners and original RGB565 resource-column bevels. Masked comparisons read the supplied Graphics/Sound PNGs in memory, normalize their window-decoration offsets, and reject deliberately displaced gold corners. Masks tolerate capture quantization and do **not** certify whole-screen equality. The retail localization loader also incorrectly registered uppercase/numeric translations as keys via overlapping token windows; failing regressions now verify key/value-only parsing. Actual native/reference captures were inspected; installed Empire side art, missing economic/physical-policy values, full Details content and font differences remain explicit.
 
 Incoming government/Details work was already present at the start of this continuation. Its fileless tests now pass: exact eligible government identity/comparison, stale command rejection and domestic Summary/Details lifecycle. No additional feature work is prioritized ahead of visuals.
 
