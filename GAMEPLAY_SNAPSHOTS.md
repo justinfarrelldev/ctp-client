@@ -97,6 +97,21 @@ This is an original-art fidelity pass, **not certification that every CTP2 scree
 
 Live river/resource/border parity also requires authoritative data. The server currently omits rivers, resource IDs and territorial ownership from viewer tiles/fog memory; generated-world handoff also lacks rivers/resources. The client accepts optional `river` and `good_id`, including actual resource SPR rendering and remembered shading, but never guesses their locations when absent. Territorial ownership rendering remains unintegrated. The source-verified report and suggested visibility-safe contracts/tests are in `$CTPSERVER/client-discovered-server-issues.md` (documentation commit `5ed6237`), which also preserves a link to the earlier singular-named report. Additional findings cover missing city names, advertised-but-unregistered routes and unsafe/unsupported queue editing. No server implementation was modified. Unimplemented client windows and bindings for already-supported operations are not server defects.
 
+## UI-first continuation captures
+
+Additional explicit lower-panel scenes are `panel-empire`, `panel-city`, `panel-city-empty`, `panel-msgs` and `panel-tile`. They use the same cached installed controls and source fonts as live gameplay. Populated values are explicitly synthetic viewer data; the empty City scene has no city/portrait/name. No test writes captures. For example:
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  cargo run --example gameplay-snapshot -- ctp2 images/panel-city.png 640 480 none panel-city
+```
+
+Native/reference-sized manager and reference-sized panel captures were inspected during the UI pass. Empire now uses the reference's full-height columns and relocated original policy spinners; Graphics has twelve switches/two native sliders, and Sound retains gold corners and centered thumbs. Lower Empire/City/Msgs/Tile bodies now render original progress pictures, selectors, parchment/ranger and five palette radios. Palette switching is view-only; Farm artwork does not assert affordability or authorize an improvement. Missing city economy, research turns, pollution, advisor results and notifications are not fabricated.
+
+Native tests reproduce short three-piece caps losing their bottom pixels and verify declared-height fitting, icon-layer offsets, progress pictures, option ticks/thumbs and packed-channel column bevels. Separate in-memory tests read the supplied Graphics/Sound references with independently measured window-decoration crops, compare only 14×14 gold-corner masks with capture-quantization tolerance, and reject a displaced frame. These masks do **not** certify complete screen equality. Remaining advisor/manager details, typography, message/city/map workflows and all 33 full reference acceptances remain open in the existing plan.
+
+The reported original `Units.txt` launch failure is fixed in the **client**: unit/resource/sound readers now accept original Windows-1252 as well as modern UTF-8. No installation files were changed or converted. Fileless injected-reader tests exercise all unit-art inputs, original punctuation, Unicode mods and contextual I/O failures.
+
 ## Validation
 
 ```bash
@@ -106,6 +121,6 @@ cargo build
 cargo llvm-cov --all-features --all-targets --summary-only
 ```
 
-Latest policy-control checkpoint validation: `cargo make lint-fix`, strict lint, 445 library tests, 463 binary tests, 19 integration tests and the dedicated native build pass (927 executions; binary/library suites share tests). LLVM line coverage is **83.79%**. The Windows x86_64 MSVC check was repeated and stops before client compilation in GTK/GLib native dependencies (GLib/GIO/GObject/Cairo/Pango/GdkPixbuf/Graphene): pkg-config is not configured for cross-compilation/sysroots. No Windows binary validation is claimed.
+Latest UI/encoding checkpoint validation: strict lint, 468 library tests, 486 binary tests, 19 integration tests and the dedicated native build pass (973 executions; binary/library suites share tests). LLVM line coverage is **84.51%**. The Windows x86_64 MSVC check was repeated and stops before client compilation in GTK/GLib native dependencies (GLib/GIO/GObject/Cairo/Pango/GdkPixbuf/Graphene): pkg-config is not configured for cross-compilation/sysroots. No Windows binary validation is claimed.
 
 Tests include in-memory semantic interactions, exact native artwork placement, reticle masks, both pixel formats, all retail terrain-pair/rule combinations, river/mouth masks, resource visibility/fog, malformed data, scaled framebuffers and PNG round trips. Installed art is read-only. Server tests use mock HTTP/SSE responses, not a running local server. The requested `./scripts/check-coverage-fast.sh` is absent; `cargo llvm-cov` provides the available line-coverage measurement instead. Windows source portability is reviewed, but Windows binaries require validation on a configured Windows/SDL build host.

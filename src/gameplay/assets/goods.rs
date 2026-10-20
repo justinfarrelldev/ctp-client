@@ -51,9 +51,17 @@ pub fn parse_catalog(text: &str) -> Result<BTreeMap<String, u16>, GameplayError>
 /// # Errors
 /// Returns an asset error if the installation database cannot be read or parsed.
 pub fn load_catalog(root: &Path) -> Result<BTreeMap<String, u16>, GameplayError> {
-    let text = std::fs::read_to_string(root.join(GOODS_DATABASE))
+    load_catalog_with_reader(root, |path| std::fs::read(path))
+}
+
+/// Injectable byte reader preserves original ANSI comments without file-writing tests.
+fn load_catalog_with_reader(
+    root: &Path,
+    reader: impl FnOnce(&Path) -> std::io::Result<Vec<u8>>,
+) -> Result<BTreeMap<String, u16>, GameplayError> {
+    let bytes = reader(&root.join(GOODS_DATABASE))
         .map_err(|error| asset_error(format!("resource database: {error}")))?;
-    parse_catalog(&text)
+    parse_catalog(&super::text::decode(&bytes))
 }
 
 /// Loads a resource group's original idle animation, including its sprite hotspot.
@@ -85,8 +93,40 @@ pub fn load_good_sprite(root: &Path, id: u16) -> Result<SpriteGroupAsset, Gamepl
 
 #[cfg(test)]
 mod tests {
-    use super::{load_catalog, load_good_sprite, parse_catalog};
+    use super::{load_catalog, load_catalog_with_reader, load_good_sprite, parse_catalog};
     use std::path::Path;
+
+    #[test]
+    fn ansi_resource_comments_load_without_rewriting_original_data() {
+        let mut reads = Vec::new();
+        let catalog = load_catalog_with_reader(Path::new("read-only-installation"), |path| {
+            reads.push(path.to_path_buf());
+            Ok(b"1\nTERRAIN_PLAINS_GOOD_TWO 8 # Elephant\x92s original sprite\n".to_vec())
+        })
+        .expect("valid original ANSI goods database");
+        assert_eq!(
+            catalog.get("TERRAIN_PLAINS_GOOD_TWO"),
+            Some(&8_u16),
+            "original sprite mapping survives decoding"
+        );
+        assert_eq!(
+            reads,
+            vec![Path::new("read-only-installation").join(super::GOODS_DATABASE)],
+            "read the original resource file exactly once"
+        );
+        let error = load_catalog_with_reader(Path::new("unused"), |_path| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "mock read denied",
+            ))
+        })
+        .expect_err("retain I/O failure")
+        .to_string();
+        assert!(
+            error.contains("resource database") && error.contains("mock read denied"),
+            "contextual resource error: {error}"
+        );
+    }
 
     #[test]
     fn catalog_handles_headers_comments_placeholders_and_case() {

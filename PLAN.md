@@ -155,3 +155,14 @@ The completion target remains [the entire reference interaction plan](plans/refe
 - [x] Reproduce stale scalar-intent rebasing and reject it before submission. Validate exact policy route/envelope/payloads with isolated HTTP receipts, including requested science60 versus received/displayed57. Inspect separate explicit `empire-populated` native/reference captures without accepting the mismatched retail/Apolyton layout.
 - [x] Repeat lint-fix/strict lint, **445 library + 463 binary + 19 integration = 927 executions**, dedicated native build and **83.79%** LLVM line coverage (41,530 lines; 6,731 missed). Required fast script and Windows cross-compile environment blockers remain unchanged.
 - [ ] Continue government comparison/enactment, Empire layout/lifecycle reconciliation, remaining authoritative manager/control-panel operations and every unchecked main-plan acceptance. Checkpoint commits are not a stopping condition.
+
+## UI-first continuation and launch encoding blocker
+
+Continue using [the existing reference plan](plans/reference-interaction-fidelity.md); no replacement plan was created.
+
+- [x] Finish the incoming Empire government/Details lifecycle checkpoint without substituting National Manager for Details.
+- [x] Restore full-screen Empire columns/header spinners and the supplied six-row Graphics/two-slider presentation; fix atomic Sound sliders, paired ticks, runtime Close and obsolete background overdraw. Native artwork tests and bounded reference-PNG corner masks pass; these are not whole-screen parity acceptance.
+- [x] Restore source Empire/City/Msgs/Tile lower-panel bodies, five locally selectable tile categories, viewer-only labels and real progress portraits. Fix clipped short button caps, iconic layer offsets and reversed Unit firepower/armor positions. Inspect explicit empty/populated captures.
+- [x] Reproduce the reported `Units.txt` launch failure using injected non-UTF-8 bytes. Fix the client reader, not original data; apply the shared Windows-1252/UTF-8 decoder to unit/resource/sound inputs and preserve real I/O failures.
+- [x] Strict lint and full tests pass (**468 library + 486 binary + 19 integration = 973 executions**), dedicated native build passes, LLVM overall line coverage is **84.51%**. Required fast script remains absent; Windows MSVC checking is blocked before client compilation by native dependency cross-pkg-config/sysroot configuration.
+- [ ] Complete remaining manager/advisor, message/popups, city/map UI and all 33 complete reference-scenario acceptances. Most/all UI has **not** been certified identical; follow the unchecked main-plan items rather than interpreting component passes as completion.

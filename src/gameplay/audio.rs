@@ -78,14 +78,22 @@ pub struct SoundManifest {
 }
 
 impl SoundManifest {
-    /// Loads `sounds.txt` from the installation root.
+    /// Loads original Windows-1252 or modded UTF-8 `sounds.txt` read-only.
     ///
     /// # Errors
     ///
     /// Returns an I/O error when the database cannot be read.
     pub fn load_from_installation(installation_root: &Path) -> std::io::Result<Self> {
-        let text = fs::read_to_string(installation_root.join(SOUND_DATABASE))?;
-        Ok(Self::parse(&text))
+        Self::load_with_reader(installation_root, |path| fs::read(path))
+    }
+
+    /// Injectable original-data byte boundary; tests never create an installation.
+    fn load_with_reader(
+        root: &Path,
+        reader: impl FnOnce(&Path) -> std::io::Result<Vec<u8>>,
+    ) -> std::io::Result<Self> {
+        let bytes = reader(&root.join(SOUND_DATABASE))?;
+        Ok(Self::parse(&super::assets::text::decode(&bytes)))
     }
 
     /// Parses CTP2 `sounds.txt` content.
@@ -147,6 +155,50 @@ fn parse_sound_line(line: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::{GameplaySound, SoundManifest};
+
+    #[test]
+    fn ansi_sound_comments_and_utf8_mod_filenames_load_through_injected_readers() {
+        let mut reads = Vec::new();
+        let manifest = SoundManifest::load_with_reader(
+            std::path::Path::new("read-only-installation"),
+            |path| {
+                reads.push(path.to_path_buf());
+                Ok(b"# Settler\x92s original sounds\nSOUND_MOVE_SETTLER \"GUMX02.WAV\"\n".to_vec())
+            },
+        )
+        .expect("valid original ANSI sound database");
+        assert_eq!(
+            manifest.entry_for(GameplaySound::UnitMove),
+            "GUMX02.WAV",
+            "ANSI comments do not prevent gameplay audio initialization"
+        );
+        assert_eq!(
+            reads,
+            vec![std::path::Path::new("read-only-installation").join(super::SOUND_DATABASE)],
+            "one read-only original database access"
+        );
+        let modern = SoundManifest::load_with_reader(std::path::Path::new("unused"), |_path| {
+            Ok("SOUND_MOVE_SETTLER \"移動.WAV\"\n".as_bytes().to_vec())
+        })
+        .expect("UTF-8 mod database");
+        assert_eq!(
+            modern.entry_for(GameplaySound::UnitMove),
+            "移動.WAV",
+            "UTF-8 remains intact"
+        );
+        let error = SoundManifest::load_with_reader(std::path::Path::new("unused"), |_path| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "mock read denied",
+            ))
+        })
+        .expect_err("retain real I/O failures");
+        assert_eq!(
+            error.kind(),
+            std::io::ErrorKind::PermissionDenied,
+            "preserve filesystem error kind"
+        );
+    }
 
     #[test]
     fn parses_sound_database_lines_and_uses_fallbacks() {

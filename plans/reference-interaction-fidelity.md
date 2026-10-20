@@ -228,6 +228,14 @@ Lint-fix/strict lint, **419 library + 437 binary + 19 integration = 875 executio
 
 Policy checkpoint validation: lint-fix/strict lint, **445 library + 463 binary + 19 integration = 927 executions**, dedicated native build and **83.79%** LLVM line coverage pass (41,530 lines; 6,731 missed). Repeated required fast-script command exits127 because the script is absent. Windows checking still stops before client compilation in GTK/GLib cross-compiling pkg-config/sysroot setup. No server implementation, installed art or restricted paths changed; tests do not write files or contact a running server. Continue with government/layout and the main plan.
 
+## Launch blocker reported during UI continuation
+
+- [x] Reproduce non-UTF-8 original `Units.txt` through an injected, fileless installation reader; cover every unit-art input, UTF-8 mods and contextual I/O failures.
+- [x] Decode original database bytes with the shared Windows-1252/UTF-8 decoder, and audit the remaining gameplay text loaders. Never edit original assets or source databases.
+- [x] Run strict lint, full tests, coverage and native build; update documentation and commit the isolated launch fix normally.
+
+Encoding blocker evidence: the injected production reader first failed on `Units.txt: invalid utf-8 sequence`, and a second test reproduced lost `gl_str.txt` I/O context. All four unit-art metadata reads now accept original ANSI comments; CP1252 punctuation/accents and UTF-8 mod labels survive unchanged. Audit repaired the same strict-UTF-8 assumption in goods/audio. No original file is rewritten or re-encoded, and tests create no files or server calls. Strict lint, **468 library + 486 binary + 19 integration = 973 executions**, dedicated Linux build and **84.51%** overall LLVM line coverage pass. The required fast script remains absent; Windows checking stops in GObject/GLib/GTK dependencies before client compilation because cross-compiling pkg-config/sysroots are unconfigured.
+
 ## UI-first continuation (current request; reuse this plan)
 
 - [x] Reconcile Empire's full-screen reference geometry and non-overlapping summary columns with source-backed visual tests. Full typography/art/data acceptance remains separate.
