@@ -1,10 +1,5 @@
 //! Rendering helpers for CTP2-style click-drag movement planning.
 
-#![expect(
-    clippy::arithmetic_side_effects,
-    reason = "Movement feedback geometry mirrors fixed original CTP2 pixel offsets and turn-box sizes"
-)]
-
 extern crate alloc;
 
 use alloc::string::ToString;
@@ -96,6 +91,7 @@ pub(super) fn planned_path_segments(
 }
 
 /// Returns CTP2-style turn marker boxes for a computed path.
+#[cfg(test)]
 pub(super) fn planned_path_turn_markers(
     camera: &Camera,
     path: &[MapPoint],
@@ -105,7 +101,7 @@ pub(super) fn planned_path_turn_markers(
     let mut markers = Vec::new();
     for (index, point) in path.iter().enumerate() {
         let step_number = index.saturating_add(1_usize);
-        if step_number % normalized_steps != 0_usize {
+        if step_number.checked_rem(normalized_steps).unwrap_or(0_usize) != 0_usize {
             continue;
         }
         markers.push(MovementTurnMarker {
@@ -121,6 +117,7 @@ pub(super) fn planned_path_turn_markers(
 pub(super) fn draw_planned_path(
     canvas: &mut Canvas<Window>,
     input: &MovementInputState,
+    state: &crate::gameplay::model::GameState,
     camera: &Camera,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
@@ -128,8 +125,25 @@ pub(super) fn draw_planned_path(
         for segment in planned_path_segments(camera, origin, input.planned_path()) {
             draw_thick_line(canvas, segment, MOVEMENT_GO_COLOR)?;
         }
-        for marker in planned_path_turn_markers(camera, input.planned_path(), 1_usize) {
-            draw_turn_marker(canvas, font, marker, MOVEMENT_GO_COLOR)?;
+        if let Some(id) = input.active_unit() {
+            for boundary in
+                crate::gameplay::model::planning::turn_boundaries(state, id, input.planned_path())
+            {
+                let marker = MovementTurnMarker {
+                    rect: turn_marker_rect(camera, boundary.point),
+                    label: boundary.turn,
+                };
+                draw_turn_marker(
+                    canvas,
+                    font,
+                    marker,
+                    if boundary.turn == 1 {
+                        MOVEMENT_GO_COLOR
+                    } else {
+                        MOVEMENT_WAIT_COLOR
+                    },
+                )?;
+            }
         }
     }
     if let Some(origin) = input.planned_bad_path_origin() {

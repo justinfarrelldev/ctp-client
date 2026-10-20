@@ -174,6 +174,25 @@ pub struct SpriteActionAsset {
     pub animation: SpriteAnimation,
 }
 
+impl SpriteActionAsset {
+    /// Resolves stored facing/frame like `UnitSpriteGroup::Draw`: missing
+    /// animation frame indices use image zero, never an out-of-bounds access.
+    #[must_use]
+    pub fn frame_for_facing(&self, facing: u8, frame: u16) -> Option<&SpriteFrame> {
+        let find = |index| {
+            self.frames
+                .iter()
+                .find(|image| image.facing == facing && image.frame_index == index)
+                .or_else(|| {
+                    self.frames
+                        .iter()
+                        .find(|image| image.facing == 0 && image.frame_index == index)
+                })
+        };
+        find(frame).or_else(|| find(0))
+    }
+}
+
 /// Parsed sprite group asset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpriteGroupAsset {

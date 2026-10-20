@@ -56,6 +56,29 @@ impl CursorKind {
     }
 }
 
+/// Tracks pointer/focus events without changing authoritative world state.
+pub(super) fn track_pointer(
+    event: &sdl2::event::Event,
+    ui: &mut InGameUiModel,
+    movement: &mut MovementInputState,
+) {
+    use sdl2::event::{Event, WindowEvent};
+    match *event {
+        Event::MouseMotion { x, y, .. }
+        | Event::MouseButtonDown { x, y, .. }
+        | Event::MouseButtonUp { x, y, .. } => ui.pointer = Some((x, y)),
+        Event::Window {
+            win_event: WindowEvent::Leave | WindowEvent::FocusLost,
+            ..
+        } => {
+            ui.pointer = None;
+            ui.hovered_tile = None;
+            movement.cancel_drag();
+        }
+        _ => {}
+    }
+}
+
 /// Returns the original edge cursor, with vertical edges taking corner priority.
 pub(super) fn edge_direction(pointer: Option<(i32, i32)>) -> Option<CursorKind> {
     let (x, y) = pointer?;
@@ -77,7 +100,12 @@ pub(super) fn edge_direction(pointer: Option<(i32, i32)>) -> Option<CursorKind> 
 
 /// Whether a modal UI owns pointer input and prevents edge scrolling/path cursors.
 pub(super) fn pointer_blocked(state: &GameState, ui: &InGameUiModel) -> bool {
-    !state.popups.is_empty() || ui.open_menu.is_some() || ui.great_library.is_some()
+    !state.popups.is_empty()
+        || ui.open_menu.is_some()
+        || ui.great_library.is_some()
+        || ui.context.is_some()
+        || ui.map_info.is_some()
+        || ui.management.view.is_some()
 }
 
 /// Resolves feedback using the same legal/illegal preview that will be submitted.

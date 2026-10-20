@@ -48,7 +48,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map_or(Ok(2_u8), |value| value.parse::<u8>())?,
         },
         Some("terrain") => PreviewScene::Terrain,
-        _ => PreviewScene::Generated,
+        Some("stack") => PreviewScene::Stack,
+        Some("context") => PreviewScene::Context,
+        Some("info") => PreviewScene::TerrainInfo,
+        name => name
+            .and_then(ctp_client::gameplay::ui_model::management::ManagerKind::from_name)
+            .map_or(PreviewScene::Generated, PreviewScene::Manager),
     };
     let mut frame = render_preview_scene(Path::new(root), (width, height), menu, scene)?;
     frame.save_png(Path::new(output))?;

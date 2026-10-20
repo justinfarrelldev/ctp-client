@@ -10,6 +10,14 @@ pub enum PreviewScene {
     /// Known land, connected river, shore, stacked settlers and explored terrain.
     /// This is diagnostic fixture data, never a substitute for a server projection.
     Terrain,
+    /// Source-aligned expanded stack control, using synthetic colocated units.
+    Stack,
+    /// Explicitly opened friendly-unit context on the synthetic terrain fixture.
+    Context,
+    /// Original gold-framed terrain information on the synthetic fixture.
+    TerrainInfo,
+    /// Source-layout manager over an explicitly synthetic background fixture.
+    Manager(crate::gameplay::ui_model::management::ManagerKind),
     /// A single confirmed synthetic move with original cursor and injected clock.
     Motion {
         /// Clockwise screen direction, north=0 through northwest=7 (clamped).
@@ -77,6 +85,18 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
 ) -> (super::super::Camera, super::super::MovementInputState) {
     let camera = super::super::Camera::centered_on_selected(state);
     let mut input = super::super::MovementInputState::default();
+    match scene {
+        PreviewScene::Stack => ui.stack_expanded = true,
+        PreviewScene::Manager(kind) => ui.management.open(kind, state, None),
+        PreviewScene::Context => {
+            if let Some(point) = state.selected_unit().map(|unit| unit.position) {
+                ui.context =
+                    crate::gameplay::ui_model::context::ContextView::new(state, point, 450, 300);
+            }
+        }
+        PreviewScene::TerrainInfo => ui.map_info = state.selected_unit().map(|unit| unit.position),
+        PreviewScene::Generated | PreviewScene::Terrain | PreviewScene::Motion { .. } => {}
+    }
     if let PreviewScene::Motion { direction, quarter } = scene {
         state.units.truncate(1);
         let before = state.units.clone();

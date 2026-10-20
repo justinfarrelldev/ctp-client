@@ -7,6 +7,15 @@ use sdl2::pixels::Color;
 
 /// Complete artwork required by the first ancient-era gameplay interface.
 pub(super) const UI_NAMES: &[&str] = &[
+    "uptg03a.rim",
+    "uptg03b.rim",
+    "uptg03c.rim",
+    "uptg03d.rim",
+    "uptg03f.rim",
+    "uptg03g.rim",
+    "uptg03h.rim",
+    "uptg03i.rim",
+    "uptg20e.rim",
     "uptb00.rim",
     "uptg32.rim",
     "uptbtest.rim",
@@ -27,6 +36,7 @@ pub(super) const UI_NAMES: &[&str] = &[
     "upfg05.rim",
     "upfg06.rim",
     "upfg50.rim",
+    "upfg51.rim",
     "upst01.rim",
     "upcb14u.rim",
     "upcb14d.rim",

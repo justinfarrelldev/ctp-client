@@ -84,6 +84,14 @@ pub(super) struct GameplayTextures<'texture> {
     root: PathBuf,
     /// Original software cursors, uploaded on first use with black chroma key.
     cursors: BTreeMap<super::cursor::CursorKind, Texture<'texture>>,
+    /// Complete installed CTP2 roster from Units/newsprite/uniticon databases.
+    unit_catalog: BTreeMap<String, crate::gameplay::assets::unit_catalog::UnitArt>,
+    /// Lazily uploaded portraits and other original management artwork.
+    dynamic_ui: BTreeMap<String, Texture<'texture>>,
+    /// Decoded standard tile overlays uploaded only when needed.
+    improvements: BTreeMap<u16, Texture<'texture>>,
+    /// Live sessions reject missing art; explicit asset-free previews may stub it.
+    strict: bool,
 }
 
 impl<'texture> GameplayTextures<'texture> {
@@ -102,6 +110,10 @@ impl<'texture> GameplayTextures<'texture> {
             goods: BTreeMap::new(),
             root: PathBuf::new(),
             cursors: BTreeMap::new(),
+            unit_catalog: BTreeMap::new(),
+            dynamic_ui: BTreeMap::new(),
+            improvements: BTreeMap::new(),
+            strict: false,
         }
     }
 
@@ -132,6 +144,14 @@ impl<'texture> GameplayTextures<'texture> {
             goods: BTreeMap::new(),
             root: root.to_path_buf(),
             cursors: BTreeMap::new(),
+            unit_catalog: match crate::gameplay::assets::unit_catalog::load(root) {
+                Ok(catalog) => catalog,
+                Err(error) if strict => return Err(error),
+                Err(_) => BTreeMap::new(),
+            },
+            dynamic_ui: BTreeMap::new(),
+            improvements: BTreeMap::new(),
+            strict,
         };
         for &name in art::UI_NAMES {
             match load_ui_rgba(root, name).and_then(|mut image| {
@@ -276,13 +296,13 @@ impl<'texture> GameplayTextures<'texture> {
 
     /// Shared duration for actor travel and its MOVE animation.
     pub(super) fn move_duration(&self, kind: UnitKind, speed: i32, enabled: bool) -> u64 {
-        self.units.duration(kind, speed, enabled)
+        self.units.duration(kind.sprite_id(), speed, enabled)
     }
 
     /// Returns the sampled original actor with directional and sequence metadata.
     pub(super) fn unit_texture(
         &mut self,
-        kind: UnitKind,
+        sprite_id: u16,
         pose: super::animation::ActorPose,
         duration: u64,
         enabled: bool,
@@ -290,7 +310,85 @@ impl<'texture> GameplayTextures<'texture> {
         let Some(creator) = self.creator else {
             return Ok(None);
         };
-        self.units.sample(creator, kind, pose, duration, enabled)
+        self.units
+            .sample(creator, sprite_id, pose, duration, enabled)
+    }
+
+    /// Resolves exact canonical artwork; unknown unit types never become Warriors.
+    pub(super) fn unit_art(
+        &mut self,
+        state: &GameState,
+        unit: &crate::gameplay::model::Unit,
+    ) -> Result<Option<crate::gameplay::assets::unit_catalog::UnitArt>, GameplayError> {
+        let source = state.viewer.as_ref().and_then(|viewer| {
+            viewer.units.iter().find(|source| {
+                crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id
+            })
+        });
+        let art = source
+            .and_then(|source| self.unit_catalog.get(&source.type_id))
+            .cloned()
+            .or_else(|| {
+                (source.is_none() || unit.kind == UnitKind::Settler).then(|| {
+                    crate::gameplay::assets::unit_catalog::UnitArt {
+                        sprite: unit.kind.sprite_id(),
+                        portrait: format!("upup{:03}l.rim", unit.kind.sprite_id()),
+                        icon: format!("upup{:03}a.rim", unit.kind.sprite_id()),
+                        label: unit.kind.label().to_owned(),
+                    }
+                })
+            });
+        if let Some(art) = art.as_ref().filter(|_| self.creator.is_some()) {
+            if let Err(error) = self.units.ensure(&self.root, art.sprite) {
+                if self.strict {
+                    return Err(error);
+                }
+                return Ok(None);
+            }
+        }
+        Ok(art)
+    }
+
+    /// Duration for an exact retail sprite, not a three-family artwork fallback.
+    pub(super) fn unit_duration(&self, id: u16, speed: i32, enabled: bool) -> u64 {
+        self.units.duration(id, speed, enabled)
+    }
+
+    /// Loads an original portrait or dialog image on demand without copying assets.
+    pub(super) fn dynamic_ui(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        if !self.dynamic_ui.contains_key(name) {
+            let image = match load_ui_rgba(&self.root, name) {
+                Ok(image) => image,
+                Err(error) if self.strict => return Err(error),
+                Err(_) => return Ok(None),
+            };
+            let texture = texture_from_rgba(creator, &image)?;
+            self.dynamic_ui.insert(name.to_owned(), texture);
+        }
+        Ok(self.dynamic_ui.get(name))
+    }
+
+    /// Uploads original fortification/standard improvement art on first use.
+    pub(super) fn improvement_texture(
+        &mut self,
+        id: u16,
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        let (Some(creator), Some(tiles)) = (self.creator, self.tiles.as_ref()) else {
+            return Ok(None);
+        };
+        if let alloc::collections::btree_map::Entry::Vacant(entry) = self.improvements.entry(id) {
+            let Some(image) = tiles.improvement_image(id)? else {
+                return Ok(None);
+            };
+            entry.insert(texture_from_rgba(creator, &image)?);
+        }
+        Ok(self.improvements.get(&id))
     }
 
     /// Returns original resource art only for an explicitly projected good ID.

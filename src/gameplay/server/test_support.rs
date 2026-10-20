@@ -27,8 +27,11 @@ pub fn starting_projection_json() -> Value {
         "units": [{"id": "settler-7-1", "type_id": "UNIT_SETTLER", "owner_id": "account-7",
             "tile_id": "tile-41-27", "fortified": false, "domain": "land",
             "movement": 100_i16, "max_movement": 100_i16,
-            "health": 10_u16, "max_health": 10_u16, "visibility_range": 1_u16}],
-        "cities": null, "diplomacy": {}, "planning_status": "open"
+            "health": 10_u16, "max_health": 10_u16, "visibility_range": 1_u16,
+            "effects": [{"id":"settler", "kind":"settler"}]}],
+        "cities": null, "diplomacy": {}, "planning_status": "open",
+        "legal_actions": [{"route":"found-city", "command":"found-city", "entity_id":"settler-7-1", "target_id":"tile-41-27",
+            "fields":["unit_id","city_id","name"], "payload":{"unit_id":"settler-7-1","city_id":"client-city-settler-7-1","name":"City settler-7-1"}}]
     })
 }
 

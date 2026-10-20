@@ -2,8 +2,9 @@
 
 extern crate alloc;
 
-use alloc::collections::VecDeque;
+use alloc::collections::BinaryHeap;
 use alloc::vec::Vec;
+use core::cmp::Reverse;
 
 use super::super::model::{GameState, MapPoint, PlayerId, UnitId};
 
@@ -169,6 +170,12 @@ impl MovementInputState {
         self.preview = None;
     }
 
+    /// Clears selection-specific input while preserving animation/profile clocks.
+    pub(super) fn deactivate(&mut self) {
+        self.active_unit = None;
+        self.cancel_drag();
+    }
+
     /// Clears activation if the unit no longer exists as a selectable human unit.
     pub(super) fn retain_selectable(&mut self, state: &GameState) {
         if self.active_unit.is_some_and(|unit_id| {
@@ -263,8 +270,8 @@ fn path_preview_between(
             bad_path: Vec::new(),
         };
     }
-    if is_land_passable(state, target) {
-        if let Some(good_path) = computed_path_between(state, origin, target) {
+    if is_passable(state, unit_id, target) {
+        if let Some(good_path) = computed_path_between(state, unit_id, origin, target) {
             return MovementPathPreview {
                 unit_id,
                 origin,
@@ -284,39 +291,42 @@ fn path_preview_between(
 /// Builds an eight-direction passability-aware path between two tiles, excluding the start tile.
 fn computed_path_between(
     state: &GameState,
+    unit_id: UnitId,
     start: MapPoint,
     target: MapPoint,
 ) -> Option<Vec<MapPoint>> {
     if start == target {
         return Some(Vec::new());
     }
-    if !state.in_bounds(start) || !is_land_passable(state, target) {
+    if !state.in_bounds(start) || !is_passable(state, unit_id, target) {
         return None;
     }
-    let tile_count = usize::from(state.width).checked_mul(usize::from(state.height))?;
-    let mut visited = vec![false; tile_count];
-    let mut parents = vec![None; tile_count];
-    let start_index = tile_index(start, state.width, state.height)?;
-    visited[start_index] = true;
-    let mut queue = VecDeque::new();
-    queue.push_back(start);
-    while let Some(current) = queue.pop_front() {
+    let count = usize::from(state.width).checked_mul(usize::from(state.height))?;
+    let mut costs = vec![u32::MAX; count];
+    let mut parents = vec![None; count];
+    costs[tile_index(start, state.width, state.height)?] = 0;
+    let mut queue = BinaryHeap::new();
+    queue.push(Reverse((0_u32, start.tile_distance(target), start)));
+    while let Some(Reverse((cost, _, current))) = queue.pop() {
+        if cost != costs[tile_index(current, state.width, state.height)?] {
+            continue;
+        }
+        if current == target {
+            return reconstruct_path(start, target, &parents, state.width, state.height);
+        }
         for neighbor in ordered_neighbors(current, target, state.width, state.height) {
-            if !is_land_passable(state, neighbor) {
+            if !is_passable(state, unit_id, neighbor) {
                 continue;
             }
-            let Some(neighbor_index) = tile_index(neighbor, state.width, state.height) else {
-                continue;
-            };
-            if visited[neighbor_index] {
-                continue;
+            let next = cost.saturating_add(
+                crate::gameplay::model::planning::cost(state, neighbor).unwrap_or(1),
+            );
+            let index = tile_index(neighbor, state.width, state.height)?;
+            if next < costs[index] {
+                costs[index] = next;
+                parents[index] = Some(current);
+                queue.push(Reverse((next, neighbor.tile_distance(target), neighbor)));
             }
-            visited[neighbor_index] = true;
-            parents[neighbor_index] = Some(current);
-            if neighbor == target {
-                return reconstruct_path(start, target, &parents, state.width, state.height);
-            }
-            queue.push_back(neighbor);
         }
     }
     None
@@ -395,10 +405,42 @@ fn direct_path_between(
 }
 
 /// Returns whether a land unit may enter a point.
-fn is_land_passable(state: &GameState, point: MapPoint) -> bool {
-    state
-        .tile(point)
-        .is_some_and(|tile| tile.terrain.passable_by_land())
+fn is_passable(state: &GameState, unit_id: UnitId, point: MapPoint) -> bool {
+    let Some(tile) = state.tile(point) else {
+        return false;
+    };
+    let unit = state.viewer.as_ref().and_then(|viewer| {
+        viewer
+            .units
+            .iter()
+            .find(|unit| UnitId::from_server_id(&unit.id) == unit_id)
+    });
+    let domain = unit
+        .and_then(|unit| unit.facts["domain"].as_str())
+        .unwrap_or("land");
+    if tile.fog == crate::gameplay::model::FogState::Hidden {
+        return true;
+    }
+    if let Some(planning) = state
+        .viewer
+        .as_ref()
+        .and_then(|viewer| {
+            viewer
+                .tiles
+                .iter()
+                .find(|source| source.x == point.x && source.y == point.y)
+        })
+        .and_then(|source| source.planning.as_ref())
+    {
+        return planning.accessible
+            && planning.cost > 0
+            && planning.domains.iter().any(|allowed| allowed == domain);
+    }
+    match domain {
+        "sea" => !tile.terrain.passable_by_land(),
+        "air" | "space" | "amphibious" => true,
+        _ => tile.terrain.passable_by_land(),
+    }
 }
 
 /// Returns a row-major tile index for a map point.

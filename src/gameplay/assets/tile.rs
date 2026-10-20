@@ -84,6 +84,8 @@ pub struct TileSet {
     pub transitions: TransitionTable,
     /// Original river connectivity rules and transparent art.
     pub rivers: Vec<RiverTile>,
+    /// Original tile-improvement overlays, including fortification index 34.
+    pub improvements: BTreeMap<u16, Vec<u8>>,
     /// Pixel packing of the source file.
     pub format: PixelFormat,
 }
@@ -154,7 +156,7 @@ impl TileSet {
             );
         }
         let rivers = read_rivers(&mut reader, format)?;
-        skip_improvements(&mut reader)?;
+        let improvements = read_improvements(&mut reader, format)?;
         skip_mega_tiles(&mut reader)?;
         Ok(Self {
             by_tile_number,
@@ -162,8 +164,21 @@ impl TileSet {
             transforms,
             transitions,
             rivers,
+            improvements,
             format,
         })
+    }
+
+    /// Decodes one requested standard tile overlay without assuming all overlays
+    /// share dimensions (some installed improvements span multiple tiles).
+    ///
+    /// # Errors
+    /// Returns an asset error for malformed or non-standard overlay data.
+    pub fn improvement_image(&self, id: u16) -> Result<Option<RgbaImage>, GameplayError> {
+        self.improvements
+            .get(&id)
+            .map(|data| decode_tile_rgba(data, self.format))
+            .transpose()
     }
 
     /// Selects the original base/coast/biome variant using all neighborhood rules.
@@ -445,20 +460,25 @@ fn pixels_to_rgba(pixels: &[u16], format: PixelFormat) -> Vec<u8> {
     rgba
 }
 
-/// Skips improvement images.
-fn skip_improvements(reader: &mut Cursor<&[u8]>) -> Result<(), GameplayError> {
-    if reader.position() >= u64::try_from(reader.get_ref().len()).map_or(u64::MAX, |value| value) {
-        return Ok(());
+/// Retains original improvement art rather than discarding the whole section.
+fn read_improvements(
+    reader: &mut Cursor<&[u8]>,
+    _format: PixelFormat,
+) -> Result<BTreeMap<u16, Vec<u8>>, GameplayError> {
+    let mut result = BTreeMap::new();
+    if reader.position() >= u64::try_from(reader.get_ref().len()).unwrap_or(u64::MAX) {
+        return Ok(result);
     }
     let count = usize::from(read_u16(reader)?);
     for _ in 0..count {
-        skip_bytes(reader, 2)?;
-        let len = usize::try_from(read_u32(reader)?).map_err(|error| {
-            asset_error(format!("improvement size does not fit usize: {error}"))
-        })?;
-        skip_bytes(reader, len)?;
+        let id = read_u16(reader)?;
+        let length =
+            usize::try_from(read_u32(reader)?).map_err(|error| asset_error(error.to_string()))?;
+        if length > 0 {
+            result.insert(id, read_bytes(reader, length)?);
+        }
     }
-    Ok(())
+    Ok(result)
 }
 
 /// Skips mega-tile metadata.

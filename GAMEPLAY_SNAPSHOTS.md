@@ -30,11 +30,29 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
   cargo run --example gameplay-snapshot -- ctp2 images/motion-nw.png 800 600 none motion 7 2
 ```
 
-Tests invoke the same capture API entirely in memory. Additional SDL readback tests compare all eight directions at four phases for the supported Settler/Warrior art against independently selected retail SPR frames, including western mirroring/hotspots, sequence indices, deltas and alpha. Cursor tests compare the original hand and all four edge cursors pixel-by-pixel, with exact LDL hotspots and transparent black. The software pointer is included in live F12 captures and uniformly scaled with the frame. OS cursor visibility is restored when gameplay returns or fails.
+Tests invoke the same capture API entirely in memory. Additional SDL readback tests compare all eight directions at four phases for Settler/Warrior/Hoplite/Archer art against independently selected retail SPR frames, including western mirroring/hotspots, sequence indices, deltas and alpha. Cursor tests compare the original hand and all four edge cursors pixel-by-pixel, with exact LDL hotspots and transparent black. The software pointer is included in live F12 captures and uniformly scaled with the frame. OS cursor visibility is restored when gameplay returns or fails.
 
 Movement and frame timing share one elapsed-time clock. Only the accepted prefix of a submitted path is presented; rejected commands do not animate, and network wait time does not consume the animation. The shell's unit speed/animation toggle is handed off without rereading settings. Edge scrolling uses original thresholds, vertical corner priority, the source default 300ms delay, 50ms acceleration and a bounded time-step; losing focus or opening an existing modal cancels it.
 
-**This is not full unit/system parity.** The model still recognizes only Settler, Warrior and the Warrior-art barbarian family. Hoplite/Archer and other canonical unit art/type mappings, attack/death/fortification state, animation of moves occurring during end-turn, wrap/boundary camera behavior, moving-stack hit testing and full UI workflow parity remain unfinished. The `motion` fixture is not evidence that these features are supported. See [the full reference inventory and remaining checklist](plans/reference-interaction-fidelity.md).
+**This is not full unit/system parity.** Art now resolves all 72 installed retail unit records using `newsprite.txt`, with separate Hoplite/Archer portraits/icons/SPR groups and source fortification overlay 34. Unknown canonical types do not impersonate Warriors; the legacy three-family gameplay model is not a replacement for server capabilities. All catalogued actions/facings decode, but attack/death playback, end-turn actor events, wrap/boundary camera behavior, moving-stack hit testing and full UI workflow parity remain unfinished. Cost-aware path labels do not establish retained multi-turn order support. The `motion` fixture alone does not prove these features. See [the full reference inventory and remaining checklist](plans/reference-interaction-fidelity.md).
+
+## Context, stack and manager diagnostics
+
+Replace the last scene argument with `context`, `stack` or `info` for the corresponding component. Original-layout manager names are `build`, `science`, `research`, `empire`, `national`, `city`, `unit`, `army`, `trade`, `diplomacy`, `library`, `statistics`, `graphics` and `sound`:
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  cargo run --example gameplay-snapshot -- ctp2 images/manager-build.png 800 600 none build
+
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  cargo run --example gameplay-snapshot -- ctp2 images/manager-science.png 640 480 none science
+```
+
+These scenes still use a synthetic map; empty manager bodies are not live game fixtures. The manager engine reads installed LDL/templates/localization and composes original nine-piece frames, preserving native corners, source positions and image-derived dimensions. It shares control descriptors with pointer/keyboard and accessible ID activation. Native tests render fourteen roots and check source corner pixels, but this is **not** a fourteen-screen pixel-parity certification.
+
+Implemented management workflows include independently selecting buildables/queue entries, Add, Rush Buy and explicit available-research selection. Isolated mock HTTP tests verify exact route/entity/metadata, session/revision fields and receipt/selection handoff; they do not contact a running server. Founding uses the server's recommended unique city ID/name and opens that accepted city's Build Manager once. Other original controls remain unavailable until integrated; there are no cancel/re-add queue workarounds that silently destroy production.
+
+The inspected context/stack/info and native Build/Science diagnostic captures demonstrate real SDL output, not complete reference matches. Full advisor panes, runtime-created controls, data columns, article links, option bindings, fonts and Apolyton-specific layout additions remain tracked work. Public community layouts are under `ctp2_data/default/uidata/layouts`, not `english`; locating them does not mean the deltas are implemented.
 
 ## Live capture
 
@@ -52,13 +70,13 @@ Press **F12** during gameplay to capture the newly composed framebuffer before p
 
 Terrain textures are keyed by visual composition and fog variant, not coordinates; the cache is bounded to 512 entries. Unknown authoritative neighbors are excluded from transition/coast selection. Empty projections remain empty/unknown, and disabling a local fog preference never fabricates unknown server geography. Stack commands and owner mapping use unit identity rather than shared tile position.
 
-Accessible panel labels and pointer activation share the same rectangles/intents (`runtime/controls.rs`). Invisible Unit-tab orders cannot activate through another tab. Supported game orders use the existing authoritative dispatcher. Unsupported orders produce status text rather than changing the local world.
+Accessible panel labels and pointer activation share the same rectangles/intents (`runtime/controls.rs`). Invisible Unit-tab orders cannot activate through another tab. Supported game orders use the existing authoritative dispatcher. Unsupported orders are disabled with reasons rather than pretending to be executable or changing the local world. Single/expanded unit health uses authoritative ratios and original color thresholds, not a fabricated full green bar. Distinct Sentinel/Sleep is never silently replaced by Fortify.
 
 ## Scope and remaining differences
 
 This is an original-art fidelity pass, **not certification that every CTP2 screen is pixel-identical or that the full game is finished**. Radar projection/viewport presentation and the two lower radar glyphs still need exact reference reconciliation. Some unit statistics, non-Unit panel bodies, manager/library dialogs and order workflows remain partial. Save/Load and unintegrated menu workflows remain disabled where appropriate. Font installations and platform rasterizers can affect exact text pixels.
 
-Live river/resource/border parity also requires authoritative data. The server currently omits rivers, resource IDs and territorial ownership from viewer tiles/fog memory; generated-world handoff also lacks rivers/resources. The client accepts optional `river` and `good_id`, including actual resource SPR rendering and remembered shading, but never guesses their locations when absent. Territorial ownership rendering remains unintegrated. The source-verified report and suggested visibility-safe contracts/tests are in `$CTPSERVER/client-discovered-server-issue.md`; no server implementation was modified.
+Live river/resource/border parity also requires authoritative data. The server currently omits rivers, resource IDs and territorial ownership from viewer tiles/fog memory; generated-world handoff also lacks rivers/resources. The client accepts optional `river` and `good_id`, including actual resource SPR rendering and remembered shading, but never guesses their locations when absent. Territorial ownership rendering remains unintegrated. The source-verified report and suggested visibility-safe contracts/tests are in `$CTPSERVER/client-discovered-server-issues.md` (documentation commit `5ed6237`), which also preserves a link to the earlier singular-named report. Additional findings cover missing city names, advertised-but-unregistered routes and unsafe/unsupported queue editing. No server implementation was modified. Unimplemented client windows and bindings for already-supported operations are not server defects.
 
 ## Validation
 
@@ -69,6 +87,6 @@ cargo build
 cargo llvm-cov --all-features --all-targets --summary-only
 ```
 
-Latest validation for the reference-interaction pass: strict lint, 326 library tests, 344 binary tests, 19 integration tests and the dedicated native build pass. LLVM line coverage is **80.88%**. The Windows x86_64 check was attempted but is blocked before client compilation by `gio-sys`/GLib pkg-config cross-compilation setup; no Windows binary validation is claimed.
+Latest continuation milestone validation: strict lint, 364 library tests, 382 binary tests, 19 integration tests and the dedicated native build pass. LLVM line coverage is **81.55%**. The Windows x86_64 check was repeated and is blocked before client compilation by GObject/GLib pkg-config cross-compilation/sysroot setup; no Windows binary validation is claimed.
 
 Tests include in-memory semantic interactions, exact native artwork placement, reticle masks, both pixel formats, all retail terrain-pair/rule combinations, river/mouth masks, resource visibility/fog, malformed data, scaled framebuffers and PNG round trips. Installed art is read-only. Server tests use mock HTTP/SSE responses, not a running local server. The requested `./scripts/check-coverage-fast.sh` is absent; `cargo llvm-cov` provides the available line-coverage measurement instead. Windows source portability is reviewed, but Windows binaries require validation on a configured Windows/SDL build host.

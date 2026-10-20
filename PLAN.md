@@ -103,5 +103,21 @@ See [the 33-image context inventory, source evidence and unfinished checklist](p
 - [x] Reproduce/fix foreign actors rendered with missing tile facts; test hidden/stale/visible/missing cases using real SDL pixel readback.
 - [x] Add fileless visual regressions for original cursor pixels and eight directions × four animation phases, plus deterministic opt-in motion previews. Keep the main-menu layout intact.
 - [x] Strict lint, 326 library/344 binary/19 integration tests and native build pass; LLVM line coverage **80.88%**. Required coverage script is absent. Windows cross-check attempted, blocked by GIO/GLib cross-compilation pkg-config/sysroot.
-- [ ] Complete all remaining manager/dialog/control-panel/context workflows, full unit roster/action animation and source/server metadata integration. Optimize Sliders has no established working callback in the supplied source; do not invent behavior.
+- [ ] Complete all remaining manager/dialog/control-panel/context workflows, action animation and source/server metadata integration. The full installed unit-art catalog is now loaded. Optimize Sliders' Apolyton callback/evaluator has been located; the authoritative counterfactual evaluation contract is not established.
 - [ ] Certify full-reference pixel parity and complete accessible click workflows only after that remaining work is implemented and validated.
+
+## Reference Interaction Continuation (verified milestone, not completion)
+
+The full, expanded remaining checklist is maintained in [reference-interaction-fidelity.md](plans/reference-interaction-fidelity.md). Source/parser/frame tests do not replace 33-scenario acceptance.
+
+- [x] Preserve viewer-safe legal actions, movement planning, rules/research/reports and projected facts; separate unsupported gateway actions from executable orders.
+- [x] Implement explicit city/unit context selection/cancel and terrain information; stop issuing a hidden first action on right-click.
+- [x] Resolve all 72 installed unit records through retail `newsprite.txt`; cover Hoplite/Archer directional output, fortification overlays, Windows-1252 labels and original bad-frame fallback.
+- [x] Add cost-aware routing/turn-marker accounting, expanded army-deduplicated portrait selection, authoritative partial-health colors and actual firepower values. Full retained multi-turn orders/actions remain unchecked in the detailed plan.
+- [x] Parse installed LDL inheritance/draw order, localized labels, original centering and intrinsic image dimensions; compose fourteen original manager/dialog roots in native SDL.
+- [x] Share manager control descriptors with accessible activation and exclusive input handling; preserve independent build/queue selections and reject stale confirmation payloads.
+- [x] Bind/test exact Add, Rush Buy, research selection and server-recommended founding payloads using isolated mock HTTP receipts. Automatically open the accepted new city's Build Manager once; fix distinct National/Trade and Statistics tab entry points.
+- [x] Validate strict lint, 364 library/382 binary/19 integration test executions, dedicated native build and **81.55%** LLVM line coverage. The fast script remains absent; Windows cross-check stops in GObject/GLib pkg-config sysroot setup before client compilation.
+- [ ] Finish remaining client-side policy/government/specialist/army/trade/diplomacy/library/statistics/options workflows, lower-panel bodies, notifications, city rendering, event/action animation and all visual acceptance. These are not all server-blocked.
+- [ ] Reconcile Apolyton-specific layout additions and runtime-created controls with references; verify complete semantic journeys and all 33 native/reference-sized captures.
+- [ ] Resolve demonstrated server contract blockers through server-maintainer work; do not modify the server implementation or emulate destructive queue edits locally. See `$CTPSERVER/client-discovered-server-issues.md` (documentation commit `5ed6237`).

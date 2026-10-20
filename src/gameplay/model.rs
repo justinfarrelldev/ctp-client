@@ -186,6 +186,14 @@ impl UnitId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CityId(pub u32);
 
+impl CityId {
+    /// Stable render identity; commands retain the canonical string from the viewer.
+    #[must_use]
+    pub(in crate::gameplay) fn from_server_id(id: &str) -> Self {
+        Self(server_projection::stable_id_from_text(id))
+    }
+}
+
 /// Gameplay unit families needed by the launch-era implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitKind {
@@ -424,6 +432,8 @@ pub struct GameState {
     pub seed: u64,
     /// Whether the city build menu is open.
     pub city_build_menu: Option<CityId>,
+    /// Exact viewer-safe source facts used by management UI and legal orders.
+    pub viewer: Option<super::server::ServerProjection>,
 }
 
 /// Game-state actions, turn processing, fog, combat, and generation helpers.
@@ -432,6 +442,8 @@ mod actions;
 mod generation;
 /// Selected-unit movement order helpers.
 mod movement_orders;
+/// Source-authoritative path costs and multi-turn accounting.
+pub mod planning;
 /// Server projection conversion helpers.
 mod server_projection;
 

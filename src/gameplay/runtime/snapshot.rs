@@ -170,6 +170,11 @@ pub fn render_preview_scene(
         open_menu: menu,
         ..InGameUiModel::default()
     };
+    if matches!(scene, PreviewScene::Manager(_)) {
+        ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
+            crate::gameplay::assets::layout::LayoutBook::load(root)?,
+        )?;
+    }
     if let Some(font) = font.as_ref() {
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |metrics| metrics.0));
     }

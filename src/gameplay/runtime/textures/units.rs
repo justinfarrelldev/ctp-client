@@ -11,7 +11,6 @@ use sdl2::video::WindowContext;
 use super::{UnitTexture, texture_from_frame};
 use crate::gameplay::assets::load_unit_sprite;
 use crate::gameplay::assets::sprite::{SpriteActionAsset, SpriteGroupAsset};
-use crate::gameplay::model::UnitKind;
 use crate::gameplay::runtime::animation::{ActorPose, frame_sample, move_duration};
 use crate::gameplay::{GameplayError, asset_error};
 
@@ -50,11 +49,19 @@ impl<'texture> UnitTextures<'texture> {
         Ok(result)
     }
 
+    /// Lazily loads an installed retail actor exactly once, irrespective of owner.
+    pub(super) fn ensure(&mut self, root: &Path, id: u16) -> Result<(), GameplayError> {
+        if let Entry::Vacant(entry) = self.assets.entry(id) {
+            entry.insert(load_unit_sprite(root, id)?);
+        }
+        Ok(())
+    }
+
     /// One leg and one animation cycle use the identical speed-scaled duration.
-    pub(super) fn duration(&self, kind: UnitKind, speed: i32, enabled: bool) -> u64 {
+    pub(super) fn duration(&self, sprite_id: u16, speed: i32, enabled: bool) -> u64 {
         let playback = self
             .assets
-            .get(&kind.sprite_id())
+            .get(&sprite_id)
             .and_then(|group| group.actions.iter().find(|action| action.action_index == 0))
             .map_or(0, |action| action.animation.playback_time);
         move_duration(playback, speed, enabled)
@@ -64,12 +71,12 @@ impl<'texture> UnitTextures<'texture> {
     pub(super) fn sample(
         &mut self,
         creator: &'texture TextureCreator<WindowContext>,
-        kind: UnitKind,
+        sprite_id: u16,
         pose: ActorPose,
         duration: u64,
         enabled: bool,
     ) -> Result<Option<UnitDraw<'_, 'texture>>, GameplayError> {
-        let Some(group) = self.assets.get(&kind.sprite_id()) else {
+        let Some(group) = self.assets.get(&sprite_id) else {
             return Ok(None);
         };
         let Some(action) = action_for_pose(group, pose.moving) else {
@@ -88,24 +95,15 @@ impl<'texture> UnitTextures<'texture> {
             !pose.moving && action.animation.animation_type == 1,
         );
         let frame = action
-            .frames
-            .iter()
-            .find(|frame| frame.facing == pose.facing.stored() && frame.frame_index == frame_number)
-            .or_else(|| {
-                action
-                    .frames
-                    .iter()
-                    .find(|frame| frame.facing == 0 && frame.frame_index == frame_number)
-            })
+            .frame_for_facing(pose.facing.stored(), frame_number)
             .ok_or_else(|| {
                 asset_error(format!(
                     "sprite {} action {} lacks frame {frame_number}",
-                    kind.sprite_id(),
-                    action.action_index
+                    sprite_id, action.action_index
                 ))
             })?;
         let key = (
-            kind.sprite_id(),
+            sprite_id,
             action.action_index,
             frame.facing,
             frame.frame_index,

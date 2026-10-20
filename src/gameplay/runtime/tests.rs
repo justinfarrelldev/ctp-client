@@ -584,18 +584,10 @@ fn right_click_with_open_dropdown_cancels_only_dropdown() {
         open_menu: Some(MenuCategory::Options),
         ..InGameUiModel::default()
     };
-    let mut camera = Camera::centered_on_selected(&state);
+    let camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(
-        780,
-        500,
-        &mut state,
-        &mut ui,
-        &mut camera,
-        &mut movement,
-        None,
-    );
+    let outcome = handle_right_click(780, 500, &mut state, &mut ui, &camera, &mut movement, None);
 
     assert_eq!(
         outcome, None,
@@ -615,18 +607,10 @@ fn right_click_with_open_dropdown_cancels_only_dropdown() {
 fn right_click_popup_consumes_without_context_action() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 81);
     let mut ui = InGameUiModel::default();
-    let mut camera = Camera::centered_on_selected(&state);
+    let camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(
-        120,
-        610,
-        &mut state,
-        &mut ui,
-        &mut camera,
-        &mut movement,
-        None,
-    );
+    let outcome = handle_right_click(120, 610, &mut state, &mut ui, &camera, &mut movement, None);
 
     assert_eq!(
         outcome, None,
@@ -644,18 +628,10 @@ fn right_click_lower_panel_does_not_open_context_actions() {
     let mut state = crate::gameplay::model::GameState::new(24, 18, 1, 82);
     state.popups.clear();
     let mut ui = InGameUiModel::default();
-    let mut camera = Camera::centered_on_selected(&state);
+    let camera = Camera::centered_on_selected(&state);
     let mut movement = MovementInputState::default();
 
-    let outcome = handle_right_click(
-        120,
-        610,
-        &mut state,
-        &mut ui,
-        &mut camera,
-        &mut movement,
-        None,
-    );
+    let outcome = handle_right_click(120, 610, &mut state, &mut ui, &camera, &mut movement, None);
 
     assert_eq!(outcome, None, "panel right-click should not close gameplay");
     assert!(

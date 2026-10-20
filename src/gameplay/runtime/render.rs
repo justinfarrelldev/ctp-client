@@ -19,6 +19,10 @@ use crate::gameplay::{GameplayError, runtime_error};
 mod actors;
 /// LDL chrome and original-art copy helpers.
 mod chrome;
+/// Source-aligned context menus and terrain information.
+mod context;
+/// Original source-layout manager windows and controls.
+mod management;
 /// Menu bar, resource counters and weakly-modal dropdowns.
 mod menus;
 /// Drag-movement overlay drawing.
@@ -27,6 +31,8 @@ mod movement;
 mod panel;
 /// Lower-left radar and filter toolbar.
 mod radar;
+/// Expanded unit/army portrait grid.
+mod stack;
 /// Ground/transition rendering and tile-local fog.
 mod terrain;
 /// Label rendering with installed Times-compatible fonts.
@@ -59,12 +65,14 @@ pub(super) fn draw_frame(
         let (x, y) = camera.tile_to_screen(point);
         draw_tile_diamond(canvas, camera, x, y, Color::RGB(255, 255, 0))?;
     }
-    movement::draw_planned_path(canvas, input, camera, font)?;
+    movement::draw_planned_path(canvas, input, state, camera, font)?;
     panel::draw_panel(canvas, textures, state, ui, font)?;
     if state.filters.radar {
         radar::draw_radar(canvas, textures, state)?;
     }
     menus::draw_top_menu(canvas, textures, state, ui, font)?;
+    context::draw_context(canvas, textures, state, ui, font)?;
+    management::draw_management(canvas, textures, state, ui, font)?;
     draw_popups(canvas, textures, state, font)?;
     draw_cursor(canvas, textures, state, ui, input)
 }
@@ -172,9 +180,15 @@ const fn tile_color(terrain: TerrainKind) -> Color {
 #[cfg(test)]
 mod animation_tests;
 #[cfg(test)]
+mod context_tests;
+#[cfg(test)]
 mod cursor_tests;
 #[cfg(test)]
 mod fog_tests;
+#[cfg(test)]
+mod health_tests;
+#[cfg(test)]
+mod management_tests;
 #[cfg(test)]
 mod pixel_tests;
 #[cfg(test)]
@@ -183,5 +197,7 @@ mod resource_tests;
 mod start_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod text_tests;
 #[cfg(test)]
 mod visual_tests;

@@ -25,6 +25,8 @@ pub enum ControlIntent {
     ActivateUnit,
     /// Select the next living human unit.
     NextUnit,
+    /// Execute one unambiguous exact viewer-advertised order for the selection.
+    SelectedOrder(&'static str),
     /// Preserve an original control whose server workflow is not yet integrated.
     Unavailable(&'static str),
 }
@@ -65,7 +67,7 @@ pub(super) const SHORTCUTS: [(&str, i32, i32, &str, InGameAction); 8] = [
         28,
         115,
         "Trade Summary",
-        InGameAction::OutOfScope,
+        InGameAction::OpenTradeManager,
     ),
     (
         "upcb08u.rim",
@@ -93,7 +95,7 @@ pub(super) const SHORTCUTS: [(&str, i32, i32, &str, InGameAction); 8] = [
         13,
         70,
         "National Manager",
-        InGameAction::OpenCivilizationStatus,
+        InGameAction::OpenNationalManager,
     ),
     (
         "upcb60u.rim",
@@ -135,20 +137,7 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
             true,
         ));
     }
-    for (index, (tab, label)) in TABS.into_iter().enumerate() {
-        let x = 189_i32
-            .saturating_add(i32::try_from(index).map_or(0_i32, |v| v.saturating_mul(65_i32)));
-        controls.push(control(
-            label,
-            label,
-            x,
-            17_i32,
-            65_u32,
-            28_u32,
-            ControlIntent::Tab(tab),
-            true,
-        ));
-    }
+    add_tab_controls(&mut controls);
     if active_tab != ControlPanelTab::Unit {
         return controls;
     }
@@ -168,24 +157,37 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
     for index in 0_i32..12_i32 {
         let (label, intent, enabled) = match index {
             0 => ("Move", ControlIntent::ActivateUnit, true),
+            3 if state.authoritative => (
+                "Sleep",
+                ControlIntent::Unavailable("Server has no Sentinel/Sleep route"),
+                false,
+            ),
             3 => ("Sleep", ControlIntent::Action(InGameAction::Sentinel), true),
-            4 if settler => ("Settle", ControlIntent::Action(InGameAction::Settle), true),
+            4 if settler => (
+                "Settle",
+                ControlIntent::Action(InGameAction::Settle),
+                !state.authoritative || legal_selected_order(state, "found-city"),
+            ),
             8 if settler => (
                 "Add to City",
-                ControlIntent::Unavailable("Add to City"),
-                true,
+                ControlIntent::Unavailable("Server has no Add to City route"),
+                false,
             ),
             9 => (
                 "Board Transport",
-                ControlIntent::Unavailable("Board Transport"),
-                true,
+                ControlIntent::SelectedOrder("embark"),
+                legal_selected_order(state, "embark"),
             ),
-            11 => ("Disband", ControlIntent::Unavailable("Disband"), true),
+            11 => (
+                "Disband",
+                ControlIntent::Action(InGameAction::Disband),
+                legal_selected_order(state, "disband"),
+            ),
             1 if !settler => ("Attack", ControlIntent::ActivateUnit, true),
             2 if !settler => (
                 "Fortify",
-                ControlIntent::Action(InGameAction::Sentinel),
-                true,
+                ControlIntent::Action(InGameAction::Fortify),
+                legal_selected_order(state, "fortify"),
             ),
             _ => (
                 "Unavailable Order",
@@ -203,6 +205,49 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
         });
     }
     controls
+}
+
+/// Adds only the five source panel tabs, keeping order controls independent.
+fn add_tab_controls(controls: &mut Vec<GameplayControl>) {
+    for (index, (tab, label)) in TABS.into_iter().enumerate() {
+        let x = 189_i32.saturating_add(
+            i32::try_from(index).map_or(0_i32, |value| value.saturating_mul(65_i32)),
+        );
+        controls.push(control(
+            label,
+            label,
+            x,
+            17_i32,
+            65_u32,
+            28_u32,
+            ControlIntent::Tab(tab),
+            true,
+        ));
+    }
+}
+
+/// Uses viewer-authorized identity/route; no local capability guesses.
+fn legal_selected_order(state: &GameState, route: &str) -> bool {
+    selected_order(state, route).is_some()
+}
+
+/// A target chooser is required for multiple transports; never silently board the
+/// first eligible one. The selected unit's exact ID is retained in the payload.
+fn selected_order<'state>(
+    state: &'state GameState,
+    route: &str,
+) -> Option<&'state crate::gameplay::server::interface::LegalAction> {
+    let unit = state.selected_unit()?;
+    let viewer = state.viewer.as_ref()?;
+    let source = viewer
+        .units
+        .iter()
+        .find(|source| crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id)?;
+    let mut actions = viewer.interface.legal_actions.iter().filter(|action| {
+        action.route == route && action.entity_id == source.id && action.http_supported()
+    });
+    let action = actions.next()?;
+    actions.next().is_none().then_some(action)
 }
 
 /// Resolves a semantic interaction by accessible label, with no coordinate clicking.
@@ -257,6 +302,11 @@ pub(super) fn apply_intent(
             }
         }
         ControlIntent::NextUnit => {
+            movement.deactivate();
+            if !ui.stack_expanded {
+                ui.stack_expanded = true;
+                return None;
+            }
             let ids: Vec<_> = state
                 .units
                 .iter()
@@ -275,8 +325,20 @@ pub(super) fn apply_intent(
                     });
                 if state.select_unit(ids[next]) {
                     *camera = super::Camera::centered_on_selected(state);
-                    *movement = super::MovementInputState::default();
+                    movement.deactivate();
                 }
+            }
+        }
+        ControlIntent::SelectedOrder(route) => {
+            if let Some(action) = selected_order(state, route).cloned() {
+                super::context_input::apply_context_intent(
+                    crate::gameplay::ui_model::context::ContextIntent::Submit(action),
+                    state,
+                    ui,
+                    movement,
+                    authority,
+                );
+                movement.retain_selectable(state);
             }
         }
         ControlIntent::Unavailable(label) => {
@@ -338,6 +400,66 @@ mod tests {
     use crate::gameplay::ui_model::{ControlPanelTab, InGameAction};
 
     #[test]
+    fn original_controls_never_paint_unimplemented_orders_as_enabled() {
+        let state = GameState::new(24, 18, 1, 42);
+        for control in panel_controls(&state, ControlPanelTab::Unit) {
+            if matches!(control.intent, ControlIntent::Unavailable(_)) {
+                assert!(
+                    !control.enabled,
+                    "{} has no implemented operation and must not pretend to be enabled",
+                    control.label
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn boarding_requires_one_exact_selected_unit_and_transport_not_a_first_candidate() {
+        let mut projection:crate::gameplay::server::ServerProjection=serde_json::from_str(r#"{"revision":1,"turn":1,"tiles":[{"id":"a","x":0,"y":0,"terrain":"plains"}],"units":[{"id":"passenger","type_id":"UNIT_WARRIOR","owner_id":"human","tile_id":"a"},{"id":"carrier","type_id":"UNIT_CARGO_HELICOPTER","owner_id":"human","tile_id":"a","cargo_capacity":2,"cargo_domains":["land"]}],"legal_actions":[{"route":"embark","entity_id":"passenger","target_id":"carrier","payload":{"unit_id":"passenger","transport_id":"carrier"}}]}"#).expect("embark fixture");
+        let state = GameState::from_server_projection(&projection, 1, 42);
+        assert_eq!(
+            intent_for_label(&state, ControlPanelTab::Unit, "Board Transport"),
+            Some(ControlIntent::SelectedOrder("embark")),
+            "one eligible exact transport is actionable"
+        );
+        assert_eq!(
+            super::selected_order(&state, "embark")
+                .expect("exact action")
+                .payload["transport_id"]
+                .as_str(),
+            Some("carrier"),
+            "canonical transport identity"
+        );
+        let mut other = projection.units[1_usize].clone();
+        other.id = "other-carrier".to_owned();
+        projection.units.push(other);
+        let mut action = projection.interface.legal_actions[0_usize].clone();
+        action.target_id = "other-carrier".to_owned();
+        action.payload["transport_id"] = serde_json::json!("other-carrier");
+        projection.interface.legal_actions.push(action);
+        let multiple = GameState::from_server_projection(&projection, 1, 42);
+        assert!(
+            intent_for_label(&multiple, ControlPanelTab::Unit, "Board Transport").is_none(),
+            "multiple targets require an explicit chooser, not a first-target shortcut"
+        );
+    }
+
+    #[test]
+    fn fortify_and_sleep_never_share_an_authoritative_command() {
+        let projection:crate::gameplay::server::ServerProjection=serde_json::from_str(r#"{"revision":1,"turn":1,"tiles":[{"id":"a","x":0,"y":0,"terrain":"plains"}],"units":[{"id":"guard","type_id":"UNIT_WARRIOR","owner_id":"human","tile_id":"a"}],"legal_actions":[{"route":"fortify","entity_id":"guard","payload":{"unit_id":"guard"}}]}"#).expect("legal fortify");
+        let state = GameState::from_server_projection(&projection, 1, 42);
+        assert_eq!(
+            intent_for_label(&state, ControlPanelTab::Unit, "Fortify"),
+            Some(ControlIntent::Action(InGameAction::Fortify)),
+            "physical fortification uses Fortify"
+        );
+        assert!(
+            intent_for_label(&state, ControlPanelTab::Unit, "Sleep").is_none(),
+            "server has no distinct sleep route"
+        );
+    }
+
+    #[test]
     fn accessible_activation_and_real_pointer_dispatch_share_original_rectangles() {
         let state = GameState::new(24_u16, 18_u16, 5_u8, 42_u64);
         for label in ["End Turn", "Settle", "Move", "Great Library", "Unit"] {
@@ -372,13 +494,14 @@ mod tests {
         let mut ui = InGameUiModel::default();
         let mut camera = Camera::centered_on_selected(&state);
         let mut movement = MovementInputState::default();
+        movement.actors.speed = 9;
         for label in [
             "Move",
             "Next Unit",
             "Next Unit",
+            "Next Unit",
             "Empire",
             "Unit",
-            "Disband",
             "Great Library",
         ] {
             let intent = intent_for_label(&state, ui.active_tab, label)
@@ -416,10 +539,6 @@ mod tests {
                     ControlPanelTab::Unit,
                     "unit controls restored"
                 ),
-                "Disband" => assert!(
-                    ui.status_text.contains("not yet integrated"),
-                    "unsupported orders are explicit"
-                ),
                 "Great Library" => assert!(
                     ui.great_library.is_some(),
                     "shortcut reaches existing library model"
@@ -427,6 +546,14 @@ mod tests {
                 _ => {}
             }
         }
+        assert_eq!(
+            movement.actors.speed, 9_i32,
+            "selection changes preserve the animation-speed profile"
+        );
+        assert!(
+            intent_for_label(&state, ControlPanelTab::Unit, "Disband").is_none(),
+            "Disband without a legal server action is disabled, not a fake usable button"
+        );
         assert_eq!(
             state.selected_unit, initial,
             "next-unit cycling wraps to the first owned unit"

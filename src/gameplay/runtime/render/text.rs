@@ -62,6 +62,62 @@ pub(super) fn draw_text(
     draw_bitmap_text(canvas, text, x, y, color)
 }
 
+/// Honors source word-wrapping at the control width, preserving paragraph breaks.
+/// The native font supplies real glyph/kerning metrics; asset-free bitmap tests
+/// use the same six-pixel fallback advance as the ordinary text renderer.
+pub(super) fn draw_wrapped_text(
+    canvas: &mut Canvas<Window>,
+    font: Option<&Font<'_, '_>>,
+    text: &str,
+    bounds: Rect,
+    color: Color,
+) -> Result<(), GameplayError> {
+    if text.is_empty() || bounds.width() == 0_u32 {
+        return Ok(());
+    }
+    if let Some(font) = font {
+        let surface = font
+            .render(text)
+            .blended_wrapped(color, bounds.width())
+            .map_err(|error| runtime_error(error.to_string()))?;
+        let creator = canvas.texture_creator();
+        let texture = creator
+            .create_texture_from_surface(&surface)
+            .map_err(|error| runtime_error(error.to_string()))?;
+        return canvas
+            .copy(
+                &texture,
+                None,
+                Rect::new(bounds.x(), bounds.y(), surface.width(), surface.height()),
+            )
+            .map_err(runtime_error);
+    }
+    let mut y = bounds.y();
+    for paragraph in text.split('\n') {
+        let mut line = String::new();
+        for word in paragraph.split_whitespace() {
+            let candidate = if line.is_empty() {
+                word.to_owned()
+            } else {
+                format!("{line} {word}")
+            };
+            let width = u32::try_from(candidate.chars().count())
+                .unwrap_or(u32::MAX)
+                .saturating_mul(6_u32);
+            if !line.is_empty() && width > bounds.width() {
+                draw_text(canvas, None, &line, bounds.x(), y, color)?;
+                y = y.saturating_add(8_i32);
+                word.clone_into(&mut line);
+            } else {
+                line = candidate;
+            }
+        }
+        draw_text(canvas, None, &line, bounds.x(), y, color)?;
+        y = y.saturating_add(8_i32);
+    }
+    Ok(())
+}
+
 /// Centers a label in an LDL control using actual font metrics.
 pub(super) fn draw_centered_text(
     canvas: &mut Canvas<Window>,

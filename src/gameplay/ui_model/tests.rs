@@ -146,7 +146,7 @@ fn keymap_shortcuts_fire_original_in_scope_actions() {
 }
 
 #[test]
-fn context_menu_exposes_settle_and_city_build_when_available() {
+fn context_menu_preserves_source_labels_without_fake_authoritative_orders() {
     let mut state = GameState::new(24, 18, 1, 22);
     let point = state
         .selected_unit()
@@ -157,8 +157,8 @@ fn context_menu_exposes_settle_and_city_build_when_available() {
     assert!(
         before
             .iter()
-            .any(|item| item.label == "Settle" && item.enabled),
-        "settlers should expose enabled Settle in the context menu"
+            .any(|item| item.label == "Settle" && !item.enabled()),
+        "a preview without server legal actions cannot pretend settlement is authorized"
     );
     state.settle_selected("Alpha");
     let city_point = state.cities[0].position;
@@ -167,7 +167,7 @@ fn context_menu_exposes_settle_and_city_build_when_available() {
     assert!(
         after
             .iter()
-            .any(|item| item.label == "Build Queue" && item.enabled),
-        "city context menu should expose enabled Build Queue"
+            .any(|item| item.label == "Build Manager" && item.enabled()),
+        "city context preserves the original Build Manager label"
     );
 }

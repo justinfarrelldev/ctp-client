@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
@@ -43,6 +42,8 @@ const FONT_CANDIDATES: [&str; 8] = [
 mod animation;
 /// Authoritative server state alignment helpers.
 mod authority;
+/// Explicit source-aligned context selection and map information.
+mod context_input;
 /// Labeled controls shared by accessible automation and SDL pointer events.
 pub mod controls;
 /// Original software cursor art and edge-scrolling policy.
@@ -51,6 +52,8 @@ mod cursor;
 mod frame;
 /// Original drawing/hit-test geometry.
 mod layout;
+/// Exclusive source-layout manager focus and authoritative interaction dispatch.
+mod management_input;
 /// CTP2-style movement input handling.
 mod movement;
 /// Gameplay frame rendering.
@@ -187,24 +190,22 @@ fn handle_event(
     ui: &mut InGameUiModel,
     camera: &mut Camera,
     movement: &mut MovementInputState,
-    authority: Option<&mut RuntimeAuthority>,
+    mut authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
-    match *event {
-        Event::MouseMotion { x, y, .. }
-        | Event::MouseButtonDown { x, y, .. }
-        | Event::MouseButtonUp { x, y, .. } => ui.pointer = Some((x, y)),
-        Event::Window {
-            win_event: sdl2::event::WindowEvent::Leave | sdl2::event::WindowEvent::FocusLost,
-            ..
-        } => {
-            ui.pointer = None;
-            ui.hovered_tile = None;
-            movement.cancel_drag();
-        }
-        _ => {}
+    cursor::track_pointer(event, ui, movement);
+    if management_input::consume(event, state, ui, movement, authority.as_deref_mut()) {
+        return None;
     }
     match event.clone() {
         Event::Quit { .. } => Some(GameplayOutcome::Closed),
+        Event::KeyDown {
+            keycode: Some(key),
+            repeat: false,
+            ..
+        } if ui.context.is_some() || ui.map_info.is_some() => {
+            context_input::handle_key(key, state, ui, movement, authority);
+            None
+        }
         Event::KeyDown { repeat: false, .. } if !state.popups.is_empty() => {
             state.dismiss_popup();
             None
@@ -248,6 +249,13 @@ fn handle_event(
             } else {
                 camera.screen_to_tile(x, y)
             };
+            if ui.context.is_some() || ui.map_info.is_some() {
+                if let Some(menu) = ui.context.as_mut() {
+                    menu.keyboard_focus = false;
+                }
+                movement.cancel_drag();
+                return None;
+            }
             if ui.open_menu.is_some() {
                 if let Some(category) = ui.menu_button_at(x, y) {
                     ui.open_menu = Some(category);
@@ -263,6 +271,9 @@ fn handle_event(
             None
         }
         Event::MouseWheel { y, .. } => {
+            if ui.context.is_some() || ui.map_info.is_some() {
+                return None;
+            }
             match y.cmp(&0_i32) {
                 Ordering::Greater => camera.zoom_in(),
                 Ordering::Less => camera.zoom_out(),
@@ -287,6 +298,19 @@ fn handle_left_click(
     if !state.popups.is_empty() {
         movement.cancel_drag();
         state.dismiss_popup();
+        return None;
+    }
+    if let Some(context) = ui.context.take() {
+        movement.cancel_drag();
+        if let Some(intent) = context.intent_at(x, y) {
+            context_input::apply_context_intent(intent, state, ui, movement, authority);
+        }
+        return None;
+    }
+    if ui.map_info.is_some() {
+        if context_input::map_info_close_rect().contains(x, y) {
+            ui.map_info = None;
+        }
         return None;
     }
     if ui.open_menu.is_some() {
@@ -314,6 +338,18 @@ fn handle_left_click(
             return apply_ui_action(action, state, ui, camera, movement, authority);
         }
         return None;
+    }
+    if ui.stack_expanded && ui.active_tab == crate::gameplay::ui_model::ControlPanelTab::Unit {
+        if let Some(label) = crate::gameplay::ui_model::stack::entries(state)
+            .iter()
+            .find(|entry| entry.rect.contains(x, y))
+            .map(|entry| entry.label.clone())
+        {
+            if crate::gameplay::ui_model::stack::activate(state, ui, &label) {
+                movement.deactivate();
+            }
+            return None;
+        }
     }
     if let Some(intent) = controls::intent_at(state, ui.active_tab, x, y) {
         movement.cancel_drag();
@@ -379,7 +415,12 @@ fn handle_left_release(
     movement: &mut MovementInputState,
     authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
-    if !state.popups.is_empty() || ui.open_menu.is_some() || click_in_non_map_ui(x, y) {
+    if !state.popups.is_empty()
+        || ui.open_menu.is_some()
+        || ui.context.is_some()
+        || ui.map_info.is_some()
+        || click_in_non_map_ui(x, y)
+    {
         movement.cancel_drag();
         return None;
     }
@@ -425,9 +466,9 @@ fn handle_right_click(
     y: i32,
     state: &mut GameState,
     ui: &mut InGameUiModel,
-    camera: &mut Camera,
+    camera: &Camera,
     movement: &mut MovementInputState,
-    authority: Option<&mut RuntimeAuthority>,
+    _authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     if !state.popups.is_empty() {
         movement.cancel_drag();
@@ -442,10 +483,23 @@ fn handle_right_click(
     if click_in_non_map_ui(x, y) {
         return None;
     }
+    if ui.context.take().is_some() || ui.map_info.take().is_some() {
+        return None;
+    }
+    movement.cancel_drag();
     if let Some(point) = camera.screen_to_tile(x, y) {
-        let menu = InGameUiModel::context_menu_for(state, point);
-        if let Some(item) = menu.iter().find(|item| item.enabled) {
-            return apply_ui_action(item.action, state, ui, camera, movement, authority);
+        let rows = crate::gameplay::ui_model::context::context_at(state, point);
+        if rows.len() == 1
+            && rows.first().is_some_and(|row| {
+                matches!(
+                    row.intent,
+                    crate::gameplay::ui_model::context::ContextIntent::MapInfo(_)
+                )
+            })
+        {
+            ui.map_info = Some(point);
+        } else {
+            ui.context = crate::gameplay::ui_model::context::ContextView::new(state, point, x, y);
         }
     }
     None
@@ -511,25 +565,36 @@ fn apply_authoritative_action(
             submit_authoritative_command(authority, state, "round-complete", json!({}));
             true
         }
-        InGameAction::Settle => {
+        InGameAction::Settle | InGameAction::Fortify | InGameAction::Disband => {
             let Some(unit) = state.selected_unit() else {
                 return true;
             };
-            let city_id = format!("city-{}-{}", unit.position.x, unit.position.y);
-            let payload = json!({
-                "unit_id": server_unit_id_for_unit(authority, unit.id),
-                "city_id": city_id,
-                "name": "New City"
-            });
-            submit_authoritative_command(authority, state, "found-city", payload);
+            let route = match action {
+                InGameAction::Settle => "found-city",
+                InGameAction::Fortify => "fortify",
+                _ => "disband",
+            };
+            let id = server_unit_id_for_unit(authority, unit.id);
+            let legal = authority
+                .session
+                .projection
+                .as_ref()
+                .and_then(|viewer| viewer.interface.action(route, &id, None))
+                .cloned();
+            if let Some(legal) = legal {
+                submit_authoritative_command(authority, state, route, legal.payload);
+            } else {
+                state.popups.push(GameplayPopup {
+                    title: "Order unavailable".to_owned(),
+                    body: "The server does not authorize this order for the selected unit"
+                        .to_owned(),
+                    kind: PopupKind::Info,
+                });
+            }
             true
         }
         InGameAction::Sentinel => {
-            let Some(unit) = state.selected_unit() else {
-                return true;
-            };
-            let payload = json!({"unit_id": server_unit_id_for_unit(authority, unit.id)});
-            submit_authoritative_command(authority, state, "fortify", payload);
+            state.popups.push(GameplayPopup { title:"Sentinel unavailable".to_owned(), body:"The server does not expose a Sentinel/Sleep order; Fortify is a different operation".to_owned(),kind:PopupKind::Info });
             true
         }
         InGameAction::MoveBy(dx, dy) => {
@@ -632,6 +697,14 @@ fn replace_state_from_projection(
     }) {
         next.selected_unit = selected;
     }
+    next.city_build_menu = next
+        .cities
+        .iter()
+        .find(|city| {
+            city.owner == super::model::PlayerId::Human
+                && !state.cities.iter().any(|previous| previous.id == city.id)
+        })
+        .map(|city| city.id);
     next.filters = filters;
     next.popups.clear();
     *state = next;

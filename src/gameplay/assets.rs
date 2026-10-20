@@ -12,14 +12,22 @@ use super::{GameplayError, asset_error};
 
 /// Original resource identifiers and resource SPR loading (not generation).
 pub mod goods;
+/// Installed source-layout inheritance and management UI geometry.
+pub mod layout;
+#[cfg(test)]
+mod layout_tests;
 /// Original channel expansion shared by terrain, actors and UI art.
 pub(crate) mod pixel;
 /// RIM/ZFS image loading for CTP2 UI art.
 pub mod rim;
 /// Sprite file parser for CTP2 `.SPR` files.
 pub mod sprite;
+/// Retail Windows-1252 and modern UTF-8 database text.
+pub mod text;
 /// Terrain tile-set decoder for CTP2 `.TIL` files.
 pub mod tile;
+/// Canonical installed unit-to-sprite/portrait mapping.
+pub mod unit_catalog;
 
 /// Default picture archive used by CTP2 in-game UI art.
 pub const PICTURE_ARCHIVE: &str = "ctp2_data/default/graphics/pictures/pic565.zfs";

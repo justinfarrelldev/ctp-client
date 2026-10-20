@@ -143,13 +143,22 @@ pub(super) fn draw_units(
         if top.is_some_and(|top| top.id != unit.id) {
             continue;
         }
-        let duration = textures.move_duration(unit.kind, input.actors.speed, input.actors.enabled);
+        let art = textures.unit_art(state, unit)?;
+        let duration = textures.unit_duration(
+            art.as_ref().map_or(unit.kind.sprite_id(), |art| art.sprite),
+            input.actors.speed,
+            input.actors.enabled,
+        );
         let pose = input.actors.pose(unit, camera, duration);
         let (x, y) = pose.position;
         let zoom = i32::try_from(camera.tile_width()).map_or(1_i32, |v| v.div_euclid(94_i32));
-        let shield = if let Some(actor) =
-            textures.unit_texture(unit.kind, pose, duration, input.actors.enabled)?
-        {
+        draw_fortification(canvas, textures, state, unit, pose.position, camera)?;
+        let sampled = if let Some(art) = art {
+            textures.unit_texture(art.sprite, pose, duration, input.actors.enabled)?
+        } else {
+            None
+        };
+        let shield = if let Some(actor) = sampled {
             let size = actor.frame.sprite.texture.query();
             let hotpoint = pose.facing.hotpoint(
                 actor.frame.sprite.hotpoint,
@@ -194,19 +203,7 @@ pub(super) fn draw_units(
         draw_stack_shield(
             canvas, textures, stack, shield_x, shield_y, unit.owner, true,
         )?;
-        if let Some(flag) = textures.map_icon(23_u16, owner_color(unit.owner))? {
-            let size = flag.query();
-            let flag_y = shield_y
-                .saturating_sub(i32::try_from(size.height).map_or(0_i32, |value| value))
-                .saturating_sub(5_i32);
-            canvas
-                .copy(
-                    flag,
-                    None,
-                    Rect::new(shield_x, flag_y, size.width, size.height),
-                )
-                .map_err(runtime_error)?;
-        }
+        draw_flag(canvas, textures, unit.owner, shield_x, shield_y)?;
         if Some(unit.id) == input.active_unit() || Some(unit.id) == state.selected_unit {
             draw_selection(
                 canvas,
@@ -215,6 +212,63 @@ pub(super) fn draw_units(
                 pose.position,
                 unit.movement_points > 0_i16,
             )?;
+        }
+    }
+    Ok(())
+}
+
+/// Paints the source flag above its traveling herald anchor.
+fn draw_flag(
+    canvas: &mut Canvas<Window>,
+    textures: &mut GameplayTextures<'_>,
+    owner: PlayerId,
+    x: i32,
+    y: i32,
+) -> Result<(), GameplayError> {
+    if let Some(flag) = textures.map_icon(23, owner_color(owner))? {
+        let size = flag.query();
+        let top = y
+            .saturating_sub(i32::try_from(size.height).unwrap_or(0_i32))
+            .saturating_sub(5);
+        canvas
+            .copy(flag, None, Rect::new(x, top, size.width, size.height))
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
+/// Uses the actual fortified fact and `UnitActor::DrawFortified` overlay 34.
+fn draw_fortification(
+    canvas: &mut Canvas<Window>,
+    textures: &mut GameplayTextures<'_>,
+    state: &GameState,
+    unit: &crate::gameplay::model::Unit,
+    position: (i32, i32),
+    camera: &Camera,
+) -> Result<(), GameplayError> {
+    let fortified = state
+        .viewer
+        .as_ref()
+        .and_then(|viewer| {
+            viewer.units.iter().find(|source| {
+                crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id
+            })
+        })
+        .is_some_and(|source| source.facts["fortified"].as_bool() == Some(true));
+    if fortified {
+        if let Some(texture) = textures.improvement_texture(34)? {
+            canvas
+                .copy(
+                    texture,
+                    None,
+                    Rect::new(
+                        position.0,
+                        position.1,
+                        camera.tile_width(),
+                        camera.tile_height(),
+                    ),
+                )
+                .map_err(runtime_error)?;
         }
     }
     Ok(())

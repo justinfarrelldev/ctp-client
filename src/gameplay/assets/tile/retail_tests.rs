@@ -4,6 +4,31 @@ use super::{PixelFormat, TILE_SET_555, TILE_SET_565, TileSet};
 use std::path::Path;
 
 #[test]
+fn original_fortification_overlay_is_decoded_not_skipped() {
+    let tiles =
+        TileSet::load_from_installation(&Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2"))
+            .expect("retail tiles");
+    let fortified = tiles
+        .improvement_image(34)
+        .expect("standard fortification overlay")
+        .expect("UnitActor::DrawFortified improvement 34");
+    assert!(
+        fortified
+            .data
+            .chunks_exact(4)
+            .any(|pixel| pixel[3_usize] != 0_u8),
+        "fortified artwork has visible pixels"
+    );
+    assert!(
+        fortified
+            .data
+            .chunks_exact(4)
+            .any(|pixel| pixel[3_usize] == 0_u8),
+        "fortification preserves transparent surroundings"
+    );
+}
+
+#[test]
 fn every_retail_biome_and_neighbor_pair_composes_in_both_pixel_formats() {
     for (path, format) in [
         (TILE_SET_565, PixelFormat::Rgb565),

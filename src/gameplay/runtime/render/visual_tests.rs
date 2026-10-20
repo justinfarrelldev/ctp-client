@@ -71,7 +71,7 @@ fn original_panel_caps_shortcuts_and_all_order_cells_land_at_exact_native_pixels
         }
         for index in 0_i32..12_i32 {
             let rect = order_rect(index);
-            let name = if matches!(index, 0_i32 | 3_i32 | 4_i32 | 8_i32 | 9_i32 | 11_i32) {
+            let name = if matches!(index, 0_i32 | 3_i32 | 4_i32) {
                 "upbt02u.rim"
             } else {
                 "upbt02x.rim"
@@ -131,6 +131,36 @@ fn no_selected_unit_draws_only_disabled_order_cells() {
         Ok(())
     });
     assert!(result.is_ok(), "disabled order art regression: {result:?}");
+}
+
+#[test]
+fn expanded_stack_uses_original_multiple_select_art_and_individual_portrait_icons() {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let state = preview_state(PreviewScene::Terrain);
+        let ui = InGameUiModel {
+            stack_expanded: true,
+            ..InGameUiModel::default()
+        };
+        super::draw_frame(
+            canvas,
+            &mut textures,
+            &state,
+            &ui,
+            &Camera::centered_on_selected(&state),
+            &MovementInputState::default(),
+            None,
+        )
+        .map_err(|error| error.to_string())?;
+        let pixels = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+        compare_art_pixel(&root, &pixels, "upfg51.rim", (388, 461), (160, 60))?;
+        compare_art_pixel(&root, &pixels, "upup002a.rim", (406, 494), (12, 12))?;
+        Ok(())
+    });
+    assert!(result.is_ok(), "expanded stack pixels: {result:?}");
 }
 
 /// Compares an opaque source pixel against its exact screen-space destination.

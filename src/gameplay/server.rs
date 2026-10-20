@@ -19,6 +19,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{GameplayError, asset_error, runtime_error};
 
+/// Complete management metadata and source-authorized actions.
+pub mod interface;
+#[cfg(test)]
+mod interface_tests;
 /// Viewer snapshot envelope and Go nil-slice decoding.
 mod projection;
 use projection::deserialize_nullable_vec;
@@ -112,6 +116,9 @@ pub struct ServerProjection {
     /// Diplomacy and resource summary.
     #[serde(default)]
     pub diplomacy: Option<ServerDiplomacyProjection>,
+    /// Viewer-safe management data, preserved instead of silently discarded.
+    #[serde(flatten)]
+    pub interface: interface::ServerInterface,
 }
 
 /// Minimal server tile projection.
@@ -139,6 +146,12 @@ pub struct ServerTileProjection {
     /// Whether this tile is remembered but currently not visible.
     #[serde(default)]
     pub stale: bool,
+    /// Viewer-specific planning facts, absent on remembered/unreachable cells.
+    #[serde(default)]
+    pub planning: Option<interface::TilePlanning>,
+    /// Remaining viewer-safe overlay/pollution metadata retained losslessly.
+    #[serde(flatten)]
+    pub facts: Value,
 }
 
 /// Minimal server unit projection.
@@ -165,6 +178,9 @@ pub struct ServerUnitProjection {
     /// Viewer-exposed canonical capabilities, including synthetic starter settlement.
     #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub effects: Vec<ServerUnitEffectProjection>,
+    /// Combat/fortification/cargo metadata already exposed by the server.
+    #[serde(flatten)]
+    pub facts: Value,
 }
 
 /// Minimal capability projection; opaque IDs/values are not needed for art roles.
@@ -192,6 +208,9 @@ pub struct ServerCityProjection {
     /// Whether the city is remembered but currently not visible.
     #[serde(default)]
     pub stale: bool,
+    /// Queue, buildings, specialists, stored resources and accounting facts.
+    #[serde(flatten)]
+    pub facts: Value,
 }
 
 /// Minimal server diplomacy/resource projection.
@@ -203,6 +222,9 @@ pub struct ServerDiplomacyProjection {
     /// Visible public works reserve.
     #[serde(default)]
     pub public_works: i32,
+    /// Government, rates, policies, readiness, contacts and proposals.
+    #[serde(flatten)]
+    pub facts: Value,
 }
 
 /// Blocking authoritative server client.

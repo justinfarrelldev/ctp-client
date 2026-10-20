@@ -58,7 +58,7 @@ pub(super) fn draw_panel(
     )?;
     draw_tabs(canvas, textures, ui, font)?;
     match ui.active_tab {
-        ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, font)?,
+        ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, ui, font)?,
         ControlPanelTab::Domestic => draw_empire_panel(canvas, state, font)?,
         ControlPanelTab::City => draw_centered_text(
             canvas,
@@ -161,9 +161,20 @@ fn draw_unit_panel(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     state: &GameState,
+    ui: &InGameUiModel,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
-    panel_art(canvas, textures, "upfg50.rim", 189, 45)?;
+    panel_art(
+        canvas,
+        textures,
+        if ui.stack_expanded {
+            "upfg51.rim"
+        } else {
+            "upfg50.rim"
+        },
+        189,
+        45,
+    )?;
     panel_art(canvas, textures, "upfg06.rim", 364, 55)?;
     // Unit-label spinner is a three-part sizable image plus the next-unit arrow.
     for (name, x, width) in [
@@ -174,25 +185,46 @@ fn draw_unit_panel(
         draw_art_rect(canvas, textures, name, panel_rect(x, 50, width, 25))?;
     }
     panel_art(canvas, textures, "upsp01cu.rim", 329, 50)?;
+    if ui.stack_expanded {
+        super::stack::draw_stack(canvas, textures, state)?;
+        return draw_orders(canvas, textures, state);
+    }
     if let Some(unit) = state.selected_unit() {
-        let portrait = match unit.kind {
-            UnitKind::Settler => "upup002l.rim",
-            UnitKind::Warrior | UnitKind::Barbarian => "upup003l.rim",
-        };
-        draw_art_rect(canvas, textures, portrait, panel_rect(207, 78, 96, 72))?;
+        let art = textures.unit_art(state, unit)?;
+        if let Some(art) = art.as_ref() {
+            if let Some(portrait) = textures.dynamic_ui(&art.portrait)? {
+                canvas
+                    .copy(portrait, None, panel_rect(207, 78, 96, 72))
+                    .map_err(runtime_error)?;
+            }
+        }
+        let source = state.viewer.as_ref().and_then(|viewer| {
+            viewer.units.iter().find(|source| {
+                crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id
+            })
+        });
+        let title = art.map_or_else(
+            || {
+                source.map_or_else(
+                    || unit.kind.label().to_owned(),
+                    |source| source.type_id.trim_start_matches("UNIT_").replace('_', " "),
+                )
+            },
+            |art| art.label,
+        );
         draw_centered_text(
             canvas,
             font,
-            unit.kind.label(),
+            &title,
             panel_rect(205, 50, 124, 24),
             LABEL,
             false,
         )?;
         for (value, x, y) in [
-            ("0".to_owned(), 306_i32, 78_i32),
-            ("10".to_owned(), 325, 78),
-            ("0".to_owned(), 306, 100),
-            ("1".to_owned(), 325, 100),
+            (unit_stat(source, "attack"), 306_i32, 78_i32),
+            (unit_stat(source, "defense"), 325, 78),
+            (unit_stat(source, "ranged"), 306, 100),
+            (unit_stat(source, "armor"), 325, 100),
             (
                 unit.movement_points
                     .max(0_i16)
@@ -202,14 +234,16 @@ fn draw_unit_panel(
                 306,
                 122,
             ),
-            ("1".to_owned(), 325, 122),
+            (unit_stat(source, "firepower"), 325, 122),
         ] {
             draw_centered_text(canvas, font, &value, panel_rect(x, y, 19, 18), LABEL, true)?;
         }
-        canvas.set_draw_color(Color::RGB(0, 255, 0));
-        canvas
-            .fill_rect(panel_rect(207, 153, 96, 3))
-            .map_err(runtime_error)?;
+        draw_health(
+            canvas,
+            source,
+            panel_rect(207, 153, 96, 3),
+            !state.authoritative,
+        )?;
         let count = state
             .units
             .iter()
@@ -229,6 +263,38 @@ fn draw_unit_panel(
     draw_orders(canvas, textures, state)
 }
 
+/// Source health bar, shared with expanded portraits; unknown live health stays
+/// black rather than falsely reporting a full green bar.
+pub(super) fn draw_health(
+    canvas: &mut Canvas<Window>,
+    source: Option<&crate::gameplay::server::ServerUnitProjection>,
+    rect: Rect,
+    explicit_preview: bool,
+) -> Result<(), GameplayError> {
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.fill_rect(rect).map_err(runtime_error)?;
+    let bar = crate::gameplay::ui_model::stack::health_bar(source, rect.width())
+        .or_else(|| explicit_preview.then_some((rect.width(), (0_u8, 255_u8, 0_u8))));
+    if let Some((width, (red, green, blue))) = bar.filter(|bar| bar.0 > 0_u32) {
+        canvas.set_draw_color(Color::RGB(red, green, blue));
+        canvas
+            .fill_rect(Rect::new(rect.x(), rect.y(), width, rect.height()))
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+
+/// Reads one authoritative combat value; absent contracts are not fabricated.
+fn unit_stat(
+    source: Option<&crate::gameplay::server::ServerUnitProjection>,
+    field: &str,
+) -> String {
+    source.map_or_else(
+        || "—".to_owned(),
+        |source| source.facts[field].as_i64().unwrap_or(0).to_string(),
+    )
+}
+
 /// Exact 4×3 grid and original command icons; blank slots stay disabled gray.
 fn draw_orders(
     canvas: &mut Canvas<Window>,
@@ -237,8 +303,13 @@ fn draw_orders(
 ) -> Result<(), GameplayError> {
     let selected = state.selected_unit();
     let settler = selected.is_some_and(|unit| unit.kind == UnitKind::Settler);
+    let controls = crate::gameplay::runtime::controls::panel_controls(state, ControlPanelTab::Unit);
     for index in 0_i32..12_i32 {
         let rect = order_rect(index);
+        let enabled = controls
+            .iter()
+            .find(|control| control.rect == rect)
+            .is_some_and(|control| control.enabled);
         let icon = if selected.is_none() {
             None
         } else {
@@ -256,7 +327,7 @@ fn draw_orders(
         draw_art_rect(
             canvas,
             textures,
-            if icon.is_some() {
+            if icon.is_some() && enabled {
                 "upbt02u.rim"
             } else {
                 "upbt02x.rim"

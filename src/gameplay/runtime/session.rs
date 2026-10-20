@@ -78,6 +78,11 @@ pub(super) fn run_sdl_game_on_canvas(
     let font = ttf_context.as_ref().and_then(load_gameplay_font);
     let (mut authority, mut state) = bootstrap(config)?;
     let mut ui = InGameUiModel::default();
+    if config.server.required {
+        ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
+            crate::gameplay::assets::layout::LayoutBook::load(&config.installation_root)?,
+        )?;
+    }
     if let Some(font) = font.as_ref() {
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
     }
@@ -115,6 +120,7 @@ pub(super) fn run_sdl_game_on_canvas(
                 outcome = Some(next);
             }
         }
+        super::management_input::open_pending_build(&mut state, &mut ui);
         movement
             .actors
             .begin_frame(u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX));

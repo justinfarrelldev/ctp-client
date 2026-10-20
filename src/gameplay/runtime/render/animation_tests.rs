@@ -42,16 +42,25 @@ fn retail_moving_actors_match_source_frames_and_reflected_hotspots_in_all_direct
             tile.fog = FogState::Visible;
         }
         let origin = state.units[0_usize].position;
-        for kind in [UnitKind::Settler, UnitKind::Warrior] {
+        for (kind, id, type_id) in [
+            (UnitKind::Settler, 2_u16, "UNIT_SETTLER"),
+            (UnitKind::Warrior, 3, "UNIT_WARRIOR"),
+            (UnitKind::Warrior, 8, "UNIT_HOPLITE"),
+            (UnitKind::Warrior, 13, "UNIT_ARCHER"),
+        ] {
             state.units[0_usize].kind = kind;
-            let group =
-                load_unit_sprite(&root, kind.sprite_id()).map_err(|error| error.to_string())?;
+            state.units[0_usize].id = crate::gameplay::model::UnitId::from_server_id("actor");
+            state.viewer=Some(serde_json::from_value(serde_json::json!({"revision":1_i64,"turn":1_u32,"tiles":[],"units":[{"id":"actor","type_id":type_id}]})).map_err(|error|error.to_string())?);
+            textures
+                .unit_art(&state, &state.units[0_usize])
+                .map_err(|error| error.to_string())?;
+            let group = load_unit_sprite(&root, id).map_err(|error| error.to_string())?;
             let action = group
                 .actions
                 .iter()
                 .find(|action| action.action_index == 0)
                 .ok_or("move action missing")?;
-            let duration = textures.move_duration(kind, 5, true);
+            let duration = textures.unit_duration(id, 5, true);
             for (direction, (dx, dy)) in DIRECTIONS.iter().copied().enumerate() {
                 state.units[0_usize].position = origin;
                 let before = state.units.clone();
@@ -79,7 +88,7 @@ fn retail_moving_actors_match_source_frames_and_reflected_hotspots_in_all_direct
                         65,
                     );
                     compare_actor_pixels(&actual, &expected, overlay).map_err(|error| {
-                        format!("{kind:?} direction {direction} quarter {quarter}: {error}")
+                        format!("{type_id} direction {direction} quarter {quarter}: {error}")
                     })?;
                 }
             }

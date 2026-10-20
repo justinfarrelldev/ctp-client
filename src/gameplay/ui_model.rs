@@ -3,7 +3,6 @@
 extern crate alloc;
 
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 
 use sdl2::keyboard::{Keycode, Mod};
@@ -14,8 +13,18 @@ use self::menu_manifest::{
 use super::audio::GameplaySound;
 use super::model::{GameState, MapPoint};
 
+/// Source-aligned, viewer-safe map context menus.
+pub mod context;
+#[cfg(test)]
+mod context_tests;
+/// Source-derived manager windows and authoritative semantic interactions.
+pub mod management;
+#[cfg(test)]
+mod management_tests;
 /// Original CTP2 top-menu manifest and geometry helpers.
 mod menu_manifest;
+/// Stable source-aligned expanded unit/army grid.
+pub mod stack;
 
 /// Original in-game menu bar height in pixels.
 pub const MENU_BAR_HEIGHT: u32 = 24;
@@ -75,6 +84,10 @@ pub enum InGameAction {
     OpenCityBuild,
     /// Open the city manager.
     OpenCityManager,
+    /// Open the national city summary, not the domestic policy dialog.
+    OpenNationalManager,
+    /// Open the authoritative trade market/summary.
+    OpenTradeManager,
     /// Open the unit manager.
     OpenUnitManager,
     /// Open the army manager.
@@ -85,8 +98,12 @@ pub enum InGameAction {
     OpenScienceStatus,
     /// Open diplomacy placeholder.
     OpenDiplomacy,
-    /// Open ranking/info screen.
+    /// Open the Ranking tab of the Statistics window.
     OpenInfo,
+    /// Open the Score tab of the Statistics window.
+    OpenScore,
+    /// Open the Wonders tab of the Statistics window.
+    OpenWonders,
     /// Open gameplay options.
     OpenGameplayOptions,
     /// Open graphics options.
@@ -109,8 +126,12 @@ pub enum InGameAction {
     ToggleFogOfWar,
     /// Settle selected settler.
     Settle,
-    /// Put selected unit into sentinel.
+    /// Put selected unit into sentinel; distinct from physical fortification.
     Sentinel,
+    /// Fortify the selected unit through its exact legal server action.
+    Fortify,
+    /// Disband the selected unit through its exact legal server action.
+    Disband,
     /// Move selected unit by a signed delta.
     MoveBy(i16, i16),
     /// Dismiss the top popup.
@@ -208,17 +229,6 @@ impl MenuRect {
     }
 }
 
-/// Context-menu row for right-click interactions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContextMenuItem {
-    /// Visible label.
-    pub label: &'static str,
-    /// Action emitted when selected.
-    pub action: InGameAction,
-    /// Whether row can currently be selected.
-    pub enabled: bool,
-}
-
 /// Control-panel tab identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlPanelTab {
@@ -267,6 +277,16 @@ pub struct InGameUiModel {
     pub hovered_tile: Option<MapPoint>,
     /// Logical-frame pointer location; absent outside/unfocused SDL windows.
     pub pointer: Option<(i32, i32)>,
+    /// Open map context, owned by UI rather than immediately executing an order.
+    pub context: Option<context::ContextView>,
+    /// Visible/remembered tile explicitly opened for map information.
+    pub map_info: Option<MapPoint>,
+    /// Exact city selected for management, independent of unit selection.
+    pub selected_city: Option<super::model::CityId>,
+    /// Original single versus multiple unit-selection display mode.
+    pub stack_expanded: bool,
+    /// Source-layout management windows, independent of the lower panel tabs.
+    pub management: management::ManagementUi,
 }
 
 impl Default for InGameUiModel {
@@ -281,6 +301,11 @@ impl Default for InGameUiModel {
             menu_text_widths: Vec::new(),
             hovered_tile: None,
             pointer: None,
+            context: None,
+            map_info: None,
+            selected_city: None,
+            stack_expanded: false,
+            management: management::ManagementUi::default(),
         }
     }
 }
@@ -435,22 +460,23 @@ impl InGameUiModel {
             (Keycode::B, true) => InGameAction::OpenCityBuild,
             (Keycode::Q, false) => InGameAction::Quit,
             (Keycode::X | Keycode::Z, true) => InGameAction::NewGame,
-            (Keycode::F1 | Keycode::F2, false) | (Keycode::NUM_1 | Keycode::NUM_2, true) => {
-                InGameAction::OpenCivilizationStatus
-            }
+            (Keycode::F1, false) | (Keycode::NUM_1, true) => InGameAction::OpenCivilizationStatus,
+            (Keycode::F2, false) | (Keycode::NUM_2, true) => InGameAction::OpenNationalManager,
             (Keycode::F3, false) | (Keycode::NUM_3, true) => InGameAction::OpenCityManager,
-            (Keycode::F4 | Keycode::S | Keycode::L, false)
-            | (Keycode::NUM_4 | Keycode::T, true) => InGameAction::OutOfScope,
+            (Keycode::F4, false) | (Keycode::NUM_4 | Keycode::T, true) => {
+                InGameAction::OpenTradeManager
+            }
+            (Keycode::S | Keycode::L, false) => InGameAction::OutOfScope,
             (Keycode::F5, false) | (Keycode::NUM_5, true) => InGameAction::OpenGreatLibrary,
             (Keycode::F6, false) | (Keycode::NUM_6, true) => InGameAction::OpenScienceStatus,
             (Keycode::F7, false) | (Keycode::NUM_7 | Keycode::D, true) => {
                 InGameAction::OpenDiplomacy
             }
             (Keycode::F8, false) | (Keycode::NUM_8, true) => InGameAction::OpenUnitManager,
-            (Keycode::NUM_9 | Keycode::K, true) | (Keycode::W, false) => InGameAction::OpenInfo,
-            (Keycode::NUM_0, true) | (Keycode::F9 | Keycode::F, false) => {
-                InGameAction::OpenGameplayOptions
-            }
+            (Keycode::NUM_9 | Keycode::K, true) => InGameAction::OpenInfo,
+            (Keycode::W, false) => InGameAction::OpenWonders,
+            (Keycode::F9, false) => InGameAction::OpenScore,
+            (Keycode::NUM_0, true) | (Keycode::F, false) => InGameAction::OpenGameplayOptions,
             (Keycode::F, true) => InGameAction::OpenGraphicsOptions,
             (Keycode::P, true) => InGameAction::OpenAdvancedOptions,
             (Keycode::V | Keycode::M, true) => InGameAction::OpenSoundOptions,
@@ -481,6 +507,31 @@ impl InGameUiModel {
         action: InGameAction,
     ) -> Vec<GameplaySound> {
         let mut sounds = Vec::new();
+        if let Some(kind) = management::kind_for_action(action) {
+            let city = self.selected_city.and_then(|id| {
+                state
+                    .viewer
+                    .as_ref()?
+                    .cities
+                    .iter()
+                    .find(|city| super::model::CityId::from_server_id(&city.id) == id)
+                    .map(|city| city.id.clone())
+            });
+            self.management.open(kind, state, city.as_deref());
+            let tab = match action {
+                InGameAction::OpenInfo => Some("Tab3"),
+                InGameAction::OpenScore => Some("Tab1"),
+                InGameAction::OpenWonders => Some("Tab2"),
+                _ => None,
+            };
+            if let Some(tab) = tab {
+                self.management
+                    .apply_local(management::ManagerIntent::Select(
+                        "tab:TabGroup".to_owned(),
+                        tab.to_owned(),
+                    ));
+            }
+        }
         match action {
             InGameAction::EndTurn => {
                 state.end_turn();
@@ -491,9 +542,14 @@ impl InGameUiModel {
                 sounds.push(GameplaySound::GreatLibrary);
             }
             InGameAction::OpenCityBuild => {
-                if let Some(city) = state.cities.first() {
-                    state.city_build_menu = Some(city.id);
-                }
+                let selected = self
+                    .management
+                    .view
+                    .as_ref()
+                    .and_then(|view| view.city_id.as_deref())
+                    .map(super::model::CityId::from_server_id);
+                state.city_build_menu = selected;
+                self.selected_city = selected;
                 sounds.push(GameplaySound::UiClick);
             }
             InGameAction::Settle => {
@@ -515,6 +571,9 @@ impl InGameUiModel {
             InGameAction::DismissPopup => {
                 state.dismiss_popup();
             }
+            InGameAction::OpenTradeManager | InGameAction::OpenNationalManager => {
+                sounds.push(GameplaySound::UiClick);
+            }
             InGameAction::OpenCivilizationStatus => {
                 self.active_tab = ControlPanelTab::Domestic;
                 "Civilization/Government".clone_into(&mut self.status_text);
@@ -525,8 +584,12 @@ impl InGameUiModel {
             InGameAction::OpenUnitManager | InGameAction::OpenArmyManager => {
                 self.active_tab = ControlPanelTab::Unit;
             }
-            InGameAction::OpenInfo => {
+            InGameAction::OpenInfo | InGameAction::OpenScore | InGameAction::OpenWonders => {
                 "Info".clone_into(&mut self.status_text);
+            }
+            InGameAction::Fortify | InGameAction::Disband => {
+                "This order requires an authoritative server action"
+                    .clone_into(&mut self.status_text);
             }
             InGameAction::OpenGameplayOptions
             | InGameAction::OpenGraphicsOptions
@@ -559,38 +622,8 @@ impl InGameUiModel {
 
     /// Builds a context menu for a point using current game state.
     #[must_use]
-    pub fn context_menu_for(state: &GameState, point: MapPoint) -> Vec<ContextMenuItem> {
-        let has_selected_settler = state
-            .selected_unit()
-            .is_some_and(|unit| matches!(unit.kind, super::model::UnitKind::Settler));
-        let has_city = state.city_at(point).is_some();
-        vec![
-            ContextMenuItem {
-                label: "Move",
-                action: InGameAction::MoveBy(0, 0),
-                enabled: state.selected_unit().is_some(),
-            },
-            ContextMenuItem {
-                label: "Settle",
-                action: InGameAction::Settle,
-                enabled: has_selected_settler,
-            },
-            ContextMenuItem {
-                label: "Sentinel",
-                action: InGameAction::Sentinel,
-                enabled: state.selected_unit().is_some(),
-            },
-            ContextMenuItem {
-                label: "Build Queue",
-                action: InGameAction::OpenCityBuild,
-                enabled: has_city,
-            },
-            ContextMenuItem {
-                label: "Army Manager",
-                action: InGameAction::OpenArmyManager,
-                enabled: true,
-            },
-        ]
+    pub fn context_menu_for(state: &GameState, point: MapPoint) -> Vec<context::ContextRow> {
+        context::context_at(state, point)
     }
 }
 
