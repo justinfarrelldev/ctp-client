@@ -12,7 +12,7 @@
 use super::layout::{end_turn_button_rect, panel_rect};
 
 use crate::gameplay::model::{GameState, UnitKind};
-use crate::gameplay::ui_model::{ControlPanelTab, InGameAction, MenuRect};
+use crate::gameplay::ui_model::{ControlPanelTab, InGameAction, MenuRect, TileCategory};
 
 /// Semantic intent produced by a labeled UI interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +21,8 @@ pub enum ControlIntent {
     Action(InGameAction),
     /// Switch visible panel without issuing a game command.
     Tab(ControlPanelTab),
+    /// Switch the source tile palette, without constructing an improvement order.
+    TileCategory(TileCategory),
     /// Activate the selected unit's original hover/click movement mode.
     ActivateUnit,
     /// Select the next living human unit.
@@ -138,6 +140,9 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
         ));
     }
     add_tab_controls(&mut controls);
+    if active_tab == ControlPanelTab::TileImprovements {
+        add_palette_controls(&mut controls);
+    }
     if active_tab != ControlPanelTab::Unit {
         return controls;
     }
@@ -205,6 +210,14 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
         });
     }
     controls
+}
+
+/// Original five palette radios are local views, never improvement commands.
+fn add_palette_controls(controls: &mut Vec<GameplayControl>) {
+    for (index, category) in [TileCategory::Land, TileCategory::Ocean, TileCategory::Special, TileCategory::TerraformLand, TileCategory::TerraformOcean].into_iter().enumerate() {
+        let (id, label) = category.control();
+        controls.push(control(id, label, 207_i32, 62_i32.saturating_add(i32::try_from(index).unwrap_or(0_i32).saturating_mul(20_i32)), 145_u32, 15_u32, ControlIntent::TileCategory(category), true));
+    }
 }
 
 /// Adds only the five source panel tabs, keeping order controls independent.
@@ -294,6 +307,9 @@ pub(super) fn apply_intent(
         ControlIntent::Tab(tab) => {
             ui.active_tab = tab;
             ui.status_text.clear();
+        }
+        ControlIntent::TileCategory(category) => {
+            ui.tile_category = category;
         }
         ControlIntent::ActivateUnit => {
             if let Some(position) = state.selected_unit().map(|unit| unit.position) {

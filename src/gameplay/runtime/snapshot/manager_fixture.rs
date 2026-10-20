@@ -131,6 +131,23 @@ pub(super) fn policy_state() -> GameState {
     from_projection(&projection)
 }
 
+/// Explicit lower-panel fixture; no other populated diagnostics are changed.
+pub(super) fn panel_state(populated: bool) -> GameState {
+    if !populated {
+        return from_projection(&ServerProjection::default());
+    }
+    let mut state = policy_state();
+    if let Some(viewer) = state.viewer.as_mut() {
+        if let Some(city) = viewer.cities.first_mut() {
+            city.facts["name"] = json!("Rome");
+        }
+        if let Some(diplomacy) = viewer.diplomacy.as_mut() {
+            diplomacy.facts["public_works_percent"] = json!(20_i64);
+        }
+    }
+    state
+}
+
 /// A separate two-city diagnostic for detached city-selector popup inspection.
 pub(super) fn chooser_state() -> GameState {
     let mut projection = projection();

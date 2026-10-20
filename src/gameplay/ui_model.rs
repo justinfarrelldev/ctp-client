@@ -30,6 +30,36 @@ mod menu_manifest;
 /// Stable source-aligned expanded unit/army grid.
 pub mod stack;
 
+/// Source tile-palette category, independent of any authoritative improvement order.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TileCategory {
+    /// Ordinary land improvements.
+    #[default]
+    Land,
+    /// Ordinary water improvements.
+    Ocean,
+    /// Special-purpose improvements.
+    Special,
+    /// Land terrain transformations.
+    TerraformLand,
+    /// Water terrain transformations.
+    TerraformOcean,
+}
+
+impl TileCategory {
+    /// Original radio identity and caption.
+    #[must_use]
+    pub const fn control(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Land => ("LandImpButton", "Land"),
+            Self::Ocean => ("OceanImpButton", "Ocean"),
+            Self::Special => ("SpecialImpButton", "Special"),
+            Self::TerraformLand => ("TerraformLandButton", "Terraform Land"),
+            Self::TerraformOcean => ("TerraformOceanButton", "Terraform Ocean"),
+        }
+    }
+}
+
 /// Original in-game menu bar height in pixels.
 pub const MENU_BAR_HEIGHT: u32 = 24;
 /// Original `MENU_BUTTON` width from `controlpanel.ldl`.
@@ -289,6 +319,8 @@ pub struct InGameUiModel {
     pub selected_city: Option<super::model::CityId>,
     /// Original single versus multiple unit-selection display mode.
     pub stack_expanded: bool,
+    /// Presentation-only source tile palette, not a selected gameplay order.
+    pub tile_category: TileCategory,
     /// Source-layout management windows, independent of the lower panel tabs.
     pub management: management::ManagementUi,
 }
@@ -309,6 +341,7 @@ impl Default for InGameUiModel {
             map_info: None,
             selected_city: None,
             stack_expanded: false,
+            tile_category: TileCategory::Land,
             management: management::ManagementUi::default(),
         }
     }

@@ -58,7 +58,7 @@ pub(super) fn draw_management<'draw, 'ttf: 'draw, 'rwops: 'draw>(
 }
 
 /// Draws one shared descriptor, retaining clipping around dynamic row text.
-fn draw_widget(
+pub(super) fn draw_widget(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     widget: &ManagerWidget,
@@ -289,15 +289,39 @@ fn draw_images(
             if node.field("imageblttype40") == Some("stretch") {
                 if let Some(texture) = textures.dynamic_ui(&art_name(name))? {
                     canvas
-                        .copy(texture, None, rect(widget))
+                        .copy(texture, None, overlay_rect(widget))
                         .map_err(runtime_error)?;
                 }
             } else {
-                copy_image(canvas, textures, name, rect(widget), false, false)?;
+                copy_image(canvas, textures, name, overlay_rect(widget), false, false)?;
             }
         }
     }
     Ok(())
+}
+
+/// Declared icon-layer offsets/sizes differ from its button background bounds.
+fn overlay_rect(widget: &ManagerWidget) -> Rect {
+    let extent = |primary, legacy, fallback| {
+        widget
+            .node
+            .integer(primary)
+            .or_else(|| widget.node.integer(legacy))
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(fallback)
+    };
+    Rect::new(
+        widget
+            .rect
+            .x
+            .saturating_add(widget.node.integer("xpix40").unwrap_or(0_i32)),
+        widget
+            .rect
+            .y
+            .saturating_add(widget.node.integer("ypix40").unwrap_or(0_i32)),
+        extent("widthpix40", "widthpix4", widget.rect.width),
+        extent("heightpix40", "heightpix4", widget.rect.height),
+    )
 }
 
 /// Nine cells retain native corners/side art; only declared middle strips tile.
@@ -400,13 +424,12 @@ fn draw_three(
     let mut x = bounds.x();
     for (index, name) in names.iter().enumerate() {
         if let Some(name) = name.as_deref() {
-            copy_image(
+            layers::strip(
                 canvas,
                 textures,
                 name,
                 Rect::new(x, bounds.y(), widths[index], bounds.height()),
                 index == 1,
-                false,
             )?;
         }
         x = x.saturating_add(i32::try_from(widths[index]).unwrap_or(0));

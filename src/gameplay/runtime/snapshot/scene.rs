@@ -17,6 +17,13 @@ pub enum PreviewScene {
     Context,
     /// Original gold-framed terrain information on the synthetic fixture.
     TerrainInfo,
+    /// One lower-panel body over an explicit viewer-safe fixture.
+    Panel {
+        /// Original lower-panel tab to inspect.
+        tab: crate::gameplay::ui_model::ControlPanelTab,
+        /// Explicit city/research data, or a genuinely empty viewer projection.
+        populated: bool,
+    },
     /// Source-layout manager over an explicitly synthetic background fixture.
     Manager(ManagerKind),
     /// Explicit two-city projection with its original detached selector open.
@@ -39,6 +46,9 @@ pub enum PreviewScene {
 
 /// Creates a reproducible scene without reading or writing configuration files.
 pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameState {
+    if let PreviewScene::Panel { populated, .. } = scene {
+        return super::manager_fixture::panel_state(populated);
+    }
     if scene == PreviewScene::CityChooser {
         return super::manager_fixture::chooser_state();
     }
@@ -111,6 +121,7 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
     let camera = super::super::Camera::centered_on_selected(state);
     let mut input = super::super::MovementInputState::default();
     match scene {
+        PreviewScene::Panel { tab, .. } => ui.active_tab = tab,
         PreviewScene::Stack => ui.stack_expanded = true,
         PreviewScene::Manager(kind) => {
             if kind == crate::gameplay::ui_model::management::ManagerKind::Library {

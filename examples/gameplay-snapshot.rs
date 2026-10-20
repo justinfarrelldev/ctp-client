@@ -4,7 +4,7 @@
 
 use ctp_client::gameplay::runtime::snapshot::render_preview_scene;
 use ctp_client::gameplay::runtime::snapshot::scene::PreviewScene;
-use ctp_client::gameplay::ui_model::{MenuCategory, management::ManagerKind};
+use ctp_client::gameplay::ui_model::{ControlPanelTab, MenuCategory, management::ManagerKind};
 use std::error::Error;
 use std::path::Path;
 
@@ -46,6 +46,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             quarter: args
                 .get(7_usize)
                 .map_or(Ok(2_u8), |value| value.parse::<u8>())?,
+        },
+        Some(name) if name.starts_with("panel-") => PreviewScene::Panel {
+            tab: match name {
+                "panel-empire" => ControlPanelTab::Domestic,
+                "panel-city" | "panel-city-empty" => ControlPanelTab::City,
+                "panel-msgs" => ControlPanelTab::Messages,
+                "panel-tile" => ControlPanelTab::TileImprovements,
+                _ => return Err("unknown panel scene".into()),
+            },
+            populated: name != "panel-city-empty",
         },
         Some("terrain") => PreviewScene::Terrain,
         Some("stack") => PreviewScene::Stack,

@@ -7,7 +7,7 @@
 
 use super::actors::draw_stack_shield;
 use super::chrome::{draw_art, draw_art_rect};
-use super::text::{draw_centered_text, draw_text};
+use super::text::draw_centered_text;
 use crate::gameplay::model::{GameState, UnitKind};
 use crate::gameplay::runtime::controls::{SHORTCUTS, TABS, order_rect};
 use crate::gameplay::runtime::layout::{panel_origin, panel_rect};
@@ -24,13 +24,15 @@ use sdl2::video::Window;
 /// Text color inherited from `CTP2_STANDARD_FONT`.
 const LABEL: Color = Color::RGB(50, 50, 50);
 /// Draws all original chrome without a synthetic opaque gray bounding rectangle.
-pub(super) fn draw_panel(
+pub(super) fn draw_panel<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
-    font: Option<&Font<'_, '_>>,
+    font_source: impl Into<crate::gameplay::runtime::fonts::RenderFonts<'draw, 'ttf, 'rwops>>,
 ) -> Result<(), GameplayError> {
+    let fonts = font_source.into();
+    let font = fonts.body;
     for (name, x, y) in [
         ("upfg01.rim", 0_i32, 0_i32),
         ("upfg03.rim", 542, 31),
@@ -59,16 +61,19 @@ pub(super) fn draw_panel(
     draw_tabs(canvas, textures, ui, font)?;
     match ui.active_tab {
         ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, ui, font)?,
-        ControlPanelTab::Domestic => draw_empire_panel(canvas, state, font)?,
-        ControlPanelTab::City => draw_centered_text(
-            canvas,
-            font,
-            "City",
-            panel_rect(210, 60, 300, 24),
-            LABEL,
-            false,
-        )?,
-        ControlPanelTab::Messages | ControlPanelTab::TileImprovements => {}
+        ControlPanelTab::Domestic
+        | ControlPanelTab::City
+        | ControlPanelTab::Messages
+        | ControlPanelTab::TileImprovements => {
+            for widget in ui.management.panel_widgets(state, ui) {
+                super::management::draw_widget(
+                    canvas,
+                    textures,
+                    &widget,
+                    fonts.control(&widget.node),
+                )?;
+            }
+        }
     }
     panel_art(canvas, textures, "upcb14u.rim", 563, 60)?;
     draw_centered_text(
@@ -224,7 +229,7 @@ fn draw_unit_panel(
             (unit_stat(source, "attack"), 306_i32, 78_i32),
             (unit_stat(source, "defense"), 325, 78),
             (unit_stat(source, "ranged"), 306, 100),
-            (unit_stat(source, "armor"), 325, 100),
+            (unit_stat(source, "firepower"), 325, 100),
             (
                 unit.movement_points
                     .max(0_i16)
@@ -234,7 +239,7 @@ fn draw_unit_panel(
                 306,
                 122,
             ),
-            (unit_stat(source, "firepower"), 325, 122),
+            (unit_stat(source, "armor"), 325, 122),
         ] {
             draw_centered_text(canvas, font, &value, panel_rect(x, y, 19, 18), LABEL, true)?;
         }
@@ -367,38 +372,6 @@ fn draw_orders(
                 ))
                 .map_err(runtime_error)?;
         }
-    }
-    Ok(())
-}
-
-/// Resource values are drawn from the current state, never screenshot constants.
-fn draw_empire_panel(
-    canvas: &mut Canvas<Window>,
-    state: &GameState,
-    font: Option<&Font<'_, '_>>,
-) -> Result<(), GameplayError> {
-    for (index, (label, value)) in [
-        ("Cities", state.cities.len().to_string()),
-        ("Population", "0".to_owned()),
-        ("Public Works", state.public_works.to_string()),
-        ("Government", String::new()),
-        ("Science", String::new()),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let y =
-            55_i32.saturating_add(i32::try_from(index).map_or(0_i32, |v| v.saturating_mul(16_i32)));
-        let rect = panel_rect(319, y, 150, 16);
-        draw_text(canvas, font, label, rect.x(), rect.y(), LABEL)?;
-        draw_centered_text(
-            canvas,
-            font,
-            &value,
-            panel_rect(469, y, 55, 16),
-            LABEL,
-            false,
-        )?;
     }
     Ok(())
 }

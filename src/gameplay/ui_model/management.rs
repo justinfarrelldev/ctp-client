@@ -41,6 +41,11 @@ mod government;
 mod fidelity;
 /// Atomic original option-slider presentation.
 mod option_art;
+/// Source-derived lower-panel bodies, with viewer-safe public captions.
+mod panel;
+/// Empty/populated lower-panel presentation regressions.
+#[cfg(test)]
+mod panel_tests;
 /// Source category-index sorting and noninteractive age headers.
 mod index;
 /// Age sorting and reference-control regressions.
@@ -371,6 +376,8 @@ pub struct ManagementUi {
     pub book: LayoutBook,
     /// Resolved manager roots cached once, not reparsed every SDL frame.
     pub layouts: BTreeMap<ManagerKind, LayoutNode>,
+    /// Original lower-panel body tree, resolved once without frame-time file I/O.
+    pub panel: LayoutNode,
     /// Original runtime-created Chart viewport/button template, resolved once.
     pub chart: LayoutNode,
     /// Original dynamic item templates, resolved once rather than doing frame-time I/O.
@@ -427,12 +434,14 @@ impl ManagementUi {
             .transpose()?
             .unwrap_or_default();
         let chart = book.resolve("TechTree")?;
+        let panel = book.resolve("ControlPanelWindow")?;
         let row_templates = rows::templates(&book)?;
         Ok(Self {
             book,
             layouts,
             chart,
             row_templates,
+            panel,
             view: None,
             focused: None,
             library: LibraryBrowser::new(catalog),
@@ -636,6 +645,12 @@ impl ManagementUi {
     #[must_use]
     pub fn widgets(&self, state: &GameState) -> Vec<ManagerWidget> {
         tree::widgets(self, state)
+    }
+
+    /// Lower-panel artwork/captions, separate from open management windows.
+    #[must_use]
+    pub fn panel_widgets(&self, state: &GameState, ui: &super::InGameUiModel) -> Vec<ManagerWidget> {
+        panel::widgets(self, state, ui)
     }
 
     /// Exact accessible source ID activation, including duplicate-label controls.

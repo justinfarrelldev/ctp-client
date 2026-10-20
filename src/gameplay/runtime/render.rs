@@ -68,7 +68,7 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         draw_tile_diamond(canvas, camera, x, y, Color::RGB(255, 255, 0))?;
     }
     movement::draw_planned_path(canvas, input, state, camera, font)?;
-    panel::draw_panel(canvas, textures, state, ui, font)?;
+    panel::draw_panel(canvas, textures, state, ui, fonts)?;
     if state.filters.radar {
         radar::draw_radar(canvas, textures, state)?;
     }
@@ -206,6 +206,12 @@ mod option_tests;
 /// In-memory masked comparisons against supplied release captures.
 #[cfg(test)]
 mod reference_tests;
+/// Native sizable-strip clipping regressions.
+#[cfg(test)]
+mod strip_tests;
+/// Native lower-panel portraits and semantic category selection.
+#[cfg(test)]
+mod panel_tests;
 #[cfg(test)]
 mod resource_tests;
 /// Independent source list-frame/content and discovery-column native pixel checks.
