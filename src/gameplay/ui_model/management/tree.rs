@@ -7,7 +7,7 @@
 
 use super::{
     ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings,
-    chart, data, lists, rows, scrollbar, selectors,
+    chart, data, lists, policy, rows, scrollbar, selectors,
 };
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
@@ -89,42 +89,7 @@ impl Walker<'_> {
             return;
         }
         self.widgets.push(self.descriptor(node, path, rect));
-        if selectors::is_dropdown(node) {
-            self.widgets[widget_index].label.clear();
-            self.dropdown(node, path, rect);
-            return;
-        }
-        if chart::append_widgets(
-            self.ui,
-            self.state,
-            self.view,
-            path,
-            rect,
-            &mut self.widgets,
-        ) {
-            return;
-        }
-        if articles::append_widgets(
-            self.ui,
-            self.state,
-            self.view,
-            node,
-            path,
-            rect,
-            &mut self.widgets,
-        ) {
-            if let Some(text_box) = self.widgets.get_mut(widget_index) {
-                text_box.label.clear();
-            }
-            scrollbar::append(
-                self.ui,
-                self.state,
-                self.view,
-                node,
-                path,
-                rect,
-                &mut self.widgets,
-            );
+        if self.atomic(node, path, rect, widget_index) {
             return;
         }
         let tabs: Vec<_> = node
@@ -175,6 +140,53 @@ impl Walker<'_> {
                 self.walk(child, &child_path, rect);
             }
         }
+    }
+
+    /// Runtime-created atomic content owns its source descendants and clipping.
+    fn atomic(&mut self, node: &LayoutNode, path: &str, rect: MenuRect, index: usize) -> bool {
+        if self.view.kind == ManagerKind::Empire
+            && policy::append(self.ui, self.state, node, path, rect, &mut self.widgets)
+        {
+            self.widgets[index].label.clear();
+            return true;
+        }
+        if selectors::is_dropdown(node) {
+            self.widgets[index].label.clear();
+            self.dropdown(node, path, rect);
+            return true;
+        }
+        if chart::append_widgets(
+            self.ui,
+            self.state,
+            self.view,
+            path,
+            rect,
+            &mut self.widgets,
+        ) {
+            return true;
+        }
+        if articles::append_widgets(
+            self.ui,
+            self.state,
+            self.view,
+            node,
+            path,
+            rect,
+            &mut self.widgets,
+        ) {
+            self.widgets[index].label.clear();
+            scrollbar::append(
+                self.ui,
+                self.state,
+                self.view,
+                node,
+                path,
+                rect,
+                &mut self.widgets,
+            );
+            return true;
+        }
+        false
     }
 
     /// Dropdown creates its button/selected item, but not an always-visible popup.

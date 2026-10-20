@@ -197,6 +197,9 @@ mod health_tests;
 mod management_tests;
 #[cfg(test)]
 mod pixel_tests;
+/// Independent source-art checks for native policy sliders and percentage controls.
+#[cfg(test)]
+mod policy_tests;
 #[cfg(test)]
 mod resource_tests;
 /// Independent source list-frame/content and discovery-column native pixel checks.

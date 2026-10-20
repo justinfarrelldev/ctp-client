@@ -93,6 +93,44 @@ pub(super) fn state() -> GameState {
     from_projection(&projection())
 }
 
+/// Separate current-policy diagnostic; ordinary populated scenes stay unchanged.
+pub(super) fn policy_state() -> GameState {
+    let mut projection = projection();
+    if let Some(diplomacy) = projection.diplomacy.as_mut() {
+        diplomacy.facts = json!({"government_id":"GOVERNMENT_TYRANNY","science_percent":50_i64,"public_works_percent":10_i64,"workday":1_i64,"wages":-1_i64,"rations":0_i64});
+    }
+    if let Some(rules) = projection.interface.rules.as_mut() {
+        rules["governments"] = json!([{"id":"GOVERNMENT_TYRANNY","max_science_percent":80_i64}]);
+    }
+    for (route, fields, payload) in [
+        (
+            "set-science-rate",
+            vec!["science_percent"],
+            json!({"science_percent":100_i64}),
+        ),
+        (
+            "set-public-works-rate",
+            vec!["public_works_percent"],
+            json!({"public_works_percent":20_i64}),
+        ),
+        (
+            "set-social-policy",
+            vec!["workday", "wages", "rations"],
+            json!({"workday":0_i64,"wages":0_i64,"rations":0_i64}),
+        ),
+    ] {
+        projection.interface.legal_actions.push(LegalAction {
+            route: route.to_owned(),
+            command: route.to_owned(),
+            entity_id: "human".to_owned(),
+            fields: fields.into_iter().map(str::to_owned).collect(),
+            payload,
+            ..LegalAction::default()
+        });
+    }
+    from_projection(&projection)
+}
+
 /// A separate two-city diagnostic for detached city-selector popup inspection.
 pub(super) fn chooser_state() -> GameState {
     let mut projection = projection();

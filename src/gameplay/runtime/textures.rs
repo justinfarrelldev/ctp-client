@@ -354,6 +354,30 @@ impl<'texture> GameplayTextures<'texture> {
         self.units.duration(id, speed, enabled)
     }
 
+    /// Caches the source `C3Slider` pattern/groove once per source size and pattern.
+    pub(super) fn policy_slider_track(
+        &mut self,
+        pattern: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        let key = format!("c3-slider:{pattern}:{width}x{height}");
+        if !self.dynamic_ui.contains_key(&key) {
+            let name = pattern.to_ascii_lowercase().replace(".tga", ".rim");
+            let image = match load_ui_rgba(&self.root, &name) {
+                Ok(source) => art::c3_slider_track(&source, width, height)?,
+                Err(error) if self.strict => return Err(error),
+                Err(_error) => return Ok(None),
+            };
+            self.dynamic_ui
+                .insert(key.clone(), texture_from_rgba(creator, &image)?);
+        }
+        Ok(self.dynamic_ui.get(&key))
+    }
+
     /// Loads an original portrait or dialog image on demand without copying assets.
     pub(super) fn dynamic_ui(
         &mut self,

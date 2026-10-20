@@ -42,6 +42,15 @@ pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameSt
     if scene == PreviewScene::CityChooser {
         return super::manager_fixture::chooser_state();
     }
+    if matches!(
+        scene,
+        PreviewScene::PopulatedManager {
+            kind: ManagerKind::Empire,
+            ..
+        }
+    ) {
+        return super::manager_fixture::policy_state();
+    }
     if matches!(scene, PreviewScene::PopulatedManager { .. }) {
         return super::manager_fixture::state();
     }

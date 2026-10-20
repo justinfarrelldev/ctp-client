@@ -39,6 +39,11 @@ mod index_tests;
 mod list_tests;
 /// Original list frame/pane separation and overflow-safe runtime sizing.
 mod lists;
+/// Verified typed policy/rate parameters and source ranger controls.
+mod policy;
+/// Parameter schemas, revision guards and source slider-direction regressions.
+#[cfg(test)]
+mod policy_tests;
 /// Source row shapes, numeric values and research-list visibility regressions.
 #[cfg(test)]
 mod row_tests;
@@ -49,6 +54,8 @@ mod scrollbar;
 /// Empty/populated source ranger regressions.
 #[cfg(test)]
 mod scrollbar_tests;
+/// View-only independent row/city/chart selection, separate from source navigation.
+mod selection;
 /// City selector/caption/popup and stale identity regressions.
 #[cfg(test)]
 mod selector_tests;
@@ -231,6 +238,9 @@ impl ManagerCommand {
                     .is_some_and(|research| research.available.iter().any(|id| id == target))
             });
         }
+        if let Some(valid) = policy::validate(viewer, &self.route, &self.payload) {
+            return valid;
+        }
         viewer.interface.legal_actions.iter().any(|action| {
             action.http_supported() && action.route == self.route && action.payload == self.payload
         })
@@ -261,6 +271,10 @@ pub enum ManagerIntent {
     ScrollTo(String, usize),
     /// Begin dragging the actual source thumb; keyboard value changes use `ScrollTo`.
     BeginScroll(String),
+    /// Explicit source control path/value and the revision that displayed them.
+    SetValue(String, i32, i64),
+    /// Source thumb path/display revision; capture never mutates authoritative facts.
+    BeginValue(String, i64),
     /// Focus an original local text field.
     Focus(String),
     /// Place/extend the local query caret at a validated UTF-8 boundary.
@@ -325,6 +339,19 @@ pub struct ManagerView {
     pub scroll: BTreeMap<String, usize>,
 }
 
+/// Presentation-only source thumb capture; accepted receipts own real policy values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagerValueDrag {
+    /// Exact original control path.
+    pub path: String,
+    /// Revision where the pointer capture began.
+    pub revision: i64,
+    /// Preview source index, never a mutated canonical level.
+    pub value: i32,
+    /// Pointer's offset inside the actual thumb, preserving grab position.
+    pub grab_offset: i32,
+}
+
 /// Source layouts and local management-window state; no game simulation/storage.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ManagementUi {
@@ -354,6 +381,8 @@ pub struct ManagementUi {
     pub pointer_extend: bool,
     /// Captured source thumb and grab offset; no world movement capture is shared.
     pub scroll_drag: Option<(String, i32)>,
+    /// Pending policy thumb preview, submitted only on explicit release.
+    pub value_drag: Option<ManagerValueDrag>,
     /// Native font word/glyph widths used by both painting and link rectangles.
     pub text_widths: BTreeMap<String, u32>,
     /// Actual per-source-face metrics, retaining regular 8-point requirements versus body text.
@@ -398,6 +427,7 @@ impl ManagementUi {
             search_dragging: false,
             pointer_extend: false,
             scroll_drag: None,
+            value_drag: None,
             text_widths: BTreeMap::new(),
             font_metrics: BTreeMap::new(),
             line_height: 16_u32,
@@ -422,6 +452,7 @@ impl ManagementUi {
         self.clipboard_request = None;
         self.search_dragging = false;
         self.scroll_drag = None;
+        self.value_drag = None;
         if kind == ManagerKind::Library {
             self.editor.reset(&self.library.query);
         }
@@ -542,6 +573,20 @@ impl ManagementUi {
         scrollbar::drag(self, y, state)
     }
 
+    /// Typed parameter command for this manager; unknown control paths never submit.
+    #[must_use]
+    pub fn value_command(
+        &self,
+        path: &str,
+        value: i32,
+        state: &GameState,
+    ) -> Option<ManagerCommand> {
+        self.view
+            .as_ref()
+            .filter(|view| view.kind == ManagerKind::Empire)?;
+        policy::command(state, path, value)
+    }
+
     /// Revalidates city selection against the current receipt before changing any view.
     pub fn select_city(&mut self, id: &str, state: &GameState) -> bool {
         if !data::owned_city_ids(state).iter().any(|owned| owned == id) {
@@ -607,6 +652,7 @@ impl ManagementUi {
     fn close(&mut self) {
         self.search_dragging = false;
         self.scroll_drag = None;
+        self.value_drag = None;
         self.clipboard_request = None;
         self.editor.clear_composition();
         self.view = self.parents.pop();
@@ -624,24 +670,7 @@ impl ManagementUi {
             return false;
         };
         match intent {
-            ManagerIntent::Select(key, value) => {
-                if key == "city" {
-                    selectors::change_city(view, &value);
-                }
-                if key == "dropdown" && value.is_empty() {
-                    return selectors::dismiss(view);
-                }
-                if key == "chart-focus" {
-                    view.selections.remove("chart-prerequisites-page");
-                    view.selections.remove("chart-successors-page");
-                }
-                if matches!(key.as_str(), "buildable" | "queue") {
-                    view.selections
-                        .insert("description".to_owned(), value.clone());
-                }
-                view.selections.insert(key, value);
-                true
-            }
+            ManagerIntent::Select(key, value) => selection::apply(view, key, value),
             ManagerIntent::EditCaret(offset, extend) => {
                 self.editor.set_caret(&self.library.query, offset, extend);
                 self.focused = Some("SearchWord".to_owned());
@@ -713,7 +742,9 @@ impl ManagementUi {
             | ManagerIntent::ChartArticle(_)
             | ManagerIntent::Scroll(_, _)
             | ManagerIntent::ScrollTo(_, _)
-            | ManagerIntent::BeginScroll(_) => false,
+            | ManagerIntent::BeginScroll(_)
+            | ManagerIntent::SetValue(..)
+            | ManagerIntent::BeginValue(..) => false,
         }
     }
 }

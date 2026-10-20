@@ -113,6 +113,39 @@ fn city_chooser_diagnostic_has_explicit_two_city_projection_without_changing_oth
 }
 
 #[test]
+fn populated_empire_fixture_explicitly_discloses_policy_values_without_changing_existing_scenes() {
+    let scene = snapshot::scene::PreviewScene::PopulatedManager {
+        kind: ManagerKind::Empire,
+        chart: false,
+    };
+    let state = snapshot::scene::preview_state(scene);
+    let viewer = state.viewer.as_ref().expect("explicit public fixture");
+    assert_eq!(
+        viewer.diplomacy.as_ref().expect("policies").facts["science_percent"],
+        serde_json::json!(50_i64),
+        "explicit current policy, not a live request or inferred recommendation"
+    );
+    let original =
+        snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
+            kind: ManagerKind::Build,
+            chart: false,
+        });
+    assert!(
+        original
+            .viewer
+            .as_ref()
+            .expect("original projection")
+            .diplomacy
+            .as_ref()
+            .expect("original diplomacy")
+            .facts
+            .get("science_percent")
+            .is_none(),
+        "existing diagnostic fixtures remain unchanged"
+    );
+}
+
+#[test]
 fn populated_chart_scene_renders_projected_research_borders_with_native_source_fonts()
 -> Result<(), String> {
     let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;

@@ -103,6 +103,16 @@ fn paint_widget(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     let bounds = rect(widget);
+    if widget.node.field("c3-slider-track") == Some("true") {
+        if let Some(texture) = textures.policy_slider_track(
+            widget.node.field("pattern").unwrap_or("uptg20e.tga"),
+            bounds.width(),
+            bounds.height(),
+        )? {
+            canvas.copy(texture, None, bounds).map_err(runtime_error)?;
+        }
+        return Ok(());
+    }
     if let Some(kind) = widget.node.field("primitive") {
         return draw_primitive(canvas, widget, kind);
     }

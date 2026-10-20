@@ -203,6 +203,88 @@ fn bevel_pixel(image: &mut RgbaImage, x: u32, y: u32, light: bool) {
     }
 }
 
+/// Reproduces `C3Slider::DrawThis`'s inset groove in the original packed channels.
+pub(super) fn c3_slider_track(
+    pattern: &RgbaImage,
+    width: u32,
+    height: u32,
+) -> Result<RgbaImage, GameplayError> {
+    let mut image = tiled_pattern(pattern, width, height)?;
+    let inset = height.div_euclid(2_u32).saturating_sub(8_u32);
+    let groove_height = height.saturating_sub(inset.saturating_mul(2_u32));
+    bevel_rect(
+        &mut image,
+        (0_u32, inset, width, groove_height),
+        2_u32,
+        false,
+    );
+    let inner = (
+        4_u32,
+        inset.saturating_add(4_u32),
+        width.saturating_sub(8_u32),
+        groove_height.saturating_sub(8_u32),
+    );
+    bevel_rect(&mut image, inner, 1_u32, true);
+    for y in inner.1.saturating_add(1_u32)..inner.1.saturating_add(inner.3).saturating_sub(1_u32) {
+        for x in
+            inner.0.saturating_add(1_u32)..inner.0.saturating_add(inner.2).saturating_sub(1_u32)
+        {
+            let offset = usize::try_from(y)
+                .unwrap_or(0_usize)
+                .saturating_mul(image.pitch)
+                .saturating_add(
+                    usize::try_from(x)
+                        .unwrap_or(0_usize)
+                        .saturating_mul(4_usize),
+                );
+            if let Some(pixel) = image.data.get_mut(offset..offset.saturating_add(4_usize)) {
+                pixel.copy_from_slice(&[0_u8, 0_u8, 0_u8, 255_u8]);
+            }
+        }
+    }
+    Ok(image)
+}
+
+/// Applies the existing source bevel to an internal rectangle without copying it.
+fn bevel_rect(image: &mut RgbaImage, bounds: (u32, u32, u32, u32), level: u32, pressed: bool) {
+    let (x, y, width, height) = bounds;
+    let width = width.min(image.width.saturating_sub(x));
+    let height = height.min(image.height.saturating_sub(y));
+    for inset in 0_u32..level.min(width.min(height).div_euclid(2_u32)) {
+        let left = x.saturating_add(inset);
+        let top = y.saturating_add(inset);
+        let right = x
+            .saturating_add(width)
+            .saturating_sub(1_u32)
+            .saturating_sub(inset);
+        let bottom = y
+            .saturating_add(height)
+            .saturating_sub(1_u32)
+            .saturating_sub(inset);
+        for offset in 0_u32
+            ..width
+                .saturating_sub(1_u32)
+                .saturating_sub(inset.saturating_mul(2_u32))
+        {
+            bevel_pixel(image, left.saturating_add(offset), top, !pressed);
+            bevel_pixel(image, right.saturating_sub(offset), bottom, pressed);
+        }
+        for offset in 0_u32
+            ..height
+                .saturating_sub(1_u32)
+                .saturating_sub(inset.saturating_mul(2_u32))
+        {
+            bevel_pixel(
+                image,
+                left,
+                top.saturating_add(1_u32).saturating_add(offset),
+                !pressed,
+            );
+            bevel_pixel(image, right, top.saturating_add(offset), pressed);
+        }
+    }
+}
+
 /// Reproduces `TileSet`'s 16-bit map-icon conversion, including skip and mask keys.
 pub(super) fn colorize_map_icon(image: &RgbaImage, color: Color) -> RgbaImage {
     let mut result = image.clone();
@@ -220,9 +302,48 @@ pub(super) fn colorize_map_icon(image: &RgbaImage, color: Color) -> RgbaImage {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_original_bevel, colorize_map_icon};
+    use super::{apply_original_bevel, c3_slider_track, colorize_map_icon};
     use crate::gameplay::assets::rim::RgbaImage;
     use sdl2::pixels::Color;
+
+    #[test]
+    fn c3_slider_track_uses_source_insets_quantized_bevels_and_a_black_inner_channel() {
+        let pattern = RgbaImage {
+            width: 1_u32,
+            height: 1_u32,
+            pitch: 4_usize,
+            data: vec![214_u8, 203_u8, 198_u8, 255_u8],
+        };
+        let image = c3_slider_track(&pattern, 124_u32, 20_u32).expect("bounded source track");
+        let pixel = |x: usize, y: usize| {
+            &image.data[y
+                .saturating_mul(image.pitch)
+                .saturating_add(x.saturating_mul(4_usize))
+                ..y.saturating_mul(image.pitch)
+                    .saturating_add(x.saturating_mul(4_usize))
+                    .saturating_add(4_usize)]
+        };
+        assert_eq!(
+            pixel(0_usize, 0_usize),
+            [214_u8, 203_u8, 198_u8, 255_u8],
+            "outside the inset groove keeps original pattern"
+        );
+        assert_eq!(
+            pixel(0_usize, 2_usize),
+            [231_u8, 227_u8, 222_u8, 255_u8],
+            "C3Slider outer two-pixel raised 565 bevel"
+        );
+        assert_eq!(
+            pixel(4_usize, 6_usize),
+            [107_u8, 101_u8, 99_u8, 255_u8],
+            "inner one-pixel recessed bevel"
+        );
+        assert_eq!(
+            pixel(5_usize, 7_usize),
+            [0_u8, 0_u8, 0_u8, 255_u8],
+            "source black paint rectangle after the final inset"
+        );
+    }
 
     #[test]
     fn original_c3_bevel_uses_two_quantized_pixel_edges_not_a_stretched_frame() {

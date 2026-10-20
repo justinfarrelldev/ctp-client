@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use super::{apply, open_pending_build};
 use crate::gameplay::assets::layout::LayoutBook;
-use crate::gameplay::model::CityId;
+use crate::gameplay::model::{CityId, GameState};
 use crate::gameplay::runtime::authority::state_from_authority_projection;
 use crate::gameplay::runtime::{
     Camera, MovementInputState, RuntimeAuthority, handle_event, replace_state_from_projection,
@@ -31,9 +31,13 @@ fn snapshot() -> Value {
         "cities":[{"id":"city-7","owner_id":"account-7","tile_id":"a","population":3_u32,
             "queue":[{"id":"UNIT_HOPLITE","kind":"unit","cost":80_i32}]}],
         "research":{"target_id":"ADVANCE_BALLISTICS","available":["ADVANCE_AGRICULTURE"],"progress":25_i32},
+        "diplomacy":{"science_percent":50_i64,"public_works_percent":10_i64,"workday":1_i64,"wages":-1_i64,"rations":0_i64},
         "legal_actions":[
             {"route":"queue-production","entity_id":"city-7","target_id":"UNIT_SETTLER","payload":{"city_id":"city-7","item":{"id":"UNIT_SETTLER","kind":"unit","cost":330_i32}}},
-            {"route":"rush-buy","entity_id":"city-7","target_id":"UNIT_HOPLITE","payload":{"city_id":"city-7"}}
+            {"route":"rush-buy","entity_id":"city-7","target_id":"UNIT_HOPLITE","payload":{"city_id":"city-7"}},
+            {"route":"set-social-policy","entity_id":"account-7","fields":["workday","wages","rations"],"payload":{"workday":0_i64,"wages":0_i64,"rations":0_i64}},
+            {"route":"set-science-rate","entity_id":"account-7","fields":["science_percent"],"payload":{"science_percent":100_i64}},
+            {"route":"set-public-works-rate","entity_id":"account-7","fields":["public_works_percent"],"payload":{"public_works_percent":20_i64}}
         ]
     })
 }
@@ -609,8 +613,56 @@ fn city_selector_handoff_submits_only_the_new_citys_exact_legal_production_paylo
     );
 }
 
+/// Confirms receipt replacement cannot select a same-label or different city.
+fn assert_selected_city(ui: &InGameUiModel, city: &str) {
+    assert_eq!(
+        ui.management
+            .view
+            .as_ref()
+            .and_then(|view| view.city_id.as_deref()),
+        Some(city),
+        "manager retains exact city"
+    );
+}
+
+/// Receipts can contain effective values different from the explicit requested rate.
+fn operation_receipt(route: &str, payload: &Value) -> Value {
+    let mut after = snapshot();
+    after["revision"] = json!(18_i64);
+    if matches!(
+        route,
+        "set-social-policy" | "set-science-rate" | "set-public-works-rate"
+    ) {
+        if let Some(fields) = payload.as_object() {
+            for (name, value) in fields {
+                after["diplomacy"][name] = value.clone();
+            }
+        }
+        if route == "set-science-rate" {
+            after["diplomacy"]["science_percent"] = json!(57_i64);
+        }
+    }
+    after
+}
+
+/// Native labels follow the receipt, never the outgoing requested value or sample.
+fn assert_received_policy(ui: &InGameUiModel, state: &GameState, route: &str) {
+    if route == "set-science-rate" {
+        assert_eq!(
+            ui.management
+                .widgets(state)
+                .iter()
+                .find(|widget| widget.id
+                    == "TabGroup.Tab1.TabPanel.Commerce.Modify.Secondary.Spinner/display")
+                .map(|widget| widget.label.as_str()),
+            Some("57"),
+            "server-owned effective response, not the requested 60 or suggested 100"
+        );
+    }
+}
+
 #[test]
-fn semantic_add_rush_and_research_send_exact_mocked_routes_revisions_and_payloads() {
+fn semantic_production_research_and_policies_send_exact_mocked_routes_revisions_and_payloads() {
     for (kind, selection, button, route, expected) in [
         (
             ManagerKind::Build,
@@ -632,6 +684,27 @@ fn semantic_add_rush_and_research_send_exact_mocked_routes_revisions_and_payload
             "Background.BackButton",
             "set-research",
             json!({"advance_id":"ADVANCE_AGRICULTURE"}),
+        ),
+        (
+            ManagerKind::Empire,
+            None,
+            "TabGroup.Tab1.TabPanel.Production.Modify.Primary.Slider/value/3",
+            "set-social-policy",
+            json!({"workday":-1_i64,"wages":-1_i64,"rations":0_i64}),
+        ),
+        (
+            ManagerKind::Empire,
+            None,
+            "TabGroup.Tab1.TabPanel.Commerce.Modify.Secondary.Spinner/increase",
+            "set-science-rate",
+            json!({"science_percent":60_i64}),
+        ),
+        (
+            ManagerKind::Empire,
+            None,
+            "TabGroup.Tab1.TabPanel.Production.Modify.Secondary.Spinner/increase",
+            "set-public-works-rate",
+            json!({"public_works_percent":20_i64}),
         ),
     ] {
         let listener = TcpListener::bind("127.0.0.1:0").expect("isolated listener");
@@ -656,8 +729,7 @@ fn semantic_add_rush_and_research_send_exact_mocked_routes_revisions_and_payload
             .management
             .activate_id(button, &state)
             .expect("eligible command");
-        let mut after = snapshot();
-        after["revision"] = json!(18_i64);
+        let after = operation_receipt(route, &expected);
         let worker = thread::spawn(move || respond(&listener, &after));
         apply(intent, &mut state, &mut ui, Some(&mut authority));
         let request = worker
@@ -683,14 +755,8 @@ fn semantic_add_rush_and_research_send_exact_mocked_routes_revisions_and_payload
             state.selected_unit, selected,
             "receipt preserves exact selected unit"
         );
-        assert_eq!(
-            ui.management
-                .view
-                .as_ref()
-                .and_then(|view| view.city_id.as_deref()),
-            Some("city-7"),
-            "manager retains exact city"
-        );
+        assert_selected_city(&ui, "city-7");
+        assert_received_policy(&ui, &state, route);
         assert!(state.popups.is_empty(), "no hidden command failure");
     }
 }

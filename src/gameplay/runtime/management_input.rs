@@ -25,6 +25,11 @@ mod selector_input;
 mod selector_tests;
 #[cfg(test)]
 mod tests;
+/// Policy thumb previews and one-shot, revision-checked value submission.
+mod value_input;
+/// Fileless policy range and release/cancellation regressions.
+#[cfg(test)]
+mod value_tests;
 use crate::gameplay::ui_model::management::{ManagerIntent, ManagerKind};
 
 /// Consumes all non-window/quit input while a manager owns focus. Returns false
@@ -40,24 +45,18 @@ pub(super) fn consume(
     if ui.management.view.is_none() || !state.popups.is_empty() {
         return false;
     }
-    if matches!(
-        *event,
-        Event::Window {
-            win_event: sdl2::event::WindowEvent::FocusLost | sdl2::event::WindowEvent::Hidden,
-            ..
-        }
-    ) {
-        ui.management.search_dragging = false;
-        ui.management.scroll_drag = None;
-        ui.management.pointer_extend = false;
-        ui.management.clipboard_request = None;
-        ui.management.editor.clear_composition();
-    }
-    if matches!(*event, Event::Quit { .. } | Event::Window { .. }) {
-        selector_input::consume(event, ui, state);
+    if window_event(event, ui, state) {
         return false;
     }
     movement.cancel_drag();
+    match value_input::consume(event, ui, state) {
+        value_input::Outcome::Consumed => return true,
+        value_input::Outcome::Action(intent) => {
+            apply(intent, state, ui, authority);
+            return true;
+        }
+        value_input::Outcome::Ignored => {}
+    }
     if scroll_input::consume(event, ui, state) {
         return true;
     }
@@ -172,6 +171,29 @@ fn pointer_intent(
     intent
 }
 
+/// Window lifecycle remains owned by gameplay while cancelling local captures.
+fn window_event(event: &Event, ui: &mut InGameUiModel, state: &GameState) -> bool {
+    if !matches!(*event, Event::Quit { .. } | Event::Window { .. }) {
+        return false;
+    }
+    if matches!(
+        *event,
+        Event::Window {
+            win_event: sdl2::event::WindowEvent::FocusLost | sdl2::event::WindowEvent::Hidden,
+            ..
+        }
+    ) {
+        ui.management.search_dragging = false;
+        ui.management.scroll_drag = None;
+        ui.management.pointer_extend = false;
+        ui.management.clipboard_request = None;
+        ui.management.editor.clear_composition();
+    }
+    selector_input::consume(event, ui, state);
+    value_input::consume(event, ui, state);
+    true
+}
+
 /// Accessible activation and real SDL events execute this exact same dispatcher.
 pub(super) fn apply(
     intent: ManagerIntent,
@@ -196,6 +218,12 @@ pub(super) fn apply(
             }
         }
         ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::BeginValue(path, revision) => value_input::begin(ui, state, &path, revision),
+        ManagerIntent::SetValue(path, value, revision) => {
+            if let Some(command) = value_input::request(ui, state, &path, value, revision) {
+                apply(ManagerIntent::Submit(command), state, ui, authority);
+            }
+        }
         ManagerIntent::ScrollTo(path, value) => {
             ui.management.scroll_to(&path, value, state);
         }
