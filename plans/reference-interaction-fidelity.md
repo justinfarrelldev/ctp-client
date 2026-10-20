@@ -57,6 +57,7 @@ Implementation substeps (do not equate a framework or disabled button with compl
 - [x] Build source-layout inheritance/geometry, original nine-piece manager frames and localized control labels with read-only installed-data and in-memory parser tests.
 - [x] Share manager semantic descriptors between native SDL painting, pointer/keyboard events and accessible test activation; prevent modal click/shortcut/scroll-through.
 - [ ] Reconcile original modeless versus strongly-modal manager behavior, related-window return navigation, source-created advisor panes, dropdowns, list headers/rangers and runtime control resizing for every manager.
+  - [x] Separate original list frames from content/header/ranger geometry; bound complete-row capacity and zero extents. Render cached original Build/Science/Research item templates with clipped numeric columns and explicit unavailable values.
 - [ ] Preserve independent city, buildable-item, queue-entry, unit, advance, trade-target and contact selections through authoritative receipts; invalidate stale legal payloads.
 - [x] Exercise implemented Add, Rush Buy, Change Research and founding handoff against isolated mocked HTTP/revision/payload contracts and viewer-safe receipts. This does not certify unimplemented manager operations.
 - [ ] Add equivalent transport/receipt regressions for each remaining newly integrated manager operation.
@@ -70,6 +71,7 @@ Implementation substeps (do not equate a framework or disabled button with compl
 - [ ] Trade Manager: Market/Export/Import, advisor, filters, transport accounting and route creation.
 - [ ] Diplomacy Manager: contacts/intelligence/proposals/war/embargo and disabled empty-contact states.
 - [ ] Science Manager: current research/progress/cost/available advances and Change Research.
+  - [x] Correct the discovery table to display viewer-known advances, not currently available research candidates. Keep the picker separate; deduplicate exact identities and sort both from projected costs. Draw only verified own-player knowledge/header blocks, never infer foreign research from embassy identities.
 - [ ] Great Library: categories/search/articles/links/tabs/history/navigation/research goals. Component checklist and exact remaining chart/editor/style work: [great-library-workflows.md](great-library-workflows.md).
   - [x] Installed sections/art associations; explicit global search, measured internal hyperlinks, Gameplay/Historical content, bounded Back/Forward, source descriptions and parent-window return.
   - [x] Bound stored list/article offsets and test recovery from extreme scrolling, without duplicate variable evaluation or gameplay input leakage.
@@ -195,5 +197,13 @@ Library milestone validation: `cargo make lint-fix`, strict lint, full tests (**
 - Persistent research goals remain a verified contract gap: original `Player::SetResearchGoal` persists/advances prerequisite research, while the inspected server exposes immediate `set-research`. Server implementation was not modified. Already-supported remaining manager commands are still unblocked client integration work.
 
 Chart/editor continuation validation: `cargo make lint-fix`, strict lint, full tests (**410 library + 428 binary + 19 integration = 857 executions**), dedicated native build and LLVM coverage pass; **82.91%** line coverage (38,212 lines, 6,529 missed). Required fast script is still absent. Windows checking fails before client compilation in GTK/GLib native dependencies because the cross-compiling pkg-config/sysroots are not configured. Native glyph/ranger/chart/clipboard tests are in-memory; the opt-in diagnostic alone writes ignored captures. No server implementation, restricted paths, installed artwork or main-menu code were changed; changed Rust files remain below 800 lines.
+
+## Runtime list/row checkpoint (continue the main plan afterward)
+
+Source lifecycle and cached item-template work is detailed in `manager-runtime-geometry.md`. New pure/native regressions reproduce and repair border/content conflation, shifted scroll arrows, phantom zero-sized rows/SDL pixels and missing Build stat columns. Science now distinguishes known discoveries from research candidates and paints original own-player knowledge/header blocks without disclosing unknown foreign facts. Item children clip to their content panes; pointer/semantic activation remains bound to the exact parent identity.
+
+Verified missing economy facts remain explicit: the current `CityReport` does not expose complete yields, research projection exposes no rate, and runtime unit movement has no universal retail 100-point scale. Missing production/research turn estimates remain unavailable. This is not a local economy simulator or a server implementation change.
+
+Lint-fix/strict lint, **419 library + 437 binary + 19 integration = 875 executions**, dedicated native build and **83.15%** LLVM line coverage pass. Native/reference-sized populated Build/Science and Library captures were inspected; selector/popup lifecycle, fonts, picture content/framing, advisors and remaining workflows still differ. Windows remains blocked before client compilation by GLib/GTK cross-compiling pkg-config setup; the required fast coverage script remains absent. Continue next with the main plan's source-created city selectors/dropdowns and remaining authoritative manager operations, not a final completion report.
 
 The unchecked items are deliberately still required. Do not mark the complete user request satisfied merely because the parser/framework, component screenshots, or a verified partial milestone is committed.

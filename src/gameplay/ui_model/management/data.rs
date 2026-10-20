@@ -104,17 +104,8 @@ pub(super) fn rows(
                     .collect()
             }),
         ManagerKind::Build if path.starts_with("ItemsBox.") => buildables(ui, state, view, path),
-        ManagerKind::Science | ManagerKind::Research => viewer
-            .interface
-            .research
-            .as_ref()
-            .map_or_else(Vec::new, |research| {
-                research
-                    .available
-                    .iter()
-                    .map(|id| (id.clone(), label(ui, id)))
-                    .collect()
-            }),
+        ManagerKind::Science => super::rows::advances(ui, state, true),
+        ManagerKind::Research => super::rows::advances(ui, state, false),
         ManagerKind::National => owned_city_ids(state)
             .into_iter()
             .map(|id| {

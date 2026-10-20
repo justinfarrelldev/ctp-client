@@ -34,6 +34,16 @@ mod index;
 /// Age sorting and reference-control regressions.
 #[cfg(test)]
 mod index_tests;
+/// Fileless list lifecycle and content/ranger geometry regressions.
+#[cfg(test)]
+mod list_tests;
+/// Original list frame/pane separation and overflow-safe runtime sizing.
+mod lists;
+/// Source row shapes, numeric values and research-list visibility regressions.
+#[cfg(test)]
+mod row_tests;
+/// Native item-template columns populated only from current public projections.
+mod rows;
 /// Source list/hypertext rangers with shared range/geometry accounting.
 mod scrollbar;
 /// Empty/populated source ranger regressions.
@@ -319,6 +329,8 @@ pub struct ManagementUi {
     pub layouts: BTreeMap<ManagerKind, LayoutNode>,
     /// Original runtime-created Chart viewport/button template, resolved once.
     pub chart: LayoutNode,
+    /// Original dynamic item templates, resolved once rather than doing frame-time I/O.
+    pub row_templates: BTreeMap<&'static str, LayoutNode>,
     /// Open manager, independent of map/control-panel selections.
     pub view: Option<ManagerView>,
     /// Explicit keyboard focus; Enter never activates an arbitrary first action.
@@ -366,10 +378,12 @@ impl ManagementUi {
             .transpose()?
             .unwrap_or_default();
         let chart = book.resolve("TechTree")?;
+        let row_templates = rows::templates(&book)?;
         Ok(Self {
             book,
             layouts,
             chart,
+            row_templates,
             view: None,
             focused: None,
             library: LibraryBrowser::new(catalog),

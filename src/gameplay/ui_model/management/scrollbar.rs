@@ -1,6 +1,6 @@
 //! Native AUI ranger geometry shared by source lists and hypertext viewports.
 
-use super::{ManagementUi, ManagerIntent, ManagerView, ManagerWidget, articles, data, tree};
+use super::{ManagementUi, ManagerIntent, ManagerView, ManagerWidget, articles, data, lists, tree};
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::MenuRect;
@@ -15,7 +15,7 @@ pub(super) fn maximum(ui: &ManagementUi, state: &GameState, path: &str) -> Optio
                     || kind.eq_ignore_ascii_case("ctp2_hypertextbox")
             })
     })?;
-    Some(extent(ui, state, view, path, widget.rect).0)
+    Some(extent(ui, state, view, path, lists::content(&widget)).0)
 }
 
 /// Source list units are rows; hypertext units are measured native lines.
@@ -29,7 +29,7 @@ fn extent(
     if let Some(maximum) = articles::scroll_limit(ui, state, view, path, rect) {
         return (maximum, articles::visible_lines(ui, view, path, rect));
     }
-    let page = tree::visible_rows(view.kind, path, rect);
+    let page = tree::visible_rows(ui, view.kind, path, rect);
     (
         data::rows(ui, state, view, path).len().saturating_sub(page),
         page,
@@ -152,7 +152,12 @@ pub(super) fn append(
         .copied()
         .unwrap_or(0_usize)
         .min(maximum);
-    let Some(geometry) = Geometry::new(rect, width, maximum, page, offset) else {
+    let frame = if lists::is_list(node) {
+        lists::frame(node, rect)
+    } else {
+        rect
+    };
+    let Some(geometry) = Geometry::new(frame, width, maximum, page, offset) else {
         return;
     };
     let mut style = LayoutNode::default();

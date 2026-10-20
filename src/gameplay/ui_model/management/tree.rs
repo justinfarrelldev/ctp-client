@@ -7,7 +7,7 @@
 
 use super::{
     ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings,
-    chart, data, scrollbar,
+    chart, data, lists, rows, scrollbar,
 };
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
@@ -78,6 +78,13 @@ impl Walker<'_> {
         }
         let rect = self.position(node, path, parent);
         let widget_index = self.widgets.len();
+        if lists::is_list(node) {
+            let mut frame = self.descriptor(node, path, lists::frame(node, rect));
+            lists::stamp(&mut frame.node, rect);
+            self.widgets.push(frame);
+            self.list(node, path, rect);
+            return;
+        }
         self.widgets.push(self.descriptor(node, path, rect));
         if chart::append_widgets(
             self.ui,
@@ -110,13 +117,6 @@ impl Walker<'_> {
                 rect,
                 &mut self.widgets,
             );
-            return;
-        }
-        if node
-            .field("objecttype")
-            .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_ListBox"))
-        {
-            self.list(node, path, rect);
             return;
         }
         let tabs: Vec<_> = node
@@ -289,7 +289,7 @@ impl Walker<'_> {
     fn list_header(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
         if let Some(header) = node.child("header") {
             let mut x = rect.x;
-            for column in &header.children {
+            for (column_index, column) in header.children.iter().enumerate() {
                 let height = u32::try_from(column.integer("heightpix").unwrap_or(20)).unwrap_or(20);
                 let width = u32::try_from(column.integer("widthpix").unwrap_or(0)).unwrap_or(0);
                 let parent = MenuRect {
@@ -305,6 +305,20 @@ impl Walker<'_> {
                     &join(path, &format!("header.{}", column.name)),
                     parent,
                 );
+                if self.view.kind == ManagerKind::Science
+                    && column_index == 1_usize
+                    && self
+                        .state
+                        .viewer
+                        .as_ref()
+                        .and_then(|viewer| viewer.interface.research.as_ref())
+                        .is_some()
+                {
+                    self.widgets.push(rows::knowledge_marker(
+                        format!("{path}/header/known/self"),
+                        parent,
+                    ));
+                }
                 x = x.saturating_add(i32::try_from(width).unwrap_or(0));
             }
         }
@@ -314,8 +328,8 @@ impl Walker<'_> {
     fn list(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
         self.list_header(node, path, rect);
         let rows = data::rows(self.ui, self.state, self.view, path);
-        let height = row_height(self.view.kind, path);
-        let visible = visible_rows(self.view.kind, path, rect);
+        let height = row_height(self.ui, self.view.kind, path);
+        let visible = visible_rows(self.ui, self.view.kind, path, rect);
         let offset = self
             .view
             .scroll
@@ -354,16 +368,16 @@ impl Walker<'_> {
                     .fields
                     .insert("text-inset-left".to_owned(), "3".to_owned());
             }
+            let row_index = self.widgets.len();
             self.widgets.push(ManagerWidget {
                 id: format!("{path}/{id}"),
                 label: label.clone(),
                 rect: MenuRect {
-                    x: rect.x.saturating_add(3),
+                    x: rect.x,
                     y: rect
                         .y
-                        .saturating_add(i32::try_from(index).unwrap_or(0).saturating_mul(height))
-                        .saturating_add(3),
-                    width: rect.width.saturating_sub(6),
+                        .saturating_add(i32::try_from(index).unwrap_or(0).saturating_mul(height)),
+                    width: rect.width,
                     height: u32::try_from(height).unwrap_or(0),
                 },
                 node: row_style,
@@ -377,6 +391,23 @@ impl Walker<'_> {
                 unavailable: None,
                 selected,
             });
+            let bounds = self.widgets[row_index].rect;
+            if (rows::Row {
+                ui: self.ui,
+                state: self.state,
+                view: self.view,
+                list: node,
+                path,
+                id,
+                bounds,
+            })
+            .append(&mut self.widgets)
+            {
+                self.widgets[row_index]
+                    .node
+                    .fields
+                    .insert("row-container".to_owned(), "true".to_owned());
+            }
         }
         scrollbar::append(
             self.ui,
@@ -391,22 +422,31 @@ impl Walker<'_> {
 }
 
 /// Uses the same row capacity for scroll accounting and native row descriptors.
-pub(super) fn visible_rows(kind: ManagerKind, path: &str, rect: MenuRect) -> usize {
+pub(super) fn visible_rows(
+    ui: &ManagementUi,
+    kind: ManagerKind,
+    path: &str,
+    rect: MenuRect,
+) -> usize {
     usize::try_from(rect.height)
         .unwrap_or(0_usize)
-        .checked_div(usize::try_from(row_height(kind, path)).unwrap_or(1_usize))
+        .checked_div(usize::try_from(row_height(ui, kind, path)).unwrap_or(1_usize))
         .unwrap_or(0_usize)
-        .max(1_usize)
 }
 
 /// Source-specific row spacing; not a guessed number of entries per page.
-fn row_height(kind: ManagerKind, path: &str) -> i32 {
+fn row_height(ui: &ManagementUi, kind: ManagerKind, path: &str) -> i32 {
+    if let Some(height) = rows::height(ui, kind, path) {
+        return height;
+    }
     if kind == ManagerKind::Build && path == "QueueGroup.QueueList" {
         16_i32
     } else if kind == ManagerKind::Library {
         20_i32
     } else if kind == ManagerKind::Science {
         14_i32
+    } else if kind == ManagerKind::Research {
+        24_i32
     } else {
         18_i32
     }
@@ -509,7 +549,7 @@ fn root_rect(node: &LayoutNode) -> MenuRect {
 }
 
 /// AUI anchors are parent-relative; missing group extents do not alter children.
-fn child_rect(node: &LayoutNode, parent: MenuRect) -> MenuRect {
+pub(super) fn child_rect(node: &LayoutNode, parent: MenuRect) -> MenuRect {
     let width = dimension(
         node,
         "width",

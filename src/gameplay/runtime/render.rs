@@ -199,6 +199,9 @@ mod management_tests;
 mod pixel_tests;
 #[cfg(test)]
 mod resource_tests;
+/// Independent source list-frame/content and discovery-column native pixel checks.
+#[cfg(test)]
+mod row_tests;
 #[cfg(test)]
 mod scrollbar_tests;
 #[cfg(test)]

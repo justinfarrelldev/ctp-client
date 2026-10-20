@@ -19,7 +19,7 @@ pub(super) fn draw(
     widget: &ManagerWidget,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
-    if widget.label.is_empty() {
+    if widget.label.is_empty() || widget.node.field("row-container") == Some("true") {
         return Ok(());
     }
     let bounds = super::rect(widget);

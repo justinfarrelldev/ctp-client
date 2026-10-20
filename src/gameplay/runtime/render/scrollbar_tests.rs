@@ -46,10 +46,13 @@ fn empty_index_scrollbar_up_arrow_matches_independent_installed_rim_pixels() {
                     .saturating_mul(arrow.pitch)
                     .saturating_add(column.saturating_mul(4_usize));
                 if arrow.data[source.saturating_add(3_usize)] == 255_u8 {
+                    // ctp2_ListBox grows its frame by five on every side:
+                    // pane (103,134,149,388), frame (98,129,159,398).
+                    // The 9x9 arrow is centered in the 15x15 button at (257,129).
                     let target = row
-                        .saturating_add(137_usize)
+                        .saturating_add(132_usize)
                         .saturating_mul(800_usize)
-                        .saturating_add(column.saturating_add(255_usize))
+                        .saturating_add(column.saturating_add(260_usize))
                         .saturating_mul(4_usize);
                     if pixels[target..target.saturating_add(3_usize)]
                         != arrow.data[source..source.saturating_add(3_usize)]

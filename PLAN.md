@@ -140,3 +140,13 @@ See [the component checklist](plans/great-library-workflows.md); continue afterw
 - [ ] Obtain authoritative persistent research-goal support before enabling Set Goal; immediate set-research is not equivalent and the server remains read-only.
 - [ ] Complete the rest of the parent plan, every manager/panel/animation workflow and all 33 reference acceptances. Neither browsing nor chart/editor implementation is completion of the original full request.
 - [x] Repeat lint-fix/strict lint, full tests (**410 library + 428 binary + 19 integration = 857 executions**), dedicated native build and LLVM coverage (**82.91%**); inspect read-only/source/authority boundaries and prepare a normal verified commit. Required fast script remains absent; Windows checking stops in GTK/GLib cross-compilation configuration before client compilation.
+
+## Main-plan runtime list/row checkpoint
+
+The completion target remains [the entire reference interaction plan](plans/reference-interaction-fidelity.md), not a component checklist.
+
+- [x] Implement original runtime list frame expansion with distinct content/header/ranger geometry, content-based row capacity and no phantom zero-sized source/SDL controls.
+- [x] Cache/render installed Build/Science/Research item templates, real verified numeric columns and bounded cell clipping; retain exact parent identity for accessible/pointer activation.
+- [x] Separate Science's viewer-known discovery table from the research candidate picker; sort by current projected costs, draw only verified own-player knowledge blocks and never infer foreign discoveries.
+- [x] Inspect new populated native/reference-size diagnostic captures; run lint-fix/strict lint, **419 library + 437 binary + 19 integration = 875 executions**, native build and **83.15%** LLVM coverage. Windows/fast-script blockers are unchanged.
+- [ ] Continue source-created city selectors/dropdowns, remaining authoritative manager/control-panel operations and every unchecked main-plan acceptance. Checkpoint commits are not a stopping condition.

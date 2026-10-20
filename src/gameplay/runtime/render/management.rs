@@ -62,10 +62,11 @@ fn draw_widget(
     widget: &ManagerWidget,
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
-    let bounds = rect(widget);
-    if bounds.width() == 0 || bounds.height() == 0 {
+    // SDL Rect::new coerces zero extents to one: reject before conversion.
+    if widget.rect.width == 0_u32 || widget.rect.height == 0_u32 {
         return Ok(());
     }
+    let bounds = rect(widget);
     let previous = canvas.clip_rect();
     // AUI centers titles in their bound but clips them to the window, permitting
     // horizontal text overhang. Images still retain their own control clipping.
@@ -80,6 +81,9 @@ fn draw_widget(
         bounds
     };
     let clip = previous.map_or(Some(text_clip), |parent| parent.intersection(text_clip));
+    let clip = content_clip(&widget.node).map_or(clip, |content| {
+        clip.and_then(|clip| clip.intersection(content))
+    });
     let Some(clip) = clip else {
         return Ok(());
     };
@@ -145,8 +149,16 @@ fn paint_widget(
     }
     draw_images(canvas, textures, widget)?;
     if widget.selected && widget.id.contains('/') {
-        canvas.set_draw_color(Color::RGB(255, 198, 66));
-        canvas.fill_rect(bounds).map_err(runtime_error)?;
+        canvas.set_draw_color(Color::RGB(255_u8, 179_u8, 69_u8));
+        let selected = Rect::new(
+            bounds.x().saturating_add(1_i32),
+            bounds.y(),
+            bounds.width().saturating_sub(2_u32),
+            bounds.height(),
+        );
+        if selected.width() > 0_u32 && selected.height() > 0_u32 {
+            canvas.fill_rect(selected).map_err(runtime_error)?;
+        }
     }
     labels::draw(canvas, widget, font)
 }
@@ -160,6 +172,9 @@ fn draw_primitive(
     canvas.set_draw_color(label_color(widget));
     if kind == "frame" {
         return canvas.draw_rect(rect(widget)).map_err(runtime_error);
+    }
+    if kind == "fill" {
+        return canvas.fill_rect(rect(widget)).map_err(runtime_error);
     }
     if kind != "line" {
         return Err(runtime_error("Unknown manager primitive".to_owned()));
@@ -422,6 +437,16 @@ fn copy_image(
         }
     }
     Ok(())
+}
+
+/// Source item children clip to their content pane, never over adjacent controls.
+fn content_clip(node: &crate::gameplay::assets::layout::LayoutNode) -> Option<Rect> {
+    Some(Rect::new(
+        node.field("clip-x")?.parse::<i32>().ok()?,
+        node.field("clip-y")?.parse::<i32>().ok()?,
+        node.field("clip-width")?.parse::<u32>().ok()?,
+        node.field("clip-height")?.parse::<u32>().ok()?,
+    ))
 }
 
 /// Original grayscale text color unless a source control explicitly overrides it.

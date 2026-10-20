@@ -90,6 +90,87 @@ fn right_justified_source_field_uses_declared_shadow_not_left_row_padding() {
 }
 
 #[test]
+fn empty_native_source_controls_cannot_paint_sdl_minimum_one_pixel_rectangles() {
+    let result = with_canvas((80_u32, 60_u32), |canvas| {
+        let creator = canvas.texture_creator();
+        let mut textures = GameplayTextures::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2"),
+            &creator,
+            true,
+        )
+        .map_err(|error| error.to_string())?;
+        let empty = widget(
+            "",
+            MenuRect {
+                x: 20_i32,
+                y: 20_i32,
+                width: 0_u32,
+                height: 10_u32,
+            },
+            &[("primitive", "fill"), ("fontcolorred", "255")],
+        );
+        canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
+        canvas.clear();
+        let before = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+        draw_widget(canvas, &mut textures, &empty, None).map_err(|error| error.to_string())?;
+        if canvas.read_pixels(None, PixelFormatEnum::RGBA32)? != before {
+            return Err("SDL coerced an empty source rectangle to a visible pixel".to_owned());
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(), "empty control pixel safety: {result:?}");
+}
+
+#[test]
+fn item_children_clip_to_source_pane_and_restore_the_callers_clip() {
+    let result = with_canvas((100_u32, 60_u32), |canvas| {
+        let creator = canvas.texture_creator();
+        let mut textures = GameplayTextures::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2"),
+            &creator,
+            true,
+        )
+        .map_err(|error| error.to_string())?;
+        let cell = widget(
+            "",
+            MenuRect {
+                x: 10_i32,
+                y: 10_i32,
+                width: 80_u32,
+                height: 20_u32,
+            },
+            &[
+                ("primitive", "fill"),
+                ("fontcolorred", "255"),
+                ("fontcolorgreen", "0"),
+                ("fontcolorblue", "0"),
+                ("clip-x", "30"),
+                ("clip-y", "10"),
+                ("clip-width", "20"),
+                ("clip-height", "20"),
+            ],
+        );
+        canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
+        canvas.clear();
+        canvas.set_draw_color(Color::RGB(255_u8, 0_u8, 0_u8));
+        canvas.fill_rect(Rect::new(30_i32, 10_i32, 20_u32, 20_u32))?;
+        let expected = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+        canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
+        canvas.clear();
+        let caller = Rect::new(0_i32, 0_i32, 90_u32, 50_u32);
+        canvas.set_clip_rect(caller);
+        draw_widget(canvas, &mut textures, &cell, None).map_err(|error| error.to_string())?;
+        if canvas.clip_rect() != Some(caller)
+            || canvas.read_pixels(None, PixelFormatEnum::RGBA32)? != expected
+        {
+            return Err("source item overpainted its pane or lost parent clipping".to_owned());
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(), "source row pane clipping: {result:?}");
+}
+
+#[test]
 fn flattened_legacy_rows_retain_their_explicit_label_inset() {
     let result = with_canvas((160_u32, 80_u32), |canvas| {
         let field = widget(

@@ -94,7 +94,12 @@ impl FontMetrics {
 pub(super) fn keys(ui: &ManagementUi) -> BTreeSet<SourceFont> {
     let mut keys = BTreeSet::new();
     keys.insert(SourceFont::default());
-    for root in ui.layouts.values().chain(core::iter::once(&ui.chart)) {
+    for root in ui
+        .layouts
+        .values()
+        .chain(core::iter::once(&ui.chart))
+        .chain(ui.row_templates.values())
+    {
         collect(root, &mut keys);
     }
     let mut header = LayoutNode::default();
