@@ -12,7 +12,6 @@ use crate::gameplay::ui_model::InGameUiModel;
 use crate::gameplay::{GameplayError, runtime_error};
 use sdl2::pixels::Color;
 use sdl2::render::{Canvas, Texture};
-use sdl2::ttf::Font;
 use sdl2::video::Window;
 
 /// Composes and uniformly scales one frame without presenting or writing files.
@@ -20,7 +19,7 @@ use sdl2::video::Window;
     clippy::too_many_arguments,
     reason = "Borrowed SDL resources and immutable scene state have independent owners"
 )]
-pub(super) fn draw_scaled_frame(
+pub(super) fn draw_scaled_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     canvas: &mut Canvas<Window>,
     frame: &mut Texture<'_>,
     textures: &mut GameplayTextures<'_>,
@@ -28,8 +27,9 @@ pub(super) fn draw_scaled_frame(
     ui: &InGameUiModel,
     camera: &Camera,
     input: &MovementInputState,
-    font: Option<&Font<'_, '_>>,
+    font: impl Into<super::fonts::RenderFonts<'draw, 'ttf, 'rwops>>,
 ) -> Result<(), GameplayError> {
+    let font = font.into();
     let mut result = Ok(());
     canvas
         .with_texture_canvas(frame, |target| {

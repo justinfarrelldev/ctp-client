@@ -6,7 +6,8 @@
 )]
 
 use super::{
-    ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings, data,
+    ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings,
+    chart, data, scrollbar,
 };
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
@@ -75,18 +76,19 @@ impl Walker<'_> {
         if hidden(self.view, path) || matches!(node.name.as_str(), "rangery" | "rangerx") {
             return;
         }
-        let mut rect = if path.is_empty() {
-            parent
-        } else {
-            child_rect(node, parent)
-        };
-        if node.name == "TitleBar" {
-            rect.x = self.root_rect.x;
-            rect.y = self.root_rect.y;
-            rect.width = self.root_rect.width;
-        }
+        let rect = self.position(node, path, parent);
         let widget_index = self.widgets.len();
         self.widgets.push(self.descriptor(node, path, rect));
+        if chart::append_widgets(
+            self.ui,
+            self.state,
+            self.view,
+            path,
+            rect,
+            &mut self.widgets,
+        ) {
+            return;
+        }
         if articles::append_widgets(
             self.ui,
             self.state,
@@ -99,6 +101,15 @@ impl Walker<'_> {
             if let Some(text_box) = self.widgets.get_mut(widget_index) {
                 text_box.label.clear();
             }
+            scrollbar::append(
+                self.ui,
+                self.state,
+                self.view,
+                node,
+                path,
+                rect,
+                &mut self.widgets,
+            );
             return;
         }
         if node
@@ -118,36 +129,37 @@ impl Walker<'_> {
             })
             .collect();
         let tab_key = format!("tab:{path}");
-        let active = self
-            .view
-            .selections
-            .get(&tab_key)
-            .map(String::as_str)
-            .or_else(|| tabs.first().map(|tab| tab.name.as_str()));
-        for child in &node.children {
+        let active = self.active_tab(&tabs, &tab_key);
+        // aui_Region::DrawChildren paints from tail to head; hit testing uses
+        // the reverse flattened order, keeping foreground controls consistent.
+        for child in node.children.iter().rev() {
             let child_path = join(path, &child.name);
             if tabs.iter().any(|tab| tab.name == child.name) {
-                for part in &child.children {
+                for part in child.children.iter().rev() {
                     if part.name == "TabButton" {
                         let start = self.widgets.len();
                         self.walk(part, &join(&child_path, &part.name), rect);
                         for widget in &mut self.widgets[start..] {
-                            widget.unavailable =
-                                articles::tab_unavailable(self.ui, self.view, &child.name);
+                            widget.unavailable = articles::tab_unavailable(
+                                self.ui,
+                                self.state,
+                                self.view,
+                                &child.name,
+                            );
                             widget.intent = widget.unavailable.is_none().then(|| {
                                 ManagerIntent::Select(tab_key.clone(), child.name.clone())
                             });
-                            widget.selected = active == Some(child.name.as_str());
+                            widget.selected = active.as_deref() == Some(child.name.as_str());
                             let right = tabs.iter().position(|tab| tab.name == child.name)
                                 > tabs
                                     .iter()
-                                    .position(|tab| Some(tab.name.as_str()) == active);
+                                    .position(|tab| Some(tab.name.as_str()) == active.as_deref());
                             widget.node.fields.insert(
                                 "tabside".to_owned(),
                                 if right { "right" } else { "left" }.to_owned(),
                             );
                         }
-                    } else if active == Some(child.name.as_str()) {
+                    } else if active.as_deref() == Some(child.name.as_str()) {
                         self.walk(part, &join(&child_path, &part.name), rect);
                     }
                 }
@@ -155,6 +167,41 @@ impl Walker<'_> {
                 self.walk(child, &child_path, rect);
             }
         }
+    }
+
+    /// Original window code resizes title bars without moving ordinary descendants.
+    fn position(&self, node: &LayoutNode, path: &str, parent: MenuRect) -> MenuRect {
+        let mut rect = if path.is_empty() {
+            parent
+        } else {
+            child_rect(node, parent)
+        };
+        if node.name == "TitleBar" {
+            rect.x = self.root_rect.x;
+            rect.y = self.root_rect.y;
+            rect.width = self.root_rect.width;
+        }
+        rect
+    }
+
+    /// A selected tab whose content disappeared falls back to an available panel.
+    fn active_tab(&self, tabs: &[&LayoutNode], key: &str) -> Option<String> {
+        self.view
+            .selections
+            .get(key)
+            .filter(|name| {
+                tabs.iter().any(|tab| tab.name == **name)
+                    && articles::tab_unavailable(self.ui, self.state, self.view, name).is_none()
+            })
+            .cloned()
+            .or_else(|| {
+                tabs.iter()
+                    .find(|tab| {
+                        articles::tab_unavailable(self.ui, self.state, self.view, &tab.name)
+                            .is_none()
+                    })
+                    .map(|tab| tab.name.clone())
+            })
     }
 
     /// Clones only flattened properties, not every descendant at every level.
@@ -176,9 +223,32 @@ impl Walker<'_> {
                 image,
             );
         }
+        if self.view.kind == ManagerKind::Library && path == "Title" {
+            flat.fields
+                .insert("overflow-title".to_owned(), "true".to_owned());
+        }
         if self.ui.focused.as_deref() == Some(path) {
             flat.fields
                 .insert("textfocused".to_owned(), "true".to_owned());
+        }
+        if self.view.kind == ManagerKind::Library && path == "SearchWord" {
+            let selection = self.ui.editor.range(&self.ui.library.query);
+            for (key, value) in [
+                (
+                    "edit-caret",
+                    self.ui.editor.caret_offset(&self.ui.library.query),
+                ),
+                ("selection-start", selection.start),
+                ("selection-end", selection.end),
+            ] {
+                flat.fields.insert(key.to_owned(), value.to_string());
+            }
+            flat.fields
+                .insert("composition".to_owned(), self.ui.editor.composition.clone());
+            flat.fields.insert(
+                "composition-caret".to_owned(),
+                self.ui.editor.composition_cursor.to_string(),
+            );
         }
         let (intent, unavailable) = bindings::binding(self.ui, self.state, self.view, path, node);
         let label = if node.name == "TitleBar" {
@@ -191,15 +261,19 @@ impl Walker<'_> {
             data::text(self.ui, self.state, self.view, path)
         }
         .unwrap_or_else(|| source_label(self.ui, node));
-        let selected = path
-            .strip_prefix("ItemsBox.")
-            .and_then(|name| name.strip_suffix("Button"))
-            .is_some_and(|category| {
-                self.view
-                    .selections
-                    .get("build-category")
-                    .is_some_and(|selected| selected == category)
-            });
+        let selected = (self.view.kind == ManagerKind::Library
+            && path == "SortByAgeButton"
+            && self.ui.library.sort_by_age
+            && super::index::can_sort(self.ui, self.state))
+            || path
+                .strip_prefix("ItemsBox.")
+                .and_then(|name| name.strip_suffix("Button"))
+                .is_some_and(|category| {
+                    self.view
+                        .selections
+                        .get("build-category")
+                        .is_some_and(|selected| selected == category)
+                });
         ManagerWidget {
             id: path.to_owned(),
             label,
@@ -261,6 +335,25 @@ impl Walker<'_> {
                     .get(key)
                     .is_some_and(|value| value == id)
             };
+            let header = self.view.kind == ManagerKind::Library && id.starts_with('@');
+            let mut row_style = LayoutNode::default();
+            if header {
+                if let Ok(style) = self.ui.book.resolve("CTP_GREY_TITLE_FONT") {
+                    row_style.fields = style.fields;
+                }
+                row_style
+                    .fields
+                    .insert("underlinefont".to_owned(), "true".to_owned());
+            } else if self.view.kind != ManagerKind::Library {
+                row_style
+                    .fields
+                    .insert("just".to_owned(), "left".to_owned());
+                // Preserve the legacy flattened row's label inset explicitly;
+                // measured rich-text words never acquire renderer-only padding.
+                row_style
+                    .fields
+                    .insert("text-inset-left".to_owned(), "3".to_owned());
+            }
             self.widgets.push(ManagerWidget {
                 id: format!("{path}/{id}"),
                 label: label.clone(),
@@ -273,46 +366,27 @@ impl Walker<'_> {
                     width: rect.width.saturating_sub(6),
                     height: u32::try_from(height).unwrap_or(0),
                 },
-                node: LayoutNode::default(),
-                intent: Some(if self.view.kind == ManagerKind::Library {
-                    ManagerIntent::Article(id.clone())
-                } else {
-                    ManagerIntent::Select(key.to_owned(), id.clone())
+                node: row_style,
+                intent: (!header).then(|| {
+                    if self.view.kind == ManagerKind::Library {
+                        ManagerIntent::Article(id.clone())
+                    } else {
+                        ManagerIntent::Select(key.to_owned(), id.clone())
+                    }
                 }),
                 unavailable: None,
                 selected,
             });
         }
-        if rows.len() > visible {
-            for (suffix, label, y, delta) in [
-                ("up", "↑", rect.y, -1_i32),
-                (
-                    "down",
-                    "↓",
-                    rect.y
-                        .saturating_add(i32::try_from(rect.height).unwrap_or(0))
-                        .saturating_sub(15),
-                    1,
-                ),
-            ] {
-                self.widgets.push(ManagerWidget {
-                    id: format!("{path}/{suffix}"),
-                    label: label.to_owned(),
-                    rect: MenuRect {
-                        x: rect
-                            .x
-                            .saturating_add(i32::try_from(rect.width).unwrap_or(0)),
-                        y,
-                        width: 15,
-                        height: 15,
-                    },
-                    node: LayoutNode::default(),
-                    intent: Some(ManagerIntent::Scroll(path.to_owned(), delta)),
-                    unavailable: None,
-                    selected: false,
-                });
-            }
-        }
+        scrollbar::append(
+            self.ui,
+            self.state,
+            self.view,
+            node,
+            path,
+            rect,
+            &mut self.widgets,
+        );
     }
 }
 
@@ -329,6 +403,8 @@ pub(super) fn visible_rows(kind: ManagerKind, path: &str, rect: MenuRect) -> usi
 fn row_height(kind: ManagerKind, path: &str) -> i32 {
     if kind == ManagerKind::Build && path == "QueueGroup.QueueList" {
         16_i32
+    } else if kind == ManagerKind::Library {
+        20_i32
     } else if kind == ManagerKind::Science {
         14_i32
     } else {

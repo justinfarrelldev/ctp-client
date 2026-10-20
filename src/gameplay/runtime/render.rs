@@ -49,15 +49,17 @@ const DROPDOWN_ENABLED_TEXT_COLOR: Color = Color::RGB(50, 50, 50);
 const DROPDOWN_DISABLED_TEXT_COLOR: Color = Color::RGB(126, 118, 108);
 
 /// Renders one frame without presenting, allowing lossless framebuffer capture.
-pub(super) fn draw_frame(
+pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
     camera: &Camera,
     input: &MovementInputState,
-    font: Option<&Font<'_, '_>>,
+    font_source: impl Into<super::fonts::RenderFonts<'draw, 'ttf, 'rwops>>,
 ) -> Result<(), GameplayError> {
+    let fonts = font_source.into();
+    let font = fonts.body;
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
     draw_map(canvas, textures, state, camera, input)?;
@@ -72,7 +74,7 @@ pub(super) fn draw_frame(
     }
     menus::draw_top_menu(canvas, textures, state, ui, font)?;
     context::draw_context(canvas, textures, state, ui, font)?;
-    management::draw_management(canvas, textures, state, ui, font)?;
+    management::draw_management(canvas, textures, state, ui, fonts)?;
     draw_popups(canvas, textures, state, font)?;
     draw_cursor(canvas, textures, state, ui, input)
 }
@@ -180,9 +182,13 @@ const fn tile_color(terrain: TerrainKind) -> Color {
 #[cfg(test)]
 mod animation_tests;
 #[cfg(test)]
+mod chart_tests;
+#[cfg(test)]
 mod context_tests;
 #[cfg(test)]
 mod cursor_tests;
+#[cfg(test)]
+mod editor_tests;
 #[cfg(test)]
 mod fog_tests;
 #[cfg(test)]
@@ -193,6 +199,8 @@ mod management_tests;
 mod pixel_tests;
 #[cfg(test)]
 mod resource_tests;
+#[cfg(test)]
+mod scrollbar_tests;
 #[cfg(test)]
 mod start_tests;
 #[cfg(test)]

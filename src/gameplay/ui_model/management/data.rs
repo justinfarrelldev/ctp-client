@@ -89,7 +89,7 @@ pub(super) fn rows(
     path: &str,
 ) -> Vec<(String, String)> {
     if view.kind == ManagerKind::Library {
-        return ui.library.entries(|id| label(ui, id));
+        return super::index::rows(ui, state);
     }
     let Some(viewer) = state.viewer.as_ref() else {
         return Vec::new();

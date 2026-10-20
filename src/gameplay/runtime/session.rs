@@ -15,6 +15,8 @@ use sdl2::video::Window;
 
 use super::authority::{RuntimeAuthority, state_from_authority_projection};
 use super::cursor::{EdgeScroll, SoftwareCursorGuard, pointer_blocked};
+use super::fonts::{ManagementFonts, RenderFonts};
+use super::management_input::editor_input::{NativeClipboard, flush_clipboard};
 use super::textures::GameplayTextures;
 use super::{
     Camera, DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, FRAME_DELAY, MovementInputState,
@@ -88,6 +90,24 @@ fn bootstrap(
     Ok((Some(authority), state))
 }
 
+/// Loads source controls once and measures with the actual native gameplay font.
+fn interface(
+    config: &SinglePlayerLaunchConfig,
+    font: Option<&sdl2::ttf::Font<'_, '_>>,
+) -> Result<InGameUiModel, GameplayError> {
+    let mut ui = InGameUiModel::default();
+    if config.server.required {
+        ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
+            crate::gameplay::assets::layout::LayoutBook::load(&config.installation_root)?,
+        )?;
+    }
+    if let Some(font) = font {
+        ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
+        ui.management.line_height = u32::try_from(font.height()).unwrap_or(16_u32);
+    }
+    Ok(ui)
+}
+
 /// Runs gameplay on the existing canvas, preserving the main menu's window.
 pub(super) fn run_sdl_game_on_canvas(
     config: &SinglePlayerLaunchConfig,
@@ -108,22 +128,18 @@ pub(super) fn run_sdl_game_on_canvas(
     let ttf_context = sdl2::ttf::init().ok();
     let font = ttf_context.as_ref().and_then(load_gameplay_font);
     let (mut authority, mut state) = bootstrap(config)?;
-    let mut ui = InGameUiModel::default();
-    if config.server.required {
-        ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
-            crate::gameplay::assets::layout::LayoutBook::load(&config.installation_root)?,
-        )?;
-    }
-    if let Some(font) = font.as_ref() {
-        ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |size| size.0));
-        ui.management.line_height = u32::try_from(font.height()).unwrap_or(16_u32);
-    }
+    let mut ui = interface(config, font.as_ref())?;
+    let management_fonts = ttf_context
+        .as_ref()
+        .map(|context| ManagementFonts::load_measured(context, &mut ui.management))
+        .transpose()?;
     let mut movement = MovementInputState::default();
     movement.actors.speed = config.graphics.unit_speed;
     movement.actors.enabled = config.graphics.unit_animation.enabled();
     let mut camera = Camera::centered_on_selected(&state);
     let _cursor_guard = SoftwareCursorGuard::new()?;
     let _text_input = TextInputScope::new(canvas.window().subsystem());
+    let mut clipboard = NativeClipboard::new(canvas.window().subsystem());
     let mut edge_scroll = EdgeScroll::default();
     let clock = Instant::now();
     let mut outcome = None;
@@ -142,6 +158,9 @@ pub(super) fn run_sdl_game_on_canvas(
                 capture_requested = true;
                 continue;
             }
+            if let Some(fonts) = management_fonts.as_ref() {
+                fonts.measure_query(&mut ui.management);
+            }
             if let Some(next) = handle_event(
                 &event,
                 &mut state,
@@ -152,6 +171,7 @@ pub(super) fn run_sdl_game_on_canvas(
             ) {
                 outcome = Some(next);
             }
+            flush_clipboard(&mut ui, &mut clipboard);
         }
         super::management_input::open_pending_build(&mut state, &mut ui);
         movement
@@ -175,7 +195,10 @@ pub(super) fn run_sdl_game_on_canvas(
             &ui,
             &camera,
             &movement,
-            font.as_ref(),
+            RenderFonts {
+                body: font.as_ref(),
+                management: management_fonts.as_ref(),
+            },
         )?;
         if capture_requested {
             match snapshot::save_interactive_capture(canvas) {

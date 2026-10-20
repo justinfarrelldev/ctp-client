@@ -55,6 +55,33 @@ fn inherited_child_overrides_keep_siblings_and_original_draw_order() {
 }
 
 #[test]
+fn ldl_first_template_wins_and_parent_child_attributes_precede_child_fallback_templates() {
+    let book = LayoutBook::parse(&[r#"
+        template Standard { int fontsize 10 string fontname "timesbd.ttf" }
+        template Gold { int fontsize 16 bool shadowfont true }
+        template Parent { Child { int fontsize 12 } }
+        Window:Standard:Gold:Parent { Child:Gold { string text "local" } }
+    "#])
+    .expect("source precedence fixture");
+    let window = book.resolve("Window").expect("resolved");
+    assert_eq!(
+        window.integer("fontsize"),
+        Some(10_i32),
+        "ldl_datablock::CopyAttributesFrom only fills absent attributes, so first template wins"
+    );
+    assert_eq!(
+        window.field("shadowfont"),
+        Some("true"),
+        "later templates still fill missing fields"
+    );
+    assert_eq!(
+        window.child("Child").expect("child").integer("fontsize"),
+        Some(12_i32),
+        "parent child attributes fill before that child's fallback templates"
+    );
+}
+
+#[test]
 fn malformed_or_recursive_layouts_fail_without_panicking() {
     for input in [
         "Broken { int xpix }",

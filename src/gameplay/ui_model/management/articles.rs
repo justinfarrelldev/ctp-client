@@ -49,11 +49,16 @@ pub(super) fn append_widgets(
         return false;
     };
     let scroll = view.scroll.get(path).copied().unwrap_or(0_usize);
-    let layout = layout(ui, state, document, &id, rect, scroll);
+    let layout = layout(ui, state, document, &id, rect, scroll, node);
     for (index, fragment) in layout.fragments.into_iter().enumerate() {
         let mut fields = BTreeMap::new();
         fields.insert("richtext".to_owned(), "true".to_owned());
         fields.insert("just".to_owned(), "left".to_owned());
+        for key in ["fontname", "fontsize", "boldfont", "italicfont"] {
+            if let Some(value) = node.field(key) {
+                fields.insert(key.to_owned(), value.to_owned());
+            }
+        }
         let (intent, unavailable) = fragment.target.as_ref().map_or((None, None), |target| {
             if ui.library.catalog.article(target).is_some() {
                 (Some(ManagerIntent::Article(target.clone())), None)
@@ -122,7 +127,8 @@ pub(super) fn scroll_limit(
     rect: MenuRect,
 ) -> Option<usize> {
     let (document, id) = document(ui, state, view, path)?;
-    Some(layout(ui, state, document, &id, rect, 0_usize).max_scroll)
+    let node = source_node(ui, view, path)?;
+    Some(layout(ui, state, document, &id, rect, 0_usize, node).max_scroll)
 }
 
 /// Centralizes font, margins and variable resolution for rendering and scrolling.
@@ -133,16 +139,56 @@ fn layout(
     id: &str,
     rect: MenuRect,
     scroll: usize,
+    node: &LayoutNode,
 ) -> LibraryLayout {
+    let key = super::typography::SourceFont::from_node(node);
+    let metrics = ui.font_metrics.get(&key);
     document_layout(
         document,
         rect.width.saturating_sub(6_u32),
         rect.height.saturating_sub(6_u32),
-        ui.line_height.max(8_u32),
-        |text| text_width(&ui.text_widths, text),
-        |expression| variable(state, id, expression),
+        metrics.map_or(ui.line_height.max(8_u32), |metrics| metrics.line_height),
+        |text| {
+            metrics.map_or_else(
+                || text_width(&ui.text_widths, text),
+                |metrics| metrics.width(text),
+            )
+        },
+        |expression| super::variables::resolve(state, id, expression),
         scroll,
     )
+}
+
+/// Resolves source properties without deriving them from rendered word fragments.
+fn source_node<'ui>(
+    ui: &'ui ManagementUi,
+    view: &ManagerView,
+    path: &str,
+) -> Option<&'ui LayoutNode> {
+    path.split('.')
+        .try_fold(ui.layouts.get(&view.kind)?, |node, part| node.child(part))
+}
+
+/// Native visible line count uses exactly the source style used by its article.
+pub(super) fn visible_lines(
+    ui: &ManagementUi,
+    view: &ManagerView,
+    path: &str,
+    rect: MenuRect,
+) -> usize {
+    let height = source_node(ui, view, path)
+        .and_then(|node| {
+            ui.font_metrics
+                .get(&super::typography::SourceFont::from_node(node))
+        })
+        .map_or(ui.line_height.max(8_u32), |metrics| metrics.line_height);
+    usize::try_from(
+        rect.height
+            .saturating_sub(6_u32)
+            .div_ceil(height.max(1_u32)),
+    )
+    .unwrap_or(1_usize)
+    .max(1_usize)
 }
 
 /// Source article identity and section for each actual C++ hypertext callback.
@@ -213,7 +259,20 @@ pub(super) fn text(ui: &ManagementUi, view: &ManagerView, path: &str) -> Option<
         return None;
     }
     match path {
-        "Title" => Some(ui.book.label("str_ldl_Great_Library").to_uppercase()),
+        "Title" => Some({
+            let title = ui.book.label("str_ldl_CAPS_GREAT_LIBRARY");
+            if title == "str_ldl_CAPS_GREAT_LIBRARY" {
+                ui.book
+                    .label("str_ldl_Great_Library")
+                    .to_uppercase()
+                    .chars()
+                    .map(|character| character.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                title.to_owned()
+            }
+        }),
         "ItemLabel" => Some(
             ui.library
                 .current
@@ -235,18 +294,33 @@ pub(super) fn text(ui: &ManagementUi, view: &ManagerView, path: &str) -> Option<
             .to_owned(),
         ),
         "SearchWord" => Some(ui.library.query.clone()),
+        "SortByAgeButton" => Some(
+            {
+                let label = ui.book.label("str_ldl_SORT_BY_AGE");
+                if label == "str_ldl_SORT_BY_AGE" {
+                    "Sort by Age"
+                } else {
+                    label
+                }
+            }
+            .to_owned(),
+        ),
         _ => None,
     }
 }
 
-/// Preserves original missing-section disablement. A selectable blank placeholder
-/// is not an implemented dependency chart; this remains explicit client work.
-pub(super) fn tab_unavailable(ui: &ManagementUi, view: &ManagerView, name: &str) -> Option<String> {
+/// Preserves source missing-section rules and requires actual public graph data.
+pub(super) fn tab_unavailable(
+    ui: &ManagementUi,
+    state: &GameState,
+    view: &ManagerView,
+    name: &str,
+) -> Option<String> {
     if view.kind != ManagerKind::Library {
         return None;
     }
     if name == "TechTreeTab" {
-        return Some("Original advance dependency chart presentation is not yet integrated; this is client work, not a server contract blocker".to_owned());
+        return super::chart::unavailable(ui, state);
     }
     let section = match name {
         "Historical" => LibrarySection::Historical,
@@ -296,44 +370,6 @@ pub(super) fn image(
     } else {
         art.icon.clone()
     }
-}
-
-/// Exact supported source expression names map only to projected runtime fields.
-/// Unknown expressions show an em dash; neither scripts nor retail numeric rules run.
-fn variable(state: &GameState, id: &str, expression: &str) -> String {
-    let normalized = expression.replace(' ', "");
-    let field = match normalized.as_str() {
-        "AdvanceDB(Advance[0]).Cost"
-        | "BuildingDB(Building[0]).ProductionCost"
-        | "WonderDB(Wonder[0]).ProductionCost" => "cost",
-        "BuildingDB(Building[0]).Upkeep" => "upkeep",
-        "UnitDB(UnitRecord[0]).Attack/100" => "attack",
-        "UnitDB(UnitRecord[0]).Defense/100" => "defense",
-        "UnitDB(UnitRecord[0]).Armor/100" => "armor",
-        "UnitDB(UnitRecord[0]).ZBRangeAttack" => "ranged",
-        "UnitDB(UnitRecord[0]).Firepower" => "firepower",
-        "UnitDB(UnitRecord[0]).VisionRange" => "visibility_range",
-        _ => return "—".to_owned(),
-    };
-    state
-        .viewer
-        .as_ref()
-        .and_then(|viewer| viewer.interface.rules.as_ref())
-        .and_then(|rules| {
-            [
-                "units",
-                "production",
-                "advances",
-                "terrain_improvements",
-                "governments",
-            ]
-            .into_iter()
-            .filter_map(|category| rules[category].as_array())
-            .flat_map(|definitions| definitions.iter())
-            .find(|definition| definition["id"].as_str() == Some(id))
-        })
-        .and_then(|definition| definition[field].as_i64())
-        .map_or_else(|| "—".to_owned(), |value| value.to_string())
 }
 
 /// Native word measurements are preferred; new numeric values use glyph advances.

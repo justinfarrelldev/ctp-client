@@ -67,16 +67,18 @@ impl LayoutNode {
         (x, y, window_width, window_height)
     }
 
-    /// Merges a resolved local override without losing inherited children.
-    fn merge(&mut self, override_node: Self) {
-        self.fields.extend(override_node.fields);
-        for child in override_node.children {
+    /// Fills absent fields/children in original first-template-wins order.
+    fn inherit(&mut self, parent: Self) {
+        for (name, value) in parent.fields {
+            self.fields.entry(name).or_insert(value);
+        }
+        for child in parent.children {
             if let Some(inherited) = self
                 .children
                 .iter_mut()
                 .find(|node| node.name == child.name)
             {
-                inherited.merge(child);
+                inherited.inherit(child);
             } else {
                 self.children.push(child);
             }
@@ -221,24 +223,22 @@ impl LayoutBook {
                 node.name
             )));
         }
-        let mut resolved = LayoutNode {
-            name: node.name.clone(),
-            ..LayoutNode::default()
-        };
+        // ldl_datablock::CopyAttributesFrom fills only absent attributes. Local
+        // children stay unexpanded until inherited child attributes have filled
+        // them; eagerly resolving their fallback bases would reverse precedence.
+        let mut resolved = node.clone();
+        resolved.bases.clear();
         for base in &node.bases {
             let parent = self.nodes.get(base).ok_or_else(|| {
                 asset_error(format!("unknown LDL template {base} for {}", node.name))
             })?;
-            resolved.merge(self.resolve_node(parent, depth.saturating_add(1))?);
+            resolved.inherit(self.resolve_node(parent, depth.saturating_add(1))?);
         }
-        let mut local = node.clone();
-        local.bases.clear();
-        local.children = node
+        resolved.children = resolved
             .children
             .iter()
             .map(|child| self.resolve_node(child, depth.saturating_add(1)))
             .collect::<Result<_, _>>()?;
-        resolved.merge(local);
         Ok(resolved)
     }
 }

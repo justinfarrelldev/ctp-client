@@ -8,6 +8,8 @@ use alloc::collections::BTreeMap;
 
 use serde_json::Value;
 
+use super::library::editor::metrics::EditMetrics;
+use super::library::editor::{ClipboardRequest, Motion, TextEditor};
 use super::library::{LibraryBrowser, LibraryCategory};
 use super::{InGameAction, MenuRect};
 use crate::gameplay::GameplayError;
@@ -20,10 +22,35 @@ use crate::gameplay::server::interface::LegalAction;
 mod articles;
 /// Source-derived button and editable-control bindings.
 mod bindings;
+/// Runtime-created original advance chart and viewer-safe local navigation.
+mod chart;
+/// Fileless source-chart regressions.
+#[cfg(test)]
+mod chart_tests;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
+/// Source category-index sorting and noninteractive age headers.
+mod index;
+/// Age sorting and reference-control regressions.
+#[cfg(test)]
+mod index_tests;
+/// Source list/hypertext rangers with shared range/geometry accounting.
+mod scrollbar;
+/// Empty/populated source ranger regressions.
+#[cfg(test)]
+mod scrollbar_tests;
 /// Original control-tree geometry, active panels and dynamic list insertion.
 mod tree;
+/// Original per-control typography and fileless measured text metadata.
+pub mod typography;
+/// Native-font choice and style-metric regressions.
+#[cfg(test)]
+mod typography_tests;
+/// Source-expression/authority boundary regressions.
+#[cfg(test)]
+mod variable_tests;
+/// Explicit non-executable mappings from original expressions to public rule data.
+mod variables;
 
 /// Original manager/dialog identity, independent of the lower control-panel tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -215,12 +242,22 @@ pub enum ManagerIntent {
     Select(String, String),
     /// Scroll one list without moving the world camera.
     Scroll(String, i32),
+    /// Set a source slider/list value, clamped against current content.
+    ScrollTo(String, usize),
+    /// Begin dragging the actual source thumb; keyboard value changes use `ScrollTo`.
+    BeginScroll(String),
     /// Focus an original local text field.
     Focus(String),
+    /// Place/extend the local query caret at a validated UTF-8 boundary.
+    EditCaret(usize, bool),
     /// Switch the library index category without changing game knowledge.
     LibraryCategory(LibraryCategory),
+    /// Toggle the view-only source age-grouped category index.
+    LibrarySort,
     /// Follow an installed internal article, opening the library when necessary.
     Article(String),
+    /// Open the chart center's actual article instead of the original empty callback.
+    ChartArticle(String),
     /// Restore the previous library article.
     LibraryBack,
     /// Restore an article after Back.
@@ -280,14 +317,30 @@ pub struct ManagementUi {
     pub book: LayoutBook,
     /// Resolved manager roots cached once, not reparsed every SDL frame.
     pub layouts: BTreeMap<ManagerKind, LayoutNode>,
+    /// Original runtime-created Chart viewport/button template, resolved once.
+    pub chart: LayoutNode,
     /// Open manager, independent of map/control-panel selections.
     pub view: Option<ManagerView>,
     /// Explicit keyboard focus; Enter never activates an arbitrary first action.
     pub focused: Option<String>,
     /// Installed article browser, separate from authoritative game research.
     pub library: LibraryBrowser,
+    /// Bounded query selection, composition and undo/redo, not game authority.
+    pub editor: TextEditor,
+    /// Explicit clipboard work deferred to an injectable native boundary.
+    pub clipboard_request: Option<ClipboardRequest>,
+    /// Native current-query prefix metrics used for pointer/caret parity.
+    pub edit_metrics: EditMetrics,
+    /// Whether a pointer selection began inside the actual query field.
+    pub search_dragging: bool,
+    /// Latest keyboard Shift state for extending a pointer selection.
+    pub pointer_extend: bool,
+    /// Captured source thumb and grab offset; no world movement capture is shared.
+    pub scroll_drag: Option<(String, i32)>,
     /// Native font word/glyph widths used by both painting and link rectangles.
     pub text_widths: BTreeMap<String, u32>,
+    /// Actual per-source-face metrics, retaining regular 8-point requirements versus body text.
+    pub font_metrics: BTreeMap<typography::SourceFont, typography::FontMetrics>,
     /// Native font line spacing, or a deterministic fallback in asset-free tests.
     pub line_height: u32,
     /// Related windows to restore on Close; duplicate kinds are not stacked.
@@ -300,22 +353,34 @@ impl ManagementUi {
     /// # Errors
     /// Returns source/template errors; never silently replaces a real dialog.
     pub fn new(book: LayoutBook) -> Result<Self, GameplayError> {
-        let layouts = ManagerKind::ALL
+        let mut layouts: BTreeMap<_, _> = ManagerKind::ALL
             .into_iter()
             .map(|kind| book.resolve(kind.root()).map(|node| (kind, node)))
             .collect::<Result<_, _>>()?;
+        if let Some(root) = layouts.get_mut(&ManagerKind::Library) {
+            index::configure(root, &book)?;
+        }
         let catalog = book
             .installation_root()
             .map(LibraryCatalog::load)
             .transpose()?
             .unwrap_or_default();
+        let chart = book.resolve("TechTree")?;
         Ok(Self {
             book,
             layouts,
+            chart,
             view: None,
             focused: None,
             library: LibraryBrowser::new(catalog),
+            editor: TextEditor::default(),
+            clipboard_request: None,
+            edit_metrics: EditMetrics::default(),
+            search_dragging: false,
+            pointer_extend: false,
+            scroll_drag: None,
             text_widths: BTreeMap::new(),
+            font_metrics: BTreeMap::new(),
             line_height: 16_u32,
             parents: Vec::new(),
         })
@@ -334,6 +399,12 @@ impl ManagementUi {
             {
                 self.library.navigate(id);
             }
+        }
+        self.clipboard_request = None;
+        self.search_dragging = false;
+        self.scroll_drag = None;
+        if kind == ManagerKind::Library {
+            self.editor.reset(&self.library.query);
         }
         let mut selections = BTreeMap::new();
         selections.insert("build-category".to_owned(), "Units".to_owned());
@@ -375,6 +446,25 @@ impl ManagementUi {
         articles::measure(self, measure, line_height);
     }
 
+    /// Collects the resolved original styles without introducing SDL into the model.
+    #[must_use]
+    pub fn font_keys(&self) -> alloc::collections::BTreeSet<typography::SourceFont> {
+        typography::keys(self)
+    }
+    /// Warms native geometry using exactly the source styles used for painting.
+    pub fn measure_source_fonts(
+        &mut self,
+        measure: impl Fn(&typography::SourceFont, &str) -> u32,
+        line_height: impl Fn(&typography::SourceFont) -> u32,
+    ) {
+        typography::measure(self, measure, line_height);
+    }
+
+    /// Warms only changed query prefixes using the actual native field font.
+    pub fn measure_query(&mut self, measure: impl Fn(&str) -> u32) {
+        self.edit_metrics.measure(&self.library.query, measure);
+    }
+
     /// Executes the original all-category text search once, caching its matches.
     pub fn search_library(&mut self) {
         let labels: BTreeMap<_, _> = self
@@ -394,24 +484,9 @@ impl ManagementUi {
     /// Scrolls only a current list/text box, clamping the stored offset as well as
     /// its rendering so a single reverse event immediately leaves the last page.
     pub fn scroll(&mut self, path: &str, delta: i32, state: &GameState) -> bool {
-        let Some(view) = self.view.as_ref() else {
+        let Some(maximum) = scrollbar::maximum(self, state, path) else {
             return false;
         };
-        let Some(widget) = self.widgets(state).into_iter().find(|widget| {
-            widget.id == path
-                && widget.node.field("objecttype").is_some_and(|kind| {
-                    kind.eq_ignore_ascii_case("ctp2_ListBox")
-                        || kind.eq_ignore_ascii_case("ctp2_hypertextbox")
-                })
-        }) else {
-            return false;
-        };
-        let maximum =
-            articles::scroll_limit(self, state, view, path, widget.rect).unwrap_or_else(|| {
-                data::rows(self, state, view, path)
-                    .len()
-                    .saturating_sub(tree::visible_rows(view.kind, path, widget.rect))
-            });
         let Some(current) = self.view.as_mut() else {
             return false;
         };
@@ -426,6 +501,26 @@ impl ManagementUi {
                 .min(maximum);
         }
         true
+    }
+
+    /// Accessible absolute range changes never bypass the current source bounds.
+    pub fn scroll_to(&mut self, path: &str, value: usize, state: &GameState) -> bool {
+        let Some(maximum) = scrollbar::maximum(self, state, path) else {
+            return false;
+        };
+        let Some(view) = self.view.as_mut() else {
+            return false;
+        };
+        view.scroll.insert(path.to_owned(), value.min(maximum));
+        true
+    }
+    /// Captures the actual thumb under the pointer, or its midpoint for accessibility.
+    pub fn begin_scroll(&mut self, path: &str, pointer_y: Option<i32>, state: &GameState) -> bool {
+        scrollbar::begin(self, path, pointer_y, state)
+    }
+    /// Updates only the captured source range using its current content/geometry.
+    pub fn drag_scroll(&mut self, y: i32, state: &GameState) -> bool {
+        scrollbar::drag(self, y, state)
     }
 
     /// Flattens the active source tree and inserts only viewer-safe dynamic rows.
@@ -446,10 +541,14 @@ impl ManagementUi {
     /// Accessible label activation requires a unique enabled match.
     #[must_use]
     pub fn activate(&self, label: &str, state: &GameState) -> Option<ManagerIntent> {
-        let mut matches = self
-            .widgets(state)
-            .into_iter()
-            .filter(|widget| widget.label.eq_ignore_ascii_case(label) && widget.intent.is_some());
+        let mut matches = self.widgets(state).into_iter().filter(|widget| {
+            (widget.label.eq_ignore_ascii_case(label)
+                || widget
+                    .node
+                    .field("aria-label")
+                    .is_some_and(|name| name.eq_ignore_ascii_case(label)))
+                && widget.intent.is_some()
+        });
         let intent = matches.next()?.intent;
         matches.next().is_none().then_some(intent).flatten()
     }
@@ -464,12 +563,21 @@ impl ManagementUi {
             .intent
     }
 
+    /// Restores a parent while cancelling native capture, composition and deferred I/O.
+    fn close(&mut self) {
+        self.search_dragging = false;
+        self.scroll_drag = None;
+        self.clipboard_request = None;
+        self.editor.clear_composition();
+        self.view = self.parents.pop();
+        self.focused = None;
+    }
+
     /// Applies presentation-only interactions; submissions/opening require the
     /// runtime and return false rather than claiming a game order was executed.
     pub fn apply_local(&mut self, intent: ManagerIntent) -> bool {
         if intent == ManagerIntent::Close {
-            self.view = self.parents.pop();
-            self.focused = None;
+            self.close();
             return true;
         }
         let Some(view) = self.view.as_mut() else {
@@ -480,6 +588,10 @@ impl ManagementUi {
                 if key == "city" {
                     view.city_id = Some(value.clone());
                 }
+                if key == "chart-focus" {
+                    view.selections.remove("chart-prerequisites-page");
+                    view.selections.remove("chart-successors-page");
+                }
                 if matches!(key.as_str(), "buildable" | "queue") {
                     view.selections
                         .insert("description".to_owned(), value.clone());
@@ -487,20 +599,49 @@ impl ManagementUi {
                 view.selections.insert(key, value);
                 true
             }
+            ManagerIntent::EditCaret(offset, extend) => {
+                self.editor.set_caret(&self.library.query, offset, extend);
+                self.focused = Some("SearchWord".to_owned());
+                true
+            }
             ManagerIntent::Focus(id) => {
+                if id == "SearchWord" {
+                    self.editor
+                        .move_caret(&self.library.query, Motion::End, false);
+                }
                 self.focused = Some(id);
+                true
+            }
+            ManagerIntent::LibrarySort => {
+                self.library.sort_by_age = !self.library.sort_by_age;
+                self.library.index_open = true;
+                view.scroll.remove("IndexSheet");
                 true
             }
             ManagerIntent::LibraryCategory(category) => {
                 self.library.set_category(category);
+                self.editor.reset(&self.library.query);
                 self.focused = None;
                 view.scroll.remove("IndexSheet");
+                true
+            }
+            ManagerIntent::ChartArticle(id) if view.kind == ManagerKind::Library => {
+                if !self.library.navigate(&id) {
+                    return false;
+                }
+                view.selections.insert("article".to_owned(), id);
+                view.selections
+                    .insert("tab:Tabs".to_owned(), "Gameplay".to_owned());
+                chart::reset(view);
+                view.scroll.clear();
+                self.focused = None;
                 true
             }
             ManagerIntent::Article(id) if view.kind == ManagerKind::Library => {
                 let changed = self.library.navigate(&id);
                 if changed {
                     self.focused = None;
+                    chart::reset(view);
                     view.selections.insert("article".to_owned(), id);
                     view.scroll.clear();
                 }
@@ -509,6 +650,7 @@ impl ManagementUi {
             ManagerIntent::LibraryBack => {
                 let changed = self.library.go_back();
                 if changed {
+                    chart::reset(view);
                     view.scroll.clear();
                 }
                 changed
@@ -516,6 +658,7 @@ impl ManagementUi {
             ManagerIntent::LibraryForward => {
                 let changed = self.library.go_forward();
                 if changed {
+                    chart::reset(view);
                     view.scroll.clear();
                 }
                 changed
@@ -524,7 +667,10 @@ impl ManagementUi {
             | ManagerIntent::Open(_)
             | ManagerIntent::Submit(_)
             | ManagerIntent::Article(_)
-            | ManagerIntent::Scroll(_, _) => false,
+            | ManagerIntent::ChartArticle(_)
+            | ManagerIntent::Scroll(_, _)
+            | ManagerIntent::ScrollTo(_, _)
+            | ManagerIntent::BeginScroll(_) => false,
         }
     }
 }

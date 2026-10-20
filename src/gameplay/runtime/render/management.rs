@@ -17,21 +17,26 @@ use sdl2::video::Window;
 
 use super::chrome::tile_texture;
 use super::context::draw_gold_frame;
-use super::text::{draw_centered_text, draw_text, draw_wrapped_text};
 use crate::gameplay::model::GameState;
 use crate::gameplay::runtime::textures::GameplayTextures;
 use crate::gameplay::ui_model::InGameUiModel;
 use crate::gameplay::ui_model::management::{ManagerKind, ManagerWidget};
 use crate::gameplay::{GameplayError, runtime_error};
 
+/// Source face-specific alignment, title shadows and link underlines.
+mod labels;
+/// Platform-independent native search editing visuals.
+mod text_field;
+
 /// Draws an open manager after the map/panel and before the software cursor.
-pub(super) fn draw_management(
+pub(super) fn draw_management<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
-    font: Option<&Font<'_, '_>>,
+    font: impl Into<crate::gameplay::runtime::fonts::RenderFonts<'draw, 'ttf, 'rwops>>,
 ) -> Result<(), GameplayError> {
+    let fonts = font.into();
     let Some(view) = ui.management.view.as_ref() else {
         return Ok(());
     };
@@ -44,7 +49,7 @@ pub(super) fn draw_management(
     }
     for widget in &widgets {
         if !(popup && widget.id.is_empty()) {
-            draw_widget(canvas, textures, widget, font)?;
+            draw_widget(canvas, textures, widget, fonts.control(&widget.node))?;
         }
     }
     Ok(())
@@ -62,7 +67,19 @@ fn draw_widget(
         return Ok(());
     }
     let previous = canvas.clip_rect();
-    let clip = previous.map_or(Some(bounds), |parent| parent.intersection(bounds));
+    // AUI centers titles in their bound but clips them to the window, permitting
+    // horizontal text overhang. Images still retain their own control clipping.
+    let text_clip = if widget.node.field("overflow-title") == Some("true") {
+        Rect::new(
+            canvas.viewport().x(),
+            bounds.y(),
+            canvas.viewport().width(),
+            bounds.height().saturating_add(1_u32),
+        )
+    } else {
+        bounds
+    };
+    let clip = previous.map_or(Some(text_clip), |parent| parent.intersection(text_clip));
     let Some(clip) = clip else {
         return Ok(());
     };
@@ -80,12 +97,15 @@ fn paint_widget(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     let bounds = rect(widget);
+    if let Some(kind) = widget.node.field("primitive") {
+        return draw_primitive(canvas, widget, kind);
+    }
     if widget
         .node
         .field("objecttype")
         .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_Textfield"))
     {
-        return draw_text_field(canvas, widget, font);
+        return text_field::draw(canvas, widget, font);
     }
     if let Some(pattern) = widget
         .node
@@ -128,95 +148,34 @@ fn paint_widget(
         canvas.set_draw_color(Color::RGB(255, 198, 66));
         canvas.fill_rect(bounds).map_err(runtime_error)?;
     }
-    if !widget.label.is_empty() {
-        let previous_clip = canvas.clip_rect();
-        canvas.set_clip_rect(previous_clip.map_or(Some(bounds), |clip| clip.intersection(bounds)));
-        let disabled = widget.unavailable.is_some();
-        let color = if disabled {
-            Color::RGB(126, 118, 108)
-        } else {
-            label_color(widget)
-        };
-        let label = &widget.label;
-        let result = if widget.node.field("wordwrap").is_some_and(truth) {
-            draw_wrapped_text(canvas, font, label, bounds, color)
-        } else if widget.id.contains('/') || widget.node.field("just") == Some("left") {
-            draw_text(
-                canvas,
-                font,
-                label,
-                bounds
-                    .x()
-                    .saturating_add(if widget.node.field("richtext") == Some("true") {
-                        0
-                    } else {
-                        3
-                    }),
-                bounds.y(),
-                color,
-            )
-        } else {
-            draw_centered_text(canvas, font, label, bounds, color, false)
-        };
-        canvas.set_clip_rect(previous_clip);
-        result?;
-        if widget.node.field("richtext") == Some("true") && widget.intent.is_some() {
-            let y = bounds
-                .y()
-                .saturating_add(font.map_or(7_i32, |font| font.ascent().saturating_add(1_i32)))
-                .min(bounds.bottom().saturating_sub(1_i32));
-            canvas.set_draw_color(color);
-            canvas
-                .draw_line((bounds.x(), y), (bounds.right().saturating_sub(1_i32), y))
-                .map_err(runtime_error)?;
-        }
-    }
-    Ok(())
+    labels::draw(canvas, widget, font)
 }
 
-/// Replaces the platform-specific Windows EDIT drawing with SDL's clipped,
-/// white text field while keeping the original logical bounds and Unicode value.
-fn draw_text_field(
+/// Native chart connectors/borders use the same bounded descriptors as buttons.
+fn draw_primitive(
     canvas: &mut Canvas<Window>,
     widget: &ManagerWidget,
-    font: Option<&Font<'_, '_>>,
+    kind: &str,
 ) -> Result<(), GameplayError> {
-    let bounds = rect(widget);
-    canvas.set_draw_color(Color::RGB(255_u8, 255_u8, 255_u8));
-    canvas.fill_rect(bounds).map_err(runtime_error)?;
-    canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
-    canvas.draw_rect(bounds).map_err(runtime_error)?;
-    let width = font.map_or_else(
-        || {
-            u32::try_from(widget.label.chars().count())
-                .unwrap_or(u32::MAX)
-                .saturating_mul(6_u32)
-        },
-        |font| font.size_of(&widget.label).map_or(0_u32, |size| size.0),
-    );
-    let excess = width.saturating_sub(bounds.width().saturating_sub(6_u32));
-    let x = bounds
-        .x()
-        .saturating_add(3_i32)
-        .saturating_sub(i32::try_from(excess).unwrap_or(i32::MAX));
-    draw_text(
-        canvas,
-        font,
-        &widget.label,
-        x,
-        bounds.y().saturating_add(2_i32),
-        Color::RGB(0_u8, 0_u8, 0_u8),
-    )?;
-    if widget.node.field("textfocused") == Some("true") {
-        let caret = x.saturating_add(i32::try_from(width).unwrap_or(i32::MAX));
-        canvas
-            .draw_line(
-                (caret, bounds.y().saturating_add(3_i32)),
-                (caret, bounds.bottom().saturating_sub(3_i32)),
-            )
-            .map_err(runtime_error)?;
+    canvas.set_draw_color(label_color(widget));
+    if kind == "frame" {
+        return canvas.draw_rect(rect(widget)).map_err(runtime_error);
     }
-    Ok(())
+    if kind != "line" {
+        return Err(runtime_error("Unknown manager primitive".to_owned()));
+    }
+    let coordinate = |name| {
+        widget
+            .node
+            .integer(name)
+            .ok_or_else(|| runtime_error(format!("Missing chart coordinate {name}")))
+    };
+    canvas
+        .draw_line(
+            (coordinate("x1")?, coordinate("y1")?),
+            (coordinate("x2")?, coordinate("y2")?),
+        )
+        .map_err(runtime_error)
 }
 
 /// AUI selects an enabled image layer; absent legacy layers are not invented.

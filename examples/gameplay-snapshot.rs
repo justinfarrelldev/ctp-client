@@ -4,7 +4,7 @@
 
 use ctp_client::gameplay::runtime::snapshot::render_preview_scene;
 use ctp_client::gameplay::runtime::snapshot::scene::PreviewScene;
-use ctp_client::gameplay::ui_model::MenuCategory;
+use ctp_client::gameplay::ui_model::{MenuCategory, management::ManagerKind};
 use std::error::Error;
 use std::path::Path;
 
@@ -51,8 +51,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         Some("stack") => PreviewScene::Stack,
         Some("context") => PreviewScene::Context,
         Some("info") => PreviewScene::TerrainInfo,
+        Some("chart") => PreviewScene::PopulatedManager {
+            kind: ManagerKind::Library,
+            chart: true,
+        },
+        Some(name) if name.ends_with("-populated") => name
+            .strip_suffix("-populated")
+            .and_then(ManagerKind::from_name)
+            .map_or(PreviewScene::Generated, |kind| {
+                PreviewScene::PopulatedManager { kind, chart: false }
+            }),
         name => name
-            .and_then(ctp_client::gameplay::ui_model::management::ManagerKind::from_name)
+            .and_then(ManagerKind::from_name)
             .map_or(PreviewScene::Generated, PreviewScene::Manager),
     };
     let mut frame = render_preview_scene(Path::new(root), (width, height), menu, scene)?;

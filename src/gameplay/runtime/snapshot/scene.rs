@@ -1,6 +1,7 @@
 //! Deterministic visual fixtures, explicitly separate from authoritative games.
 
 use crate::gameplay::model::{FogState, GameState, MapPoint, PlayerId, TerrainKind};
+use crate::gameplay::ui_model::management::ManagerKind;
 
 /// Scene to inspect with the real renderer; neither variant contacts a server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +18,14 @@ pub enum PreviewScene {
     /// Original gold-framed terrain information on the synthetic fixture.
     TerrainInfo,
     /// Source-layout manager over an explicitly synthetic background fixture.
-    Manager(crate::gameplay::ui_model::management::ManagerKind),
+    Manager(ManagerKind),
+    /// Populated descriptions backed by explicit synthetic public projection data.
+    PopulatedManager {
+        /// Source manager root to inspect.
+        kind: ManagerKind,
+        /// Select the advance chart rather than prose for a Library fixture.
+        chart: bool,
+    },
     /// A single confirmed synthetic move with original cursor and injected clock.
     Motion {
         /// Clockwise screen direction, north=0 through northwest=7 (clamped).
@@ -29,6 +37,9 @@ pub enum PreviewScene {
 
 /// Creates a reproducible scene without reading or writing configuration files.
 pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameState {
+    if matches!(scene, PreviewScene::PopulatedManager { .. }) {
+        return super::manager_fixture::state();
+    }
     let mut state = GameState::new(64_u16, 48_u16, 5_u8, 42_u64);
     state.popups.clear();
     if scene == PreviewScene::Generated {
@@ -93,6 +104,19 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
                 ui.management.library.navigate("ADVANCE_BALLISTICS");
             }
             ui.management.open(kind, state, None);
+        }
+        PreviewScene::PopulatedManager { kind, chart } => {
+            ui.management.open(kind, state, None);
+            let control = if kind == ManagerKind::Build {
+                Some("ItemsBox.UnitsList/UNIT_SETTLER")
+            } else if kind == ManagerKind::Library && chart {
+                Some("Tabs.TechTreeTab.TabButton")
+            } else {
+                None
+            };
+            if let Some(intent) = control.and_then(|id| ui.management.activate_id(id, state)) {
+                ui.management.apply_local(intent);
+            }
         }
         PreviewScene::Context => {
             if let Some(point) = state.selected_unit().map(|unit| unit.position) {

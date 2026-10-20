@@ -4,6 +4,11 @@ use alloc::collections::VecDeque;
 
 use crate::gameplay::assets::library::LibraryCatalog;
 
+/// Bounded Unicode search-field editing, independent of SDL or OS clipboard access.
+pub mod editor;
+/// Pure text-editor state regressions.
+#[cfg(test)]
+mod editor_tests;
 /// Safe rich-text layout shared by native rendering and clickable link descriptors.
 pub mod layout;
 
@@ -124,6 +129,8 @@ pub struct LibraryBrowser {
     pub query: String,
     /// The original index stays empty until a category or search is explicitly used.
     pub index_open: bool,
+    /// Reference community age-grouping toggle; retained across supported categories.
+    pub sort_by_age: bool,
     /// Cached global search matches; None means the category index, not search mode.
     pub search_results: Option<Vec<String>>,
     /// Previous article IDs in browser order.

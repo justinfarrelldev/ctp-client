@@ -1,7 +1,7 @@
 //! Framebuffer assertions use memory only; no snapshot files are ever written.
 
 use super::{HeadlessSdlEnvironment, snapshot};
-use crate::gameplay::ui_model::MenuCategory;
+use crate::gameplay::ui_model::{MenuCategory, management::ManagerKind};
 use std::path::Path;
 
 #[test]
@@ -45,6 +45,80 @@ fn motion_probe_captures_real_window_at_an_injected_animation_phase() -> Result<
         }
         if middle != repeated {
             return Err("injected phase is not deterministic".to_owned());
+        }
+        Ok(())
+    })();
+    environment.restore();
+    result
+}
+
+#[test]
+fn populated_manager_diagnostics_use_explicit_offline_projection_fixtures() {
+    let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
+        kind: ManagerKind::Science,
+        chart: false,
+    });
+    let viewer = state.viewer.as_ref().expect("explicit fixture viewer");
+    assert_eq!(
+        viewer
+            .interface
+            .research
+            .as_ref()
+            .expect("fixture research")
+            .target_id,
+        "ADVANCE_BALLISTICS",
+        "populated research is labeled fixture data, never invented in the empty preview"
+    );
+    assert_eq!(
+        viewer.cities.len(),
+        1_usize,
+        "a deterministic selectable city"
+    );
+    assert_eq!(
+        viewer.cities[0].facts["queue"].as_array().map(Vec::len),
+        Some(2_usize),
+        "populated queues must use the actual public queue field, not an invented alias"
+    );
+    assert!(
+        viewer.interface.rules.is_some(),
+        "descriptions use runtime metadata"
+    );
+    assert!(
+        snapshot::scene::preview_state(snapshot::scene::PreviewScene::Manager(
+            ManagerKind::Science
+        ))
+        .viewer
+        .is_none(),
+        "existing empty diagnostics must remain empty"
+    );
+}
+
+#[test]
+fn populated_chart_scene_renders_projected_research_borders_with_native_source_fonts()
+-> Result<(), String> {
+    let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;
+    let environment = HeadlessSdlEnvironment::apply();
+    let result = (|| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let chart = snapshot::render_preview_scene(
+            &root,
+            (800_u32, 600_u32),
+            None,
+            snapshot::scene::PreviewScene::PopulatedManager {
+                kind: ManagerKind::Library,
+                chart: true,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let offset = 348_usize
+            .saturating_mul(800_usize)
+            .saturating_add(313_usize)
+            .saturating_mul(4_usize);
+        if chart.rgba[offset..offset.saturating_add(3_usize)] != [0_u8, 255_u8, 0_u8] {
+            return Err(
+                "native chart did not render the known Agriculture research-state border"
+                    .to_owned(),
+            );
         }
         Ok(())
     })();

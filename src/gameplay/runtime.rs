@@ -48,6 +48,8 @@ mod context_input;
 pub mod controls;
 /// Original software cursor art and edge-scrolling policy.
 mod cursor;
+/// Session-owned original per-control font styles and borrowed frame font context.
+mod fonts;
 /// Native-frame composition and uniform final scaling.
 mod frame;
 /// Original drawing/hit-test geometry.

@@ -1,13 +1,23 @@
 //! Exclusive manager focus and shared accessible/pointer command dispatch.
 
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 
 use super::{MovementInputState, RuntimeAuthority, submit_authoritative_command};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::InGameUiModel;
 
+/// Clipboard access remains injectable; editing itself is pure presentation.
+pub(super) mod editor_input;
+/// Fileless native-event text editing regressions.
+#[cfg(test)]
+mod editor_tests;
+/// Source thumb capture and keyboard range behavior.
+mod scroll_input;
+/// Source ranger capture and accessible-value regressions.
+#[cfg(test)]
+mod scroll_tests;
 #[cfg(test)]
 mod tests;
 use crate::gameplay::ui_model::management::{ManagerIntent, ManagerKind};
@@ -25,36 +35,30 @@ pub(super) fn consume(
     if ui.management.view.is_none() || !state.popups.is_empty() {
         return false;
     }
+    if matches!(
+        *event,
+        Event::Window {
+            win_event: sdl2::event::WindowEvent::FocusLost | sdl2::event::WindowEvent::Hidden,
+            ..
+        }
+    ) {
+        ui.management.search_dragging = false;
+        ui.management.scroll_drag = None;
+        ui.management.pointer_extend = false;
+        ui.management.clipboard_request = None;
+        ui.management.editor.clear_composition();
+    }
     if matches!(*event, Event::Quit { .. } | Event::Window { .. }) {
         return false;
     }
     movement.cancel_drag();
-    let editing = ui
-        .management
-        .view
-        .as_ref()
-        .is_some_and(|view| view.kind == ManagerKind::Library)
-        && ui.management.focused.as_deref() == Some("SearchWord");
+    if scroll_input::consume(event, ui, state) {
+        return true;
+    }
+    if editor_input::consume(event, ui, state) {
+        return true;
+    }
     let intent = match event.clone() {
-        Event::TextInput { text, .. } if editing => {
-            edit_query(ui, &text, false);
-            None
-        }
-        Event::KeyDown {
-            keycode: Some(Keycode::RETURN),
-            repeat: false,
-            ..
-        } if editing => {
-            ui.management.search_library();
-            None
-        }
-        Event::KeyDown {
-            keycode: Some(Keycode::BACKSPACE),
-            ..
-        } if editing => {
-            edit_query(ui, "", true);
-            None
-        }
         Event::KeyDown {
             keycode: Some(Keycode::ESCAPE),
             repeat: false,
@@ -62,10 +66,19 @@ pub(super) fn consume(
         } => Some(ManagerIntent::Close),
         Event::KeyDown {
             keycode: Some(Keycode::TAB | Keycode::DOWN),
+            keymod,
             repeat: false,
             ..
         } => {
-            focus(ui, state, 1_i32);
+            focus(
+                ui,
+                state,
+                if keymod.intersects(Mod::LSHIFTMOD | Mod::RSHIFTMOD) {
+                    -1_i32
+                } else {
+                    1_i32
+                },
+            );
             None
         }
         Event::KeyDown {
@@ -123,6 +136,18 @@ fn pointer_intent(
 ) -> Option<ManagerIntent> {
     let intent = ui.management.intent_at(x, y, state);
     ui.management.focused = None;
+    ui.management.search_dragging = false;
+    ui.management.scroll_drag = None;
+    ui.management.editor.clear_composition();
+    if intent == Some(ManagerIntent::Focus("SearchWord".to_owned())) {
+        if let Some(offset) = editor_input::caret_offset(ui, state, x) {
+            ui.management.search_dragging = true;
+            return Some(ManagerIntent::EditCaret(
+                offset,
+                ui.management.pointer_extend,
+            ));
+        }
+    }
     if intent.is_none() {
         if let Some(reason) = ui
             .management
@@ -162,6 +187,14 @@ pub(super) fn apply(
             }
         }
         ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::ScrollTo(path, value) => {
+            ui.management.scroll_to(&path, value, state);
+        }
+        ManagerIntent::BeginScroll(path) => {
+            ui.management
+                .begin_scroll(&path, ui.pointer.map(|point| point.1), state);
+            ui.management.focused = Some(format!("{path}/ranger/thumb"));
+        }
         ManagerIntent::Scroll(path, delta) => {
             ui.management.scroll(&path, delta, state);
         }
@@ -184,24 +217,6 @@ pub(super) fn apply(
                 ui.great_library = None;
             }
         }
-    }
-}
-
-/// Bounded Unicode editing is local presentation state, not a server command.
-fn edit_query(ui: &mut InGameUiModel, text: &str, backspace: bool) {
-    let mut query = ui.management.library.query.clone();
-    if backspace {
-        query.pop();
-    } else {
-        query.extend(
-            text.chars()
-                .filter(|character| !character.is_control())
-                .take(128_usize),
-        );
-    }
-    ui.management.library.set_query(&query);
-    if let Some(view) = ui.management.view.as_mut() {
-        view.scroll.remove("IndexSheet");
     }
 }
 

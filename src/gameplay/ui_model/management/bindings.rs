@@ -37,7 +37,7 @@ pub(super) fn binding(
             enabled(ManagerIntent::Open(ManagerKind::Research))
         }
         ManagerKind::Research if path == "Background.BackButton" => research(state, view),
-        ManagerKind::Library => library(ui, name),
+        ManagerKind::Library => library(ui, state, name),
         ManagerKind::National if name == "BuildQueueButton" => {
             selected_city_navigation(view, ManagerKind::Build)
         }
@@ -200,12 +200,22 @@ fn selected_action(
 }
 
 /// Local category switching does not change rules, research or discovery state.
-fn library(ui: &ManagementUi, name: &str) -> (Option<ManagerIntent>, Option<String>) {
+fn library(
+    ui: &ManagementUi,
+    state: &GameState,
+    name: &str,
+) -> (Option<ManagerIntent>, Option<String>) {
     if let Some(category) = crate::gameplay::ui_model::library::LibraryCategory::from_button(name) {
         return enabled(ManagerIntent::LibraryCategory(category));
     }
     match name {
         "SearchWord" => enabled(ManagerIntent::Focus("SearchWord".to_owned())),
+        "SortByAgeButton" if super::index::can_sort(ui, state) => {
+            enabled(ManagerIntent::LibrarySort)
+        }
+        "SortByAgeButton" => disabled(
+            "Age sorting requires a supported category and current server age metadata; search and unknown ages are not guessed",
+        ),
         "BackButton" if !ui.library.back.is_empty() => enabled(ManagerIntent::LibraryBack),
         "ForwardButton" if !ui.library.forward.is_empty() => enabled(ManagerIntent::LibraryForward),
         "BackButton" | "ForwardButton" => {

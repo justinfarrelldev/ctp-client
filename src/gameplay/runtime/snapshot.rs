@@ -4,6 +4,7 @@
 //! does not replace server-authoritative state during an interactive session.
 //! Tests can inspect the RGBA result without invoking the separate file sink.
 
+use super::fonts::{ManagementFonts, RenderFonts};
 use super::{configure_gameplay_canvas, frame, load_gameplay_font, textures::GameplayTextures};
 use crate::gameplay::ui_model::{InGameUiModel, MenuCategory};
 use crate::gameplay::{GameplayError, runtime_error};
@@ -16,6 +17,8 @@ use sdl2::video::Window;
 use std::io::Seek;
 use std::path::{Path, PathBuf};
 
+/// Explicit populated offline data for diagnostic managers, never live gameplay.
+mod manager_fixture;
 /// Explicit deterministic fixture selection, not live-game simulation.
 pub mod scene;
 use scene::{PreviewScene, preview_state};
@@ -170,7 +173,10 @@ pub fn render_preview_scene(
         open_menu: menu,
         ..InGameUiModel::default()
     };
-    if matches!(scene, PreviewScene::Manager(_)) {
+    if matches!(
+        scene,
+        PreviewScene::Manager(_) | PreviewScene::PopulatedManager { .. }
+    ) {
         ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
             crate::gameplay::assets::layout::LayoutBook::load(root)?,
         )?;
@@ -179,6 +185,8 @@ pub fn render_preview_scene(
         ui.measure_menu_text(|text| font.size_of(text).map_or(0_u32, |metrics| metrics.0));
         ui.management.line_height = u32::try_from(font.height()).unwrap_or(16_u32);
     }
+    let source_fonts = ManagementFonts::load(&ttf, &ui.management)?;
+    source_fonts.measure(&mut ui.management);
     let (camera, input) = scene::preview_presentation(scene, &mut state, &textures, &mut ui);
     let mut frame_texture = creator
         .create_texture_target(
@@ -195,7 +203,10 @@ pub fn render_preview_scene(
         &ui,
         &camera,
         &input,
-        font.as_ref(),
+        RenderFonts {
+            body: font.as_ref(),
+            management: Some(&source_fonts),
+        },
     )?;
     capture_canvas(&canvas)
 }

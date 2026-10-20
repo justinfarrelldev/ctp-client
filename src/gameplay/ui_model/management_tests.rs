@@ -203,7 +203,7 @@ fn library_uses_a_real_edit_field_and_never_draws_obsolete_search_or_missing_tit
     assert!(
         widgets
             .iter()
-            .any(|widget| widget.id == "Title" && widget.label == "GREAT LIBRARY"),
+            .any(|widget| widget.id == "Title" && widget.label == "G R E A T   L I B R A R Y"),
         "missing retail uppercase key falls back to the installed localized title"
     );
     assert!(
@@ -221,10 +221,10 @@ fn library_uses_a_real_edit_field_and_never_draws_obsolete_search_or_missing_tit
         super::MenuRect {
             x: 126_i32,
             y: 81_i32,
-            width: 138_u32,
+            width: 136_u32,
             height: 20_u32
         },
-        "original text-field geometry"
+        "reference community text-field geometry"
     );
     assert_eq!(
         field.node.field("textfocused"),
