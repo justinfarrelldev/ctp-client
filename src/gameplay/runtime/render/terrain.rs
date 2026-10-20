@@ -5,7 +5,8 @@ use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-use super::actors::{draw_cities, draw_goods, draw_settlement_preview, draw_units};
+use super::actors::{draw_goods, draw_settlement_preview, draw_units};
+use super::cities::draw_cities;
 use super::{draw_tile_diamond, tile_color};
 use crate::gameplay::assets::tile::{TILE_PIXEL_HEADROOM, TILE_PIXEL_HEIGHT, TILE_PIXEL_WIDTH};
 use crate::gameplay::model::{FogState, GameState, TerrainKind, TileFeature};
@@ -87,7 +88,7 @@ pub(super) fn draw_map(
         }
     }
     draw_goods(canvas, textures, state, camera)?;
-    draw_cities(canvas, state, camera)?;
+    draw_cities(canvas, textures, state, camera)?;
     draw_settlement_preview(canvas, state, camera)?;
     draw_units(canvas, textures, state, camera, input)
 }

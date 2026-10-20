@@ -449,5 +449,8 @@ mod server_projection;
 
 #[cfg(test)]
 mod terrain_tests;
+/// Viewer-safe original city caption and queue projection regressions.
+#[cfg(test)]
+mod city_tests;
 #[cfg(test)]
 mod tests;

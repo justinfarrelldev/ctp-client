@@ -40,7 +40,13 @@ fn all_nonunit_tabs_have_source_bodies_and_empty_city_has_no_fabricated_portrait
             widgets.iter().any(|widget| widget.id == id),
             "source body control {id}"
         );
-        assert!(widgets.iter().all(|widget|widget.intent.as_ref().is_none_or(|intent|matches!(intent, &super::ManagerIntent::Select(..)))),"only local palette selection is enabled; painting cannot grant game commands");
+        assert!(
+            widgets.iter().all(|widget| widget
+                .intent
+                .as_ref()
+                .is_none_or(|intent| matches!(intent, &super::ManagerIntent::Select(..)))),
+            "only local palette selection is enabled; painting cannot grant game commands"
+        );
     }
     ui.active_tab = ControlPanelTab::City;
     let empty = ui.management.panel_widgets(&state, &ui);
@@ -56,6 +62,23 @@ fn all_nonunit_tabs_have_source_bodies_and_empty_city_has_no_fabricated_portrait
             .find(|widget| widget.id == "BuildProgress.Title")
             .is_some_and(|widget| widget.label.is_empty()),
         "empty city title"
+    );
+}
+
+#[test]
+fn missing_projected_city_names_do_not_turn_machine_identities_into_captions() {
+    let (mut ui, state) = fixture(
+        json!({"revision":1_i64,"turn":1_u32,"tiles":[{"id":"a","x":2_u16,"y":2_u16,"terrain":"TERRAIN_PLAINS"}],"cities":[{"id":"client-city-settler-95-1","owner_id":"human","tile_id":"a","population":1_u32}]}),
+    );
+    ui.active_tab = ControlPanelTab::City;
+    let widgets = ui.management.panel_widgets(&state, &ui);
+    assert_eq!(
+        widgets
+            .iter()
+            .find(|widget| widget.id == "CitySelect.Pulldown/selected")
+            .map(|widget| widget.label.as_str()),
+        Some("—"),
+        "missing canonical name is unknown, not the machine identity"
     );
 }
 

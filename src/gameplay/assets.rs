@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use super::{GameplayError, asset_error};
 
+/// Original city-style/age/population recipes and GC building sprites.
+pub mod cities;
 /// Shared record scanning for installed visual metadata.
 mod database;
 /// Original resource identifiers and resource SPR loading (not generation).

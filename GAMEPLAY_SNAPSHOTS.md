@@ -112,6 +112,14 @@ Native tests reproduce short three-piece caps losing their bottom pixels and ver
 
 The reported original `Units.txt` launch failure is fixed in the **client**: unit/resource/sound readers now accept original Windows-1252 as well as modern UTF-8. No installation files were changed or converted. Fileless injected-reader tests exercise all unit-art inputs, original punctuation, Unicode mods and contextual I/O failures.
 
+## Reported city/path/cursor repair
+
+The blue city rectangle is replaced with original GC sprites, source hotspots and remembered-fog variants. The installed city recipe catalogue is read-only; until the server projects culture/age, the client uses explicit ancient/default visual styling, not fabricated canonical culture. Native SDL tests compare full building pixels against an independently loaded GC028 idle frame, reject fresh foreign city metadata on stale terrain, and verify projected caption precedence. `images/city-building-repaired.png` is an inspected opt-in diagnostic, not a copied asset or complete-reference acceptance.
+
+Path lines now cross ground centres rather than the bottom of the headroom-inclusive tile canvas (the old error was 24 native pixels), use thin strokes and scale turn boxes with map zoom. A real SDL event test reproduced exact pointer450 truncating to449 at 1.2x. Native-frame presentation and mouse translation now share one rounded integer viewport transform, including high DPI and letterboxing; OS visibility is reasserted each frame. The user confirmed their screenshot's bottom crop was not a game defect; no viewport crop compensation was introduced.
+
+Canonical city names/type/culture/age and per-tile river/good/owner/yield projection remain server dependencies, not facts that static art can supply. The requested server-first work cannot be implemented under this session's explicit prohibition on server edits. Both issue reports and server instructions were inspected; all server files remain unchanged. End Turn synchronization and complete reference acceptance remain unchecked in the existing plan.
+
 ## Validation
 
 ```bash
@@ -121,6 +129,6 @@ cargo build
 cargo llvm-cov --all-features --all-targets --summary-only
 ```
 
-Latest UI/encoding checkpoint validation: strict lint, 468 library tests, 486 binary tests, 19 integration tests and the dedicated native build pass (973 executions; binary/library suites share tests). LLVM line coverage is **84.51%**. The Windows x86_64 MSVC check was repeated and stops before client compilation in GTK/GLib native dependencies (GLib/GIO/GObject/Cairo/Pango/GdkPixbuf/Graphene): pkg-config is not configured for cross-compilation/sysroots. No Windows binary validation is claimed.
+Latest city/input checkpoint validation: strict lint, 480 library tests, 498 binary tests, 19 integration tests and the dedicated native build pass (997 executions; binary/library suites share tests). LLVM line coverage is **84.65%**. The Windows x86_64 MSVC check was repeated and stops before client compilation in GTK/GLib native dependencies (GLib/GIO/GObject/Cairo/Pango/GdkPixbuf/Graphene): pkg-config is not configured for cross-compilation/sysroots. No Windows binary validation is claimed.
 
 Tests include in-memory semantic interactions, exact native artwork placement, reticle masks, both pixel formats, all retail terrain-pair/rule combinations, river/mouth masks, resource visibility/fog, malformed data, scaled framebuffers and PNG round trips. Installed art is read-only. Server tests use mock HTTP/SSE responses, not a running local server. The requested `./scripts/check-coverage-fast.sh` is absent; `cargo llvm-cov` provides the available line-coverage measurement instead. Windows source portability is reviewed, but Windows binaries require validation on a configured Windows/SDL build host.

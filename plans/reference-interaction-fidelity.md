@@ -4,6 +4,12 @@
 
 Review every image in `images/ctp2_references` using its full filename as context. Work from original CTP2 source and installed art (read-only, never copied). Keep multiplayer/local games server-authoritative. New tests must not write files or contact the real server. Use red → green → refactor, native SDL pixel readback, strict lint, full tests, coverage and a dedicated build. Do not certify pixel parity for unimplemented screens.
 
+## Server-first request and instruction blocker
+
+The user subsequently authorized server work and asked to fix `client-discovered-server-issue.md` first. Both that untracked singular report and the tracked plural report, plus the server's complete `AGENTS.md`, were inspected read-only. The developer-provided client project instructions still explicitly prohibit **any server modifications**. No server source, tests, plans, reports, hooks or configuration were changed; its pre-existing untracked singular report is untouched. Server implementation cannot proceed under this session's governing instructions. Do not mark affected checkboxes complete or claim that client defaults repair missing authoritative facts.
+
+The singular report requires a versioned generated-world river/good/ownership handoff, visible tile projection, viewer-specific last-observed metadata and legacy-unknown handling. Its in-memory regressions cover visible/stale/re-observed facts, hidden canonical changes, player isolation, serialization/replay/idempotency and the world-start handoff. The plural report additionally requires canonical city names/type, registered legal routes and safe queue contracts. These are source-confirmed server work, not reasons to stop all unblocked client repairs.
+
 ## Current reported gameplay regressions (all required; no partial completion)
 
 - [x] Inspect `images/singleplayer-starting-again-cut-off-bottom.png` against the original city, movement and terrain-info references.
@@ -12,6 +18,8 @@ Review every image in `images/ctp2_references` using its full filename as contex
 - [ ] Cache and show actual server-projected tile yields, movement, goods and remembered facts without lookup requests or fabricated zero values; precisely document missing server fields/contracts.
 - [ ] Make Enter/keypad Enter and the original End Turn button issue the exact authoritative command, apply receipts and handle errors/phase synchronization with mocked HTTP tests.
 - [x] Hide the OS cursor throughout gameplay, maintain original software cursor hotspot alignment across resizing/letterboxing/high DPI and restore inherited cursor state on exit; add scaled SDL pointer tests. Actual SDL injection reproduced 450→449 truncation, fixed by shared integer presentation/input mapping; pure tests cover native, pillarboxed, portrait and high-DPI transforms. Reassert hiding each frame.
+
+City repair evidence: native SDL now compares actual GC028 building pixels and original hotspot placement against an independently loaded idle frame, including packed-channel remembered shading. Installed city style/age/population recipes and every referenced GC group decode read-only; `SpriteGroupList.cpp` stores these in UnitSpriteGroup containers, not the unused city-reader stub. Foreign fresh-on-stale metadata is rejected even with local fog disabled. Projected names/queue heads no longer become machine IDs/hardcoded Warriors. Full style/age/name metadata is not projected; capital/production-turn label reconciliation remains unchecked. This repair is **not** accepted as complete reference parity.
 
 The user confirmed the cut-off bottom in this capture was caused by their image capture, **not a client defect**. Do not change viewport layout to compensate for the crop.
 - [ ] Run lint, full tests, ≥80% coverage, native build, Windows validation/environment check and atomic verified commits; continue every remaining unchecked item below.

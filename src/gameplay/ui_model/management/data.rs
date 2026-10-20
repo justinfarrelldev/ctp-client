@@ -282,7 +282,11 @@ pub(super) fn label(ui: &ManagementUi, id: &str) -> String {
 
 /// Authoritative name if a newer projector provides it; never invent Rome.
 pub(super) fn city_name(city: &ServerCityProjection) -> String {
-    city.facts["name"].as_str().unwrap_or(&city.id).to_owned()
+    city.facts["name"]
+        .as_str()
+        .filter(|name| !name.is_empty())
+        .unwrap_or("—")
+        .to_owned()
 }
 
 /// Replaces source placeholder numbers only with known current viewer facts.

@@ -151,8 +151,17 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
                 id: CityId(stable_id_from_text(&city.id)),
                 owner: player_id_from_server_owner(&city.owner_id),
                 position: *tile_lookup.get(&city.tile_id)?,
-                name: city.id.clone(),
-                build_item: "Warrior".to_owned(),
+                name: city.facts["name"]
+                    .as_str()
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or("—")
+                    .to_owned(),
+                build_item: city.facts["queue"]
+                    .as_array()
+                    .and_then(|queue| queue.first())
+                    .and_then(|item| item["id"].as_str())
+                    .unwrap_or_default()
+                    .to_owned(),
             })
         })
         .collect::<Vec<_>>();

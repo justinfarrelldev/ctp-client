@@ -25,7 +25,7 @@ fn collapsed_city_selector_paints_one_caption_not_its_hidden_popup_or_duplicate_
     let widgets = ui.widgets(&state);
     let captions = widgets
         .iter()
-        .filter(|widget| widget.id.starts_with("SingleCityChooser") && widget.label == "first")
+        .filter(|widget| widget.id.starts_with("SingleCityChooser") && widget.id.ends_with("/selected") && widget.label == "—")
         .count();
     assert_eq!(
         captions, 1_usize,

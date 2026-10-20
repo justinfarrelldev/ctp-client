@@ -166,3 +166,11 @@ Continue using [the existing reference plan](plans/reference-interaction-fidelit
 - [x] Reproduce the reported `Units.txt` launch failure using injected non-UTF-8 bytes. Fix the client reader, not original data; apply the shared Windows-1252/UTF-8 decoder to unit/resource/sound inputs and preserve real I/O failures.
 - [x] Strict lint and full tests pass (**468 library + 486 binary + 19 integration = 973 executions**), dedicated native build passes, LLVM overall line coverage is **84.51%**. Required fast script remains absent; Windows MSVC checking is blocked before client compilation by native dependency cross-pkg-config/sysroot configuration.
 - [ ] Complete remaining manager/advisor, message/popups, city/map UI and all 33 complete reference-scenario acceptances. Most/all UI has **not** been certified identical; follow the unchecked main-plan items rather than interpreting component passes as completion.
+
+## Reported movement, city and cursor defects
+
+- [x] Reproduce and fix the 24-native-pixel path-anchor offset, restore thin source path lines and zoom-scaled turn boxes, and verify real SDL line pixels.
+- [x] Reproduce SDL 1.2x pointer450→449 truncation; share an integer window/drawable/native transform, preserve aspect-ratio placement and reassert hidden OS cursor state. The screenshot's cropped bottom was user-caused, not a layout defect.
+- [x] Replace blue city rectangles with original cached GC sprites, native hotspots/alpha and remembered shading. Read installed style/age/size recipes; test every referenced city group and adversarial fog cases. Use projected names/queue heads, never machine IDs or invented Warriors, and inspect the native/reference-sized city capture.
+- [x] Validate strict lint, **480 library + 498 binary + 19 integration = 997 test executions**, native build and **84.65%** LLVM line coverage. Windows checking is still blocked in GTK/GLib dependency cross-compilation setup, and the required fast coverage script remains absent.
+- [ ] Finish authoritative terrain-details caching, phase/End Turn synchronization and the complete existing checklist. The later server-first request is blocked by this session's explicit project-level prohibition on server edits. Server AGENTS and both issue reports were inspected read-only; no server files changed.

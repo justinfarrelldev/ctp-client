@@ -46,33 +46,6 @@ pub(super) fn draw_goods(
     Ok(())
 }
 
-/// Draws visible city markers (city sprites remain a separate gameplay feature).
-pub(super) fn draw_cities(
-    canvas: &mut Canvas<Window>,
-    state: &GameState,
-    camera: &Camera,
-) -> Result<(), GameplayError> {
-    for city in &state.cities {
-        if state
-            .tile(city.position)
-            .is_none_or(|tile| tile.fog == FogState::Hidden)
-        {
-            continue;
-        }
-        let (x, y) = camera.tile_to_screen(city.position);
-        canvas.set_draw_color(owner_color(city.owner));
-        canvas
-            .fill_rect(Rect::new(
-                x.saturating_add(36_i32),
-                y.saturating_add(28_i32),
-                24,
-                20,
-            ))
-            .map_err(runtime_error)?;
-    }
-    Ok(())
-}
-
 /// Returns the selected settler's original small city-radius preview.
 /// Unknown/stale cells are excluded, so the overlay cannot reveal hidden terrain.
 pub(super) fn settlement_preview_points(state: &GameState) -> Vec<MapPoint> {

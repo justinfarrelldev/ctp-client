@@ -76,6 +76,10 @@ pub(super) struct GameplayTextures<'texture> {
     colored_icons: BTreeMap<(u16, [u8; 3]), Texture<'texture>>,
     /// Full directional/action sprite groups with lazily uploaded frames.
     units: units::UnitTextures<'texture>,
+    /// Original city visual recipes, separate from authoritative gameplay facts.
+    city_catalog: crate::gameplay::assets::cities::CityArtCatalog,
+    /// GC city frames, distinct from GU units and keyed by remembered shading.
+    cities: BTreeMap<(u16, bool), SpriteTexture<'texture>>,
     /// Original resource namespace; this maps art, not deposit locations.
     goods_ids: BTreeMap<String, u16>,
     /// Lazily uploaded resource frames, shared by kind and remembered-fog variant.
@@ -106,6 +110,8 @@ impl<'texture> GameplayTextures<'texture> {
             icons: BTreeMap::new(),
             colored_icons: BTreeMap::new(),
             units: units::UnitTextures::default(),
+            city_catalog: crate::gameplay::assets::cities::CityArtCatalog::default(),
+            cities: BTreeMap::new(),
             goods_ids: BTreeMap::new(),
             goods: BTreeMap::new(),
             root: PathBuf::new(),
@@ -136,6 +142,12 @@ impl<'texture> GameplayTextures<'texture> {
             icons: BTreeMap::new(),
             colored_icons: BTreeMap::new(),
             units: units::UnitTextures::default(),
+            city_catalog: match crate::gameplay::assets::cities::CityArtCatalog::load(root) {
+                Ok(catalog) => catalog,
+                Err(error) if strict => return Err(error),
+                Err(_) => crate::gameplay::assets::cities::CityArtCatalog::default(),
+            },
+            cities: BTreeMap::new(),
             goods_ids: match goods::load_catalog(root) {
                 Ok(catalog) => catalog,
                 Err(error) if strict => return Err(error),
@@ -470,6 +482,20 @@ impl<'texture> GameplayTextures<'texture> {
             entry.insert(texture_from_frame(creator, &frame)?);
         }
         Ok(self.goods.get(&key))
+    }
+
+    /// Uses source ancient/default styling until viewer-safe style/age metadata
+    /// exists. This is visual fallback art, never a claim about a city's nation.
+    pub(super) fn city_texture(&mut self, population: u32, water: bool, explored: bool) -> Result<Option<&SpriteTexture<'texture>>, GameplayError> {
+        let Some(id) = self.city_catalog.sprite(0_usize, 0_usize, water, population).or_else(|| self.city_catalog.fallback()) else { return Ok(None); };
+        let Some(creator) = self.creator else { return Ok(None); };
+        if let alloc::collections::btree_map::Entry::Vacant(entry) = self.cities.entry((id, explored)) {
+            let sprite = crate::gameplay::assets::cities::load_sprite(&self.root, id)?;
+            let mut frame = sprite.actions.into_iter().find(|action| action.action_index == 2_usize).and_then(|action| action.frames.into_iter().next()).ok_or_else(|| asset_error(format!("city sprite GC{id:03} has no idle frame")))?;
+            if explored { crate::gameplay::assets::pixel::shade_explored(&mut frame.rgba, true); }
+            entry.insert(texture_from_frame(creator, &frame)?);
+        }
+        Ok(self.cities.get(&(id, explored)))
     }
 
     /// Colorizes only source cyan mask pixels, preserving black, white and shading.

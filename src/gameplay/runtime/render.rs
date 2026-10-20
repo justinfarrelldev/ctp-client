@@ -17,6 +17,8 @@ use crate::gameplay::{GameplayError, runtime_error};
 
 /// Actor rendering and original sprite anchoring.
 mod actors;
+/// Original city sprites and viewer-safe map caption strips.
+mod cities;
 /// LDL chrome and original-art copy helpers.
 mod chrome;
 /// Source-aligned context menus and terrain information.
@@ -68,6 +70,7 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         draw_tile_diamond(canvas, camera, x, y, Color::RGB(255, 255, 0))?;
     }
     movement::draw_planned_path(canvas, input, state, camera, font)?;
+    cities::draw_labels(canvas, state, ui, camera, font)?;
     panel::draw_panel(canvas, textures, state, ui, fonts)?;
     if state.filters.radar {
         radar::draw_radar(canvas, textures, state)?;
@@ -187,6 +190,9 @@ mod chart_tests;
 mod context_tests;
 #[cfg(test)]
 mod cursor_tests;
+/// Original GC building-art and remembered-city privacy regressions.
+#[cfg(test)]
+mod city_tests;
 #[cfg(test)]
 mod editor_tests;
 #[cfg(test)]
