@@ -175,7 +175,9 @@ pub fn render_preview_scene(
     };
     if matches!(
         scene,
-        PreviewScene::Manager(_) | PreviewScene::PopulatedManager { .. }
+        PreviewScene::Manager(_)
+            | PreviewScene::PopulatedManager { .. }
+            | PreviewScene::CityChooser
     ) {
         ui.management = crate::gameplay::ui_model::management::ManagementUi::new(
             crate::gameplay::assets::layout::LayoutBook::load(root)?,

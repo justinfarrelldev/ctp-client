@@ -17,6 +17,7 @@ pub(super) fn templates(
         "eq_QueueListItem",
         "ScienceAdvanceListItem",
         "SciListItem",
+        "cw_CityItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -82,6 +83,14 @@ impl Row<'_> {
 
     /// Numeric fields use verified runtime semantics; unknown scales/rates stay unknown.
     fn value(&self, name: &str) -> String {
+        if super::selectors::city_list(self.view.kind, self.path) {
+            return self
+                .state
+                .viewer
+                .as_ref()
+                .and_then(|viewer| viewer.cities.iter().find(|city| city.id == self.id))
+                .map_or_else(|| self.id.to_owned(), data::city_name);
+        }
         if matches!(name, "Item" | "Label" | "Name") {
             return data::label(self.ui, self.id);
         }
@@ -212,6 +221,9 @@ fn clip(node: &mut LayoutNode, bounds: MenuRect) {
 
 /// Source item class shared by instantiation and scroll-capacity measurement.
 fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
+    if super::selectors::city_list(kind, path) {
+        return Some("cw_CityItem");
+    }
     match kind {
         ManagerKind::Build if path == "QueueGroup.QueueList" => Some("eq_QueueListItem"),
         ManagerKind::Build if path == "ItemsBox.UnitsList" => Some("eq_UnitItem"),

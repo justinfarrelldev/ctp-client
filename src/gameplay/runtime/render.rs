@@ -204,6 +204,9 @@ mod resource_tests;
 mod row_tests;
 #[cfg(test)]
 mod scrollbar_tests;
+/// Native five-part city dropdown artwork and detached-popup regressions.
+#[cfg(test)]
+mod selector_tests;
 #[cfg(test)]
 mod start_tests;
 #[cfg(test)]

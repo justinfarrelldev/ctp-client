@@ -11,9 +11,9 @@ use crate::gameplay::server::{
 };
 use serde_json::json;
 
-/// Builds representative populated city/research descriptions with public shapes.
-pub(super) fn state() -> GameState {
-    let projection = ServerProjection {
+/// Shared explicit synthetic viewer data, never used by interactive gameplay.
+fn projection() -> ServerProjection {
+    ServerProjection {
         revision: 7_i64,
         turn: 4_u32,
         tiles: (21_u16..=23_u16)
@@ -85,8 +85,31 @@ pub(super) fn state() -> GameState {
             }],
             ..ServerInterface::default()
         },
-    };
-    let mut state = GameState::from_server_projection(&projection, 5_u8, 42_u64);
+    }
+}
+
+/// Builds representative populated city/research descriptions with public shapes.
+pub(super) fn state() -> GameState {
+    from_projection(&projection())
+}
+
+/// A separate two-city diagnostic for detached city-selector popup inspection.
+pub(super) fn chooser_state() -> GameState {
+    let mut projection = projection();
+    projection.cities.push(ServerCityProjection {
+        id: "fixture-city-2".to_owned(),
+        owner_id: "human".to_owned(),
+        tile_id: "tile-31-22".to_owned(),
+        population: 2_u32,
+        facts: json!({"queue":[],"stored_production":0_i64}),
+        ..ServerCityProjection::default()
+    });
+    from_projection(&projection)
+}
+
+/// Keeps automatic connection/turn popups out of explicitly offline previews.
+fn from_projection(projection: &ServerProjection) -> GameState {
+    let mut state = GameState::from_server_projection(projection, 5_u8, 42_u64);
     state.popups.clear();
     state
 }

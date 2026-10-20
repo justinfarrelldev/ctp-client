@@ -19,6 +19,8 @@ pub enum PreviewScene {
     TerrainInfo,
     /// Source-layout manager over an explicitly synthetic background fixture.
     Manager(ManagerKind),
+    /// Explicit two-city projection with its original detached selector open.
+    CityChooser,
     /// Populated descriptions backed by explicit synthetic public projection data.
     PopulatedManager {
         /// Source manager root to inspect.
@@ -37,6 +39,9 @@ pub enum PreviewScene {
 
 /// Creates a reproducible scene without reading or writing configuration files.
 pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameState {
+    if scene == PreviewScene::CityChooser {
+        return super::manager_fixture::chooser_state();
+    }
     if matches!(scene, PreviewScene::PopulatedManager { .. }) {
         return super::manager_fixture::state();
     }
@@ -115,6 +120,16 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
                 None
             };
             if let Some(intent) = control.and_then(|id| ui.management.activate_id(id, state)) {
+                ui.management.apply_local(intent);
+            }
+        }
+        PreviewScene::CityChooser => {
+            ui.management
+                .open(ManagerKind::Build, state, Some("fixture-city"));
+            if let Some(intent) = ui
+                .management
+                .activate_id("SingleCityChooser.Pulldown.autobutton", state)
+            {
                 ui.management.apply_local(intent);
             }
         }

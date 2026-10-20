@@ -88,6 +88,9 @@ pub(super) fn rows(
     view: &ManagerView,
     path: &str,
 ) -> Vec<(String, String)> {
+    if super::selectors::city_list(view.kind, path) {
+        return super::selectors::choices(state);
+    }
     if view.kind == ManagerKind::Library {
         return super::index::rows(ui, state);
     }
@@ -315,11 +318,6 @@ pub(super) fn text(
                 "CurrentResearch.Turn.Value" => Some("—".to_owned()),
                 _ => None,
             }
-        }
-        ManagerKind::Build | ManagerKind::City
-            if path.contains("CityChooser") || path.contains("CitySpinner") =>
-        {
-            city(state, view).map(city_name)
         }
         ManagerKind::Build if path == "ItemDescription" => {
             let id = articles::selected_description(view)?;

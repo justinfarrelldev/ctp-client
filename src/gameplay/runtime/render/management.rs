@@ -25,6 +25,8 @@ use crate::gameplay::{GameplayError, runtime_error};
 
 /// Source face-specific alignment, title shadows and link underlines.
 mod labels;
+/// Original five-part dropdown button layers and gap-free integer strip sizing.
+mod layers;
 /// Platform-independent native search editing visuals.
 mod text_field;
 
@@ -210,14 +212,21 @@ fn draw_images(
         } else {
             0_u8
         }
+    } else if widget.selected && count == 5_i32 && node.field("dropdownbutton").is_some_and(truth) {
+        2_u8
     } else if widget.selected && count == 3_i32 && node.field("image40").is_some() {
         4_u8
+    } else if !enabled && node.field("layerdisabled3").is_some_and(truth) {
+        3_u8
     } else {
-        u8::from(enabled && node.field("image10").is_some())
+        u8::from(
+            enabled && node.field("layerup1").is_some_and(truth) && node.field("image10").is_some(),
+        )
     };
     match count {
         9 => draw_nine(canvas, textures, widget)?,
         3 => draw_three(canvas, textures, widget, layer)?,
+        5 => layers::five(canvas, textures, widget, layer)?,
         _ => {
             let name = node
                 .field(&format!("image{layer}0"))

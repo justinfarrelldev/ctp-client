@@ -94,6 +94,25 @@ fn populated_manager_diagnostics_use_explicit_offline_projection_fixtures() {
 }
 
 #[test]
+fn city_chooser_diagnostic_has_explicit_two_city_projection_without_changing_other_fixtures() {
+    let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::CityChooser);
+    assert_eq!(
+        state.viewer.as_ref().expect("viewer").cities.len(),
+        2_usize,
+        "popup diagnostic has explicit synthetic choices"
+    );
+    let normal = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
+        kind: ManagerKind::Build,
+        chart: false,
+    });
+    assert_eq!(
+        normal.viewer.as_ref().expect("viewer").cities.len(),
+        1_usize,
+        "do not silently alter existing preview contexts"
+    );
+}
+
+#[test]
 fn populated_chart_scene_renders_projected_research_borders_with_native_source_fonts()
 -> Result<(), String> {
     let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;

@@ -18,6 +18,11 @@ mod scroll_input;
 /// Source ranger capture and accessible-value regressions.
 #[cfg(test)]
 mod scroll_tests;
+/// Detached dropdown focus, keyboard navigation and cancellation.
+mod selector_input;
+/// Fileless source city-selection journeys and stale-receipt validation.
+#[cfg(test)]
+mod selector_tests;
 #[cfg(test)]
 mod tests;
 use crate::gameplay::ui_model::management::{ManagerIntent, ManagerKind};
@@ -49,10 +54,14 @@ pub(super) fn consume(
         ui.management.editor.clear_composition();
     }
     if matches!(*event, Event::Quit { .. } | Event::Window { .. }) {
+        selector_input::consume(event, ui, state);
         return false;
     }
     movement.cancel_drag();
     if scroll_input::consume(event, ui, state) {
+        return true;
+    }
+    if selector_input::consume(event, ui, state) {
         return true;
     }
     if editor_input::consume(event, ui, state) {
@@ -197,6 +206,11 @@ pub(super) fn apply(
         }
         ManagerIntent::Scroll(path, delta) => {
             ui.management.scroll(&path, delta, state);
+        }
+        ManagerIntent::Select(key, id) if key == "city" => {
+            if !ui.management.select_city(&id, state) {
+                "The selected city is no longer owned or visible".clone_into(&mut ui.status_text);
+            }
         }
         ManagerIntent::Article(id) => {
             if ui.management.library.navigate(&id) {

@@ -7,7 +7,7 @@
 
 use super::{
     ManagementUi, ManagerIntent, ManagerKind, ManagerView, ManagerWidget, articles, bindings,
-    chart, data, lists, rows, scrollbar,
+    chart, data, lists, rows, scrollbar, selectors,
 };
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
@@ -30,6 +30,9 @@ pub(super) fn widgets(ui: &ManagementUi, state: &GameState) -> Vec<ManagerWidget
         widgets: Vec::new(),
     };
     walker.walk(root, "", rect);
+    if let Some((window, path, popup_rect)) = selectors::popup(ui, state, view, &walker.widgets) {
+        walker.walk(&window, &path, popup_rect);
+    }
     if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) {
         // c3_PopupWindow::AddClose constructs this control at runtime, not in LDL.
         walker.widgets.push(ManagerWidget {
@@ -86,6 +89,11 @@ impl Walker<'_> {
             return;
         }
         self.widgets.push(self.descriptor(node, path, rect));
+        if selectors::is_dropdown(node) {
+            self.widgets[widget_index].label.clear();
+            self.dropdown(node, path, rect);
+            return;
+        }
         if chart::append_widgets(
             self.ui,
             self.state,
@@ -166,6 +174,30 @@ impl Walker<'_> {
             } else {
                 self.walk(child, &child_path, rect);
             }
+        }
+    }
+
+    /// Dropdown creates its button/selected item, but not an always-visible popup.
+    fn dropdown(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
+        if let Some(button) = node.child("autobutton") {
+            let mut resized = button.clone();
+            resized
+                .fields
+                .insert("widthpix".to_owned(), rect.width.to_string());
+            resized.fields.insert("xpix".to_owned(), "0".to_owned());
+            resized.fields.insert("ypix".to_owned(), "0".to_owned());
+            let start = self.widgets.len();
+            self.walk(&resized, &join(path, "autobutton"), rect);
+            if let Some(widget) = self.widgets.get_mut(start) {
+                widget.selected = self
+                    .view
+                    .selections
+                    .get("dropdown")
+                    .is_some_and(|open| open == path);
+            }
+        }
+        if let Some(caption) = selectors::caption(self.ui, self.state, self.view, path, rect) {
+            self.widgets.push(caption);
         }
     }
 
@@ -341,7 +373,14 @@ impl Walker<'_> {
         for (index, row) in rows.iter().skip(offset).take(visible).enumerate() {
             let id = &row.0;
             let label = &row.1;
-            let selected = if self.view.kind == ManagerKind::Library {
+            let selected = if selectors::city_list(self.view.kind, path) {
+                self.view
+                    .selections
+                    .get("dropdown-highlight")
+                    .map(String::as_str)
+                    .or(self.view.city_id.as_deref())
+                    == Some(id.as_str())
+            } else if self.view.kind == ManagerKind::Library {
                 self.ui.library.current.as_ref() == Some(id)
             } else {
                 self.view
@@ -466,6 +505,9 @@ fn source_label(ui: &ManagementUi, node: &LayoutNode) -> String {
 
 /// Separates source lists that must not steal one another's selection.
 fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
+    if selectors::city_list(kind, path) {
+        return "city";
+    }
     match kind {
         ManagerKind::Build if path == "QueueGroup.QueueList" => "queue",
         ManagerKind::Build => "buildable",

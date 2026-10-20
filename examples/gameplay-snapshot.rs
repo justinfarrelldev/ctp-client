@@ -51,6 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Some("stack") => PreviewScene::Stack,
         Some("context") => PreviewScene::Context,
         Some("info") => PreviewScene::TerrainInfo,
+        Some("city-chooser") => PreviewScene::CityChooser,
         Some("chart") => PreviewScene::PopulatedManager {
             kind: ManagerKind::Library,
             chart: true,

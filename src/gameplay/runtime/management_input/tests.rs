@@ -546,6 +546,70 @@ fn payload_after_validating_envelope(body: &Value) -> Value {
 }
 
 #[test]
+fn city_selector_handoff_submits_only_the_new_citys_exact_legal_production_payload() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("isolated listener");
+    let port = listener.local_addr().expect("address").port();
+    let mut initial = snapshot();
+    initial["cities"].as_array_mut().expect("cities").push(
+        json!({"id":"city-8","owner_id":"account-7","tile_id":"b","population":2_u32,"queue":[]}),
+    );
+    initial["legal_actions"].as_array_mut().expect("actions").push(json!({"route":"queue-production","entity_id":"city-8","target_id":"UNIT_SETTLER","payload":{"city_id":"city-8","item":{"id":"UNIT_SETTLER","kind":"unit","cost":440_i32}}}));
+    let mut authority = authority(port, initial.clone());
+    let mut state = state_from_authority_projection(
+        &authority,
+        authority.session.projection.as_ref().expect("viewer"),
+    );
+    state.popups.clear();
+    let before = state.clone();
+    let mut ui = ui();
+    ui.management
+        .open(ManagerKind::Build, &state, Some("city-7"));
+    let next = ui
+        .management
+        .activate_id("SingleCityChooser.Next", &state)
+        .expect("next city");
+    apply(next, &mut state, &mut ui, Some(&mut authority));
+    assert_eq!(state, before, "city browsing cannot issue game commands");
+    let select = ui
+        .management
+        .activate_id("ItemsBox.UnitsList/UNIT_SETTLER", &state)
+        .expect("explicit new-city buildable");
+    apply(select, &mut state, &mut ui, None);
+    let add = ui
+        .management
+        .activate_id("ItemsBox.AddButton", &state)
+        .expect("new-city add");
+    let mut after = initial;
+    after["revision"] = json!(18_i64);
+    let worker = thread::spawn(move || respond(&listener, &after));
+    apply(add, &mut state, &mut ui, Some(&mut authority));
+    let request = worker
+        .join()
+        .expect("stub thread")
+        .expect("received command");
+    assert_eq!(
+        request.line, "POST /game/44/queue-production HTTP/1.1\r\n",
+        "exact route"
+    );
+    assert_eq!(
+        payload_after_validating_envelope(&request.body),
+        json!({"city_id":"city-8","item":{"id":"UNIT_SETTLER","kind":"unit","cost":440_i32}}),
+        "never send the old city identity or reuse its 330-point production payload"
+    );
+    assert_eq!(authority.session.revision(), 18_i64, "accepted revision");
+    assert_eq!(
+        ui.management
+            .view
+            .as_ref()
+            .expect("view")
+            .city_id
+            .as_deref(),
+        Some("city-8"),
+        "receipt retains the new city identity"
+    );
+}
+
+#[test]
 fn semantic_add_rush_and_research_send_exact_mocked_routes_revisions_and_payloads() {
     for (kind, selection, button, route, expected) in [
         (

@@ -49,6 +49,11 @@ mod scrollbar;
 /// Empty/populated source ranger regressions.
 #[cfg(test)]
 mod scrollbar_tests;
+/// City selector/caption/popup and stale identity regressions.
+#[cfg(test)]
+mod selector_tests;
+/// Source dropdown lifecycle and exact owned-city selection.
+mod selectors;
 /// Original control-tree geometry, active panels and dynamic list insertion.
 mod tree;
 /// Original per-control typography and fileless measured text metadata.
@@ -537,6 +542,27 @@ impl ManagementUi {
         scrollbar::drag(self, y, state)
     }
 
+    /// Revalidates city selection against the current receipt before changing any view.
+    pub fn select_city(&mut self, id: &str, state: &GameState) -> bool {
+        if !data::owned_city_ids(state).iter().any(|owned| owned == id) {
+            return false;
+        }
+        self.apply_local(ManagerIntent::Select("city".to_owned(), id.to_owned()))
+    }
+
+    /// Current owned popup choices; an arbitrary selection key cannot open a chooser.
+    #[must_use]
+    pub fn dropdown_choices(&self, state: &GameState) -> Vec<(String, String)> {
+        self.view
+            .as_ref()
+            .filter(|view| {
+                view.selections
+                    .get("dropdown")
+                    .is_some_and(|path| selectors::valid_path(view.kind, path))
+            })
+            .map_or_else(Vec::new, |_view| selectors::choices(state))
+    }
+
     /// Flattens the active source tree and inserts only viewer-safe dynamic rows.
     #[must_use]
     pub fn widgets(&self, state: &GameState) -> Vec<ManagerWidget> {
@@ -600,7 +626,10 @@ impl ManagementUi {
         match intent {
             ManagerIntent::Select(key, value) => {
                 if key == "city" {
-                    view.city_id = Some(value.clone());
+                    selectors::change_city(view, &value);
+                }
+                if key == "dropdown" && value.is_empty() {
+                    return selectors::dismiss(view);
                 }
                 if key == "chart-focus" {
                     view.selections.remove("chart-prerequisites-page");
