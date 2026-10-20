@@ -68,6 +68,8 @@ pub mod snapshot;
 mod textures;
 /// Camera and screen/tile coordinate conversion.
 mod view;
+/// Exact shared drawable/window pointer transform for scaled gameplay.
+mod viewport;
 
 use authority::{
     RuntimeAuthority, server_tile_ids_for_path, server_unit_id_for_unit,
@@ -180,9 +182,8 @@ pub(crate) fn run_sdl_game_on_existing_window(
 /// Uniformly scales the reference game frame with minimal aspect-ratio borders.
 fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
     canvas.set_viewport(None);
-    canvas
-        .set_logical_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        .map_err(|error| runtime_error(error.to_string()))
+    canvas.set_logical_size(0_u32, 0_u32).map_err(|error| runtime_error(error.to_string()))?;
+    canvas.set_scale(1.0_f32, 1.0_f32).map_err(runtime_error)
 }
 
 /// Handles one SDL event.

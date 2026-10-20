@@ -54,5 +54,6 @@ pub(super) fn draw_scaled_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     if status != 0_i32 {
         return Err(runtime_error(sdl2::get_error()));
     }
-    canvas.copy(frame, None, None).map_err(runtime_error)
+    let destination = super::viewport::destination(canvas)?;
+    canvas.copy(frame, None, destination).map_err(runtime_error)
 }

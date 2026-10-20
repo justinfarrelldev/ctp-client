@@ -42,13 +42,10 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
     let legacy_sprite_brackets =
         movement::selection_bracket_segments(sdl2::rect::Rect::new(100, 200, 64, 72));
 
-    assert!(
-        offsets.len() >= 3,
-        "path lines should use multiple strokes so they remain visible after viewport scaling"
-    );
-    assert!(
-        offsets.contains(&-1) && offsets.contains(&0) && offsets.contains(&1),
-        "line strokes should cover the center line and neighboring pixels"
+    assert_eq!(
+        offsets,
+        &[0_i32],
+        "TileHighlight uses a single thin path line, not a five-pixel cross stroke"
     );
     assert_eq!(
         segments.len(),
@@ -83,6 +80,65 @@ fn movement_feedback_uses_ctp2_line_bracket_and_turn_box_geometry() {
         brackets[0], legacy_sprite_brackets[0],
         "runtime selection feedback should use CTP2 tile-centered brackets, not a sprite-bounding CTP1-style reticle"
     );
+}
+
+#[test]
+fn path_lines_and_turn_boxes_use_ground_centers_not_the_bottom_of_the_tile_canvas() {
+    let mut camera = Camera::for_test_identity();
+    for zoom in 1_i32..=3_i32 {
+        let segments = movement::planned_path_segments(
+            &camera,
+            MapPoint::new(2_u16, 2_u16),
+            &[MapPoint::new(3_u16, 2_u16)],
+        );
+        assert_eq!(
+            (segments[0].start.x, segments[0].start.y),
+            (
+                47_i32.saturating_mul(zoom),
+                24_i32.saturating_add(144_i32.saturating_mul(zoom))
+            ),
+            "source path center is image origin+(47,48), not +(47,72)"
+        );
+        assert_eq!(
+            (segments[0].end.x, segments[0].end.y),
+            (
+                94_i32.saturating_mul(zoom),
+                24_i32.saturating_add(168_i32.saturating_mul(zoom))
+            ),
+            "path ends on the clicked diamond"
+        );
+        let markers =
+            movement::planned_path_turn_markers(&camera, &[MapPoint::new(3_u16, 2_u16)], 1_usize);
+        assert_eq!(
+            markers[0].rect.width(),
+            16_u32.saturating_mul(u32::try_from(zoom).expect("positive zoom")),
+            "original turn box scales with map zoom"
+        );
+        camera.zoom_in();
+    }
+}
+
+#[test]
+fn native_movement_line_is_one_pixel_wide_and_crosses_the_actual_ground_centers() {
+    let result = crate::gameplay::runtime::test_support::with_canvas((800_u32,600_u32), |canvas| {
+        let mut state = crate::gameplay::model::GameState::new(24_u16,18_u16,1_u8,42_u64);
+        let id = state.selected_unit.ok_or_else(|| "selected unit".to_owned())?;
+        state.units.retain(|unit|unit.id==id);
+        for unit in &mut state.units { unit.position=MapPoint::new(2_u16,2_u16);unit.movement_points=300_i16;unit.max_movement_points=300_i16; }
+        for tile in &mut state.tiles { tile.terrain=crate::gameplay::model::TerrainKind::Plains;tile.fog=crate::gameplay::model::FogState::Visible; }
+        let mut input = crate::gameplay::runtime::MovementInputState::default();
+        crate::gameplay::runtime::begin_or_activate_unit_drag(&mut state,&mut input,MapPoint::new(2_u16,2_u16));
+        input.preview_path_to(&state,MapPoint::new(3_u16,3_u16));
+        canvas.set_draw_color(Color::RGB(0_u8,0_u8,0_u8));canvas.clear();
+        movement::draw_planned_path(canvas,&input,&state,&Camera::for_test_identity(),None).map_err(|error|error.to_string())?;
+        let pixels = canvas.read_pixels(None,sdl2::pixels::PixelFormatEnum::RGBA32)?;
+        for (x,y,expected) in [(47_usize,175_usize,[0_u8,255_u8,0_u8]),(48_usize,175_usize,[0_u8,0_u8,0_u8]),(47_usize,235_usize,[0_u8,0_u8,0_u8])] {
+            let offset=y.saturating_mul(800_usize).saturating_add(x).saturating_mul(4_usize);
+            if pixels[offset..offset.saturating_add(3_usize)]!=expected {return Err(format!("path pixel {x},{y} is not source-aligned {expected:?}"));}
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(),"native path anchoring/stroke: {result:?}");
 }
 
 #[test]

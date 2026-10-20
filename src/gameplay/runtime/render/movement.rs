@@ -26,7 +26,7 @@ const MOVEMENT_STOP_COLOR: Color = Color::RGBA(230, 32, 32, 255);
 /// CTP2 `COLOR_BLACK` used for turn-box frames/text.
 const MOVEMENT_TEXT_COLOR: Color = Color::RGBA(0, 0, 0, 255);
 /// Pixel offsets used to thicken movement-feedback lines.
-const MOVEMENT_FEEDBACK_STROKE_OFFSETS: [i32; 3] = [-1, 0, 1];
+const MOVEMENT_FEEDBACK_STROKE_OFFSETS: [i32; 1] = [0];
 /// Length of each selected-unit bracket arm in screen pixels.
 const SELECTION_BRACKET_LENGTH: i32 = 12;
 /// Outset around a unit sprite target used for legacy geometry tests.
@@ -317,7 +317,12 @@ fn draw_line_with_offset(
 /// Returns a CTP2 turn-marker rectangle centered on a tile path anchor.
 fn turn_marker_rect(camera: &Camera, point: MapPoint) -> Rect {
     let anchor = tile_line_anchor(*camera, point);
-    let edge = TURN_BOX_EDGE_SIZE.max(TURN_BOX_MINIMUM_EDGE_SIZE);
+    let zoom = i32::try_from(camera.tile_height().div_euclid(72_u32))
+        .unwrap_or(1_i32)
+        .max(1_i32);
+    let edge = TURN_BOX_EDGE_SIZE
+        .saturating_mul(zoom)
+        .max(TURN_BOX_MINIMUM_EDGE_SIZE);
     let size = u32::try_from(edge.saturating_mul(2_i32)).map_or(8_u32, |value| value);
     Rect::new(
         anchor.x.saturating_sub(edge),
@@ -329,14 +334,8 @@ fn turn_marker_rect(camera: &Camera, point: MapPoint) -> Rect {
 
 /// Returns the original CTP2 path-line anchor for a tile.
 fn tile_line_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint {
-    let (screen_x, screen_y) = camera.tile_to_screen(point);
-    let half_width = i32::try_from(camera.tile_width())
-        .map_or(0_i32, |value| value.checked_div(2_i32).unwrap_or(0_i32));
-    let height = i32::try_from(camera.tile_height()).map_or(0_i32, |value| value);
-    MovementScreenPoint {
-        x: screen_x.saturating_add(half_width),
-        y: screen_y.saturating_add(height),
-    }
+    let (x, y) = camera.tile_click_center_to_screen(point);
+    MovementScreenPoint { x, y }
 }
 
 /// Returns the original CTP2 selected-unit bracket anchor for a tile.

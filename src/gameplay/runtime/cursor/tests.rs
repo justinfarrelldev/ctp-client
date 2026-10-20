@@ -212,6 +212,90 @@ fn software_cursor_guard_restores_inherited_os_visibility() {
 }
 
 #[test]
+fn cursor_guard_reasserts_hidden_native_cursor_after_focus_or_external_visibility_changes() {
+    let result =
+        crate::gameplay::runtime::test_support::with_canvas((800_u32, 600_u32), |_canvas| {
+            let sdl = sdl2::init()?;
+            let mouse = sdl.mouse();
+            let guard = super::SoftwareCursorGuard::new().map_err(|error| error.to_string())?;
+            mouse.show_cursor(true);
+            guard.refresh();
+            if mouse.is_cursor_showing() {
+                return Err(
+                    "focus handoff exposed the OS arrow alongside the software hand".to_owned(),
+                );
+            }
+            Ok(())
+        });
+    assert!(result.is_ok(), "exclusive software cursor: {result:?}");
+}
+
+#[test]
+fn scaled_window_mouse_events_stay_aligned_after_native_frame_composition() {
+    let result =
+        crate::gameplay::runtime::test_support::with_canvas((1280_u32, 720_u32), |canvas| {
+            let sdl = sdl2::init()?;
+            let mut events = sdl.event_pump()?;
+            let creator = canvas.texture_creator();
+            let mut frame = creator
+                .create_texture_target(None, 800_u32, 600_u32)
+                .map_err(|error| error.to_string())?;
+            let mut textures =
+                crate::gameplay::runtime::textures::GameplayTextures::without_assets_for_test();
+            let state = GameState::new(24_u16, 18_u16, 1_u8, 42_u64);
+            let ui = InGameUiModel::default();
+            let camera = Camera::centered_on_selected(&state);
+            for _frame in 0_u8..3_u8 {
+                crate::gameplay::runtime::frame::draw_scaled_frame(
+                    canvas,
+                    &mut frame,
+                    &mut textures,
+                    &state,
+                    &ui,
+                    &camera,
+                    &MovementInputState::default(),
+                    None,
+                )
+                .map_err(|error| error.to_string())?;
+                // Drain SDL's end-of-poll sentinel before injecting the next
+                // frame; dropping an iterator at its first match leaves it queued.
+                events.poll_iter().for_each(drop);
+                sdl.event()?.push_event(sdl2::event::Event::MouseMotion {
+                    timestamp: 0_u32,
+                    window_id: canvas.window().id(),
+                    which: 0_u32,
+                    mousestate: sdl2::mouse::MouseState::from_sdl_state(0_u32),
+                    x: 700_i32,
+                    y: 420_i32,
+                    xrel: 0_i32,
+                    yrel: 0_i32,
+                })?;
+                let event = events
+                    .poll_iter()
+                    .find(|event| matches!(event, &sdl2::event::Event::MouseMotion { .. }))
+                    .ok_or_else(|| "native pointer event missing".to_owned())?;
+                let event = crate::gameplay::runtime::viewport::map_event(canvas, &event)
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| "pointer unexpectedly outside viewport".to_owned())?;
+                if !matches!(
+                    event,
+                    sdl2::event::Event::MouseMotion {
+                        x: 450_i32,
+                        y: 350_i32,
+                        ..
+                    }
+                ) {
+                    return Err(format!(
+                        "expected logical hand (450,350) at window (700,420), got {event:?}"
+                    ));
+                }
+            }
+            Ok(())
+        });
+    assert!(result.is_ok(), "scaled cursor/input alignment: {result:?}");
+}
+
+#[test]
 fn scroll_is_clock_driven_delayed_and_resets_outside_window() {
     let mut scroll = EdgeScroll::default();
     let mut camera = Camera::for_test_identity();

@@ -108,6 +108,26 @@ fn interface(
     Ok(ui)
 }
 
+/// Capture is explicit and never consumes a game shortcut or command.
+const fn is_capture_event(event: &Event) -> bool {
+    matches!(
+        *event,
+        Event::KeyDown {
+            keycode: Some(sdl2::keyboard::Keycode::F12),
+            repeat: false,
+            ..
+        }
+    )
+}
+
+/// The explicit F12 sink is separate from fileless rendering and tests.
+fn save_capture(canvas: &Canvas<Window>) {
+    match snapshot::save_interactive_capture(canvas) {
+        Ok(path) => log::info!("Saved gameplay frame to {}", path.display()),
+        Err(error) => log::warn!("Gameplay screenshot failed: {error}"),
+    }
+}
+
 /// Runs gameplay on the existing canvas, preserving the main menu's window.
 pub(super) fn run_sdl_game_on_canvas(
     config: &SinglePlayerLaunchConfig,
@@ -137,7 +157,7 @@ pub(super) fn run_sdl_game_on_canvas(
     movement.actors.speed = config.graphics.unit_speed;
     movement.actors.enabled = config.graphics.unit_animation.enabled();
     let mut camera = Camera::centered_on_selected(&state);
-    let _cursor_guard = SoftwareCursorGuard::new()?;
+    let cursor_guard = SoftwareCursorGuard::new()?;
     let _text_input = TextInputScope::new(canvas.window().subsystem());
     let mut clipboard = NativeClipboard::new(canvas.window().subsystem());
     let mut edge_scroll = EdgeScroll::default();
@@ -146,15 +166,14 @@ pub(super) fn run_sdl_game_on_canvas(
     let mut rendered_frames = 0_u32;
     while outcome.is_none() {
         let mut capture_requested = false;
-        for event in event_pump.poll_iter() {
-            if matches!(
-                event,
-                Event::KeyDown {
-                    keycode: Some(sdl2::keyboard::Keycode::F12),
-                    repeat: false,
-                    ..
-                }
-            ) {
+        for window_event in event_pump.poll_iter() {
+            let Some(event) = super::viewport::map_event(canvas, &window_event)? else {
+                ui.pointer = None;
+                ui.hovered_tile = None;
+                movement.cancel_drag();
+                continue;
+            };
+            if is_capture_event(&event) {
                 capture_requested = true;
                 continue;
             }
@@ -201,11 +220,9 @@ pub(super) fn run_sdl_game_on_canvas(
             },
         )?;
         if capture_requested {
-            match snapshot::save_interactive_capture(canvas) {
-                Ok(path) => log::info!("Saved gameplay frame to {}", path.display()),
-                Err(error) => log::warn!("Gameplay screenshot failed: {error}"),
-            }
+            save_capture(canvas);
         }
+        cursor_guard.refresh();
         canvas.present();
         rendered_frames = rendered_frames.saturating_add(1);
         if frame_limit.is_some_and(|limit| rendered_frames >= limit) {

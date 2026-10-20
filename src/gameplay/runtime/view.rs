@@ -117,8 +117,7 @@ impl Camera {
         )
     }
 
-    /// Converts tile to the center of the visible CTP2 ground diamond.
-    #[cfg(test)]
+    /// Converts tile to the source ground-diamond center, shared by paths and input.
     pub(super) fn tile_click_center_to_screen(self, point: MapPoint) -> (i32, i32) {
         let (screen_x, screen_y) = self.tile_to_screen(point);
         (

@@ -4,6 +4,18 @@
 
 Review every image in `images/ctp2_references` using its full filename as context. Work from original CTP2 source and installed art (read-only, never copied). Keep multiplayer/local games server-authoritative. New tests must not write files or contact the real server. Use red → green → refactor, native SDL pixel readback, strict lint, full tests, coverage and a dedicated build. Do not certify pixel parity for unimplemented screens.
 
+## Current reported gameplay regressions (all required; no partial completion)
+
+- [x] Inspect `images/singleplayer-starting-again-cut-off-bottom.png` against the original city, movement and terrain-info references.
+- [ ] Replace blue city rectangles with installed original city sprites, source anchoring, viewer-safe names/population/production/ownership labels; test owned, remembered and hidden cities in native SDL.
+- [x] Reconcile movement-line anchors, stroke and numbered turn boxes with terrain diamonds at all zoom levels and scaled viewport input; add visual/input regressions. Native line pixels and zoom1–3 geometry now use the actual diamond centre; terrain-aware retained-order acceptance remains separately unchecked.
+- [ ] Cache and show actual server-projected tile yields, movement, goods and remembered facts without lookup requests or fabricated zero values; precisely document missing server fields/contracts.
+- [ ] Make Enter/keypad Enter and the original End Turn button issue the exact authoritative command, apply receipts and handle errors/phase synchronization with mocked HTTP tests.
+- [x] Hide the OS cursor throughout gameplay, maintain original software cursor hotspot alignment across resizing/letterboxing/high DPI and restore inherited cursor state on exit; add scaled SDL pointer tests. Actual SDL injection reproduced 450→449 truncation, fixed by shared integer presentation/input mapping; pure tests cover native, pillarboxed, portrait and high-DPI transforms. Reassert hiding each frame.
+
+The user confirmed the cut-off bottom in this capture was caused by their image capture, **not a client defect**. Do not change viewport layout to compensate for the crop.
+- [ ] Run lint, full tests, ≥80% coverage, native build, Windows validation/environment check and atomic verified commits; continue every remaining unchecked item below.
+
 ## Checklist
 
 - [x] Inspect all 33 reference PNGs individually and read every filename.

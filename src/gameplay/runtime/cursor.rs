@@ -245,6 +245,12 @@ impl SoftwareCursorGuard {
         mouse.show_cursor(false);
         Ok(Self { mouse, was_visible })
     }
+
+    /// Focus/window handoffs may restore SDL's native visibility; keep the OS
+    /// arrow hidden on every presented gameplay frame, not only at loop entry.
+    pub(super) fn refresh(&self) {
+        self.mouse.show_cursor(false);
+    }
 }
 
 impl Drop for SoftwareCursorGuard {

@@ -702,8 +702,8 @@ fn headless_gameplay_reuses_existing_sdl_window_and_scales_to_viewport() {
         );
         assert_eq!(
             canvas.logical_size(),
-            (super::DEFAULT_WINDOW_WIDTH, super::DEFAULT_WINDOW_HEIGHT),
-            "gameplay should use the original 800×600 reference frame"
+            (0_u32, 0_u32),
+            "native 800×600 target is explicitly fitted; SDL must not truncate/filter pointer events a second time"
         );
         assert_eq!(
             canvas
