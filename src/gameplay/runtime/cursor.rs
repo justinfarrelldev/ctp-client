@@ -105,6 +105,7 @@ pub(super) fn pointer_blocked(state: &GameState, ui: &InGameUiModel) -> bool {
         || ui.great_library.is_some()
         || ui.context.is_some()
         || ui.map_info.is_some()
+        || ui.operation.is_some()
         || ui.management.view.is_some()
 }
 

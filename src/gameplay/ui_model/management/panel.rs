@@ -164,7 +164,7 @@ impl Body<'_> {
             node: style,
             intent: category.map(|category| {
                 ManagerIntent::Select("tile-category".to_owned(), category.control().0.to_owned())
-            }),
+            }).or_else(|| city_intent(self.state, self.city, path)),
             unavailable: None,
             selected: category == Some(self.ui.tile_category),
         });
@@ -217,7 +217,7 @@ impl Body<'_> {
                 label: String::new(),
                 rect,
                 node: style,
-                intent: None,
+                intent: city_intent(self.state, self.city, path),
                 unavailable: None,
                 selected: false,
             });
@@ -310,6 +310,21 @@ impl Body<'_> {
         }
         None
     }
+}
+
+/// Source city panel controls use the selected viewer city and exact legal payload.
+fn city_intent(state: &GameState, city: Option<&ServerCityProjection>, path: &str) -> Option<ManagerIntent> {
+    let city = city?;
+    if path.starts_with("GovernorSelect") {
+        return crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id).map(|dialog| ManagerIntent::Dialog(Box::new(dialog)));
+    }
+    if path == "CitySelect.Pulldown" { return Some(ManagerIntent::ForCity(ManagerKind::City, city.id.clone())); }
+    if path.contains("IconButton") { return Some(ManagerIntent::ForCity(ManagerKind::Build, city.id.clone())); }
+    if path == "RushBuyButton" {
+        let action = state.viewer.as_ref()?.interface.legal_actions.iter().find(|action| action.route == "rush-buy" && action.entity_id == city.id)?;
+        return super::ManagerCommand::advertised(state, action).map(ManagerIntent::Submit);
+    }
+    None
 }
 
 /// Never use visible foreign population or invented research/pollution forecasts.

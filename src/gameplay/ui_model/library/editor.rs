@@ -127,10 +127,15 @@ impl TextEditor {
 
     /// Replaces selection with bounded single-line input and records one undo step.
     pub fn insert(&mut self, text: &mut String, input: &str) -> bool {
+        self.insert_with_limit(text, input, CHARACTER_LIMIT)
+    }
+
+    /// Shares Unicode/undo semantics with bounded long custom-queue fields.
+    pub(in crate::gameplay) fn insert_with_limit(&mut self, text: &mut String, input: &str, limit: usize) -> bool {
         let range = self.range(text);
         let removed = text.get(range.clone()).unwrap_or("").chars().count();
         let available =
-            CHARACTER_LIMIT.saturating_sub(text.chars().count().saturating_sub(removed));
+            limit.saturating_sub(text.chars().count().saturating_sub(removed));
         let value: String = input
             .chars()
             .filter(|character| !character.is_control())

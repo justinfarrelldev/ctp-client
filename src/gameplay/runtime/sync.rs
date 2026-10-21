@@ -19,18 +19,20 @@ pub(super) fn submit(authority:&RuntimeAuthority,state:&mut GameState,route:&str
 }
 
 /// Applies at most one complete outcome each frame, retaining explicit recovery.
-pub(super) fn poll(authority:&mut RuntimeAuthority,state:&mut GameState,ui:&mut InGameUiModel,movement:&mut MovementInputState) {
+pub(super) fn poll(authority:Option<&mut RuntimeAuthority>,state:&mut GameState,ui:&mut InGameUiModel,movement:&mut MovementInputState) {
+    let Some(authority)=authority else {return;};
     let outcome=authority.io.as_ref().and_then(super::network::Network::poll);
     match outcome {
         Some(Outcome::Snapshot(snapshot))=>{
             if snapshot.revision < authority.session.revision() { return; }
             let pending=state.network == NetworkStatus::Pending;
-            if pending && snapshot.revision == authority.session.revision() { return; }
+            if snapshot.revision == authority.session.revision() && state.network != NetworkStatus::Resynchronizing { return; }
             authority.session.apply_projection(*snapshot.clone());
             let before=state.clone();
             replace_state_from_projection(authority,state,&snapshot);
             movement.actors.reconcile(&before,state);
             if pending { state.network=NetworkStatus::Pending; }
+            ui.context = None;
             ui.status_text.clear();
             movement.retain_selectable(state);
         }
@@ -42,6 +44,7 @@ pub(super) fn poll(authority:&mut RuntimeAuthority,state:&mut GameState,ui:&mut 
                 movement.actors.reconcile(&before,state);
             }
             state.network=NetworkStatus::Ready;
+            ui.context = None;
             ui.status_text.clear();
             movement.retain_selectable(state);
         }

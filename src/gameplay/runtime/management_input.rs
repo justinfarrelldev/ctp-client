@@ -28,6 +28,9 @@ mod selector_input;
 mod selector_tests;
 #[cfg(test)]
 mod tests;
+/// Exact new-contract operation envelopes through isolated HTTP stubs.
+#[cfg(test)]
+mod v2_tests;
 /// Policy thumb previews and one-shot, revision-checked value submission.
 mod value_input;
 /// Fileless policy range and release/cancellation regressions.
@@ -205,6 +208,7 @@ pub(super) fn apply(
     authority: Option<&mut RuntimeAuthority>,
 ) {
     match intent {
+        ManagerIntent::Dialog(dialog) => ui.operation = Some(*dialog),
         ManagerIntent::Submit(command) => {
             if !command.valid_for(state) {
                 "This choice belongs to an outdated server revision"
@@ -221,6 +225,11 @@ pub(super) fn apply(
             }
         }
         ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::ForCity(kind, id) => {
+            if state.viewer.as_ref().is_some_and(|viewer| viewer.cities.iter().any(|city| city.id == id && !city.stale)) {
+                ui.management.open(kind, state, Some(&id));
+            }
+        }
         ManagerIntent::BeginValue(path, revision) => value_input::begin(ui, state, &path, revision),
         ManagerIntent::SetValue(path, value, revision) => {
             if let Some(command) = value_input::request(ui, state, &path, value, revision) {

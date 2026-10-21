@@ -17,6 +17,7 @@ pub(super) fn apply_context_intent(
     authority: Option<&mut RuntimeAuthority>,
 ) {
     match intent {
+        ContextIntent::Dialog(dialog) => ui.operation = Some(*dialog),
         ContextIntent::City(id) => {
             ui.selected_city = Some(id);
             ui.active_tab = ControlPanelTab::City;

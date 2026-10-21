@@ -25,6 +25,8 @@ mod chrome;
 mod context;
 /// Original source-layout manager windows and controls.
 mod management;
+/// Explicit source-style operation/target confirmation forms.
+mod operations;
 /// Menu bar, resource counters and weakly-modal dropdowns.
 mod menus;
 /// Drag-movement overlay drawing.
@@ -79,6 +81,7 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     context::draw_context(canvas, textures, state, ui, font)?;
     management::draw_management(canvas, textures, state, ui, fonts)?;
     draw_popups(canvas, textures, state, font)?;
+    operations::draw(canvas, textures, state, ui, font)?;
     if state.network != crate::gameplay::model::NetworkStatus::Ready {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.fill_rect(Rect::new(230, 28, 340, 24)).map_err(runtime_error)?;

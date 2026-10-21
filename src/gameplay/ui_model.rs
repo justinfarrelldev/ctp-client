@@ -15,6 +15,10 @@ use super::model::{GameState, MapPoint};
 
 /// Source-aligned, viewer-safe map context menus.
 pub mod context;
+/// Explicit revision-bound input and target/priority dialogs.
+pub mod operations;
+#[cfg(test)]
+mod operation_tests;
 #[cfg(test)]
 mod context_tests;
 /// Local original-article browsing and shared rich-text link layout.
@@ -323,6 +327,8 @@ pub struct InGameUiModel {
     pub tile_category: TileCategory,
     /// Source-layout management windows, independent of the lower panel tabs.
     pub management: management::ManagementUi,
+    /// Explicit original-style input/target form above any manager.
+    pub operation: Option<operations::OperationDialog>,
 }
 
 impl Default for InGameUiModel {
@@ -343,6 +349,7 @@ impl Default for InGameUiModel {
             stack_expanded: false,
             tile_category: TileCategory::Land,
             management: management::ManagementUi::default(),
+            operation: None,
         }
     }
 }

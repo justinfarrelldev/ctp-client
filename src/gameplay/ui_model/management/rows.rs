@@ -93,7 +93,7 @@ impl Row<'_> {
                 .map_or_else(|| self.id.to_owned(), data::city_name);
         }
         if matches!(name, "Item" | "Label" | "Name") {
-            return data::label(self.ui, self.id);
+            return data::label(self.ui, super::queue::content(self.state, self.view, self.id).unwrap_or(self.id));
         }
         let field = match name {
             "Attack" => "attack",

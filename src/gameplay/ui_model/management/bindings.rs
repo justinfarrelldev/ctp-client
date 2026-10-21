@@ -24,6 +24,9 @@ pub(super) fn binding(
         return binding;
     }
     let name = node.name.as_str();
+    if view.kind == ManagerKind::City && path.starts_with("GovernorBox.") && matches!(name, "Toggle" | "Pulldown" | "autobutton") {
+        return dialog(super::data::city(state, view).and_then(|city| crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id)));
+    }
     if matches!(
         name,
         "CloseButton" | "OkButton" | "AcceptButton" | "CancelButton"
@@ -44,6 +47,10 @@ pub(super) fn binding(
         }
         ManagerKind::Research if path == "Background.BackButton" => research(state, view),
         ManagerKind::Library => library(ui, state, name),
+        ManagerKind::National | ManagerKind::City if name == "DisbandButton" => {
+            let city = view.selections.get("city").or(view.city_id.as_ref());
+            dialog(state.viewer.as_ref().and_then(|viewer| crate::gameplay::ui_model::operations::OperationDialog::actions(state, "Disband City?", viewer.interface.legal_actions.iter().filter(|action| action.route == "disband-city" && city == Some(&action.entity_id)).cloned())))
+        }
         ManagerKind::National if name == "BuildQueueButton" => {
             selected_city_navigation(view, ManagerKind::Build)
         }
@@ -93,6 +100,9 @@ fn build(
     view: &ManagerView,
     path: &str,
 ) -> (Option<ManagerIntent>, Option<String>) {
+    if matches!(path, "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton") {
+        return dialog(super::data::city(state, view).and_then(|city| crate::gameplay::ui_model::operations::OperationDialog::input(state, &city.id, crate::gameplay::ui_model::operations::InputKind::Queue)));
+    }
     if let Some(command) = super::queue::request(state, view, path) {
         return enabled(ManagerIntent::Submit(command));
     }
@@ -234,9 +244,7 @@ fn library(
         "BackButton" | "ForwardButton" => {
             disabled("No article in this direction of browser history")
         }
-        "SetGoalButton" => disabled(
-            "A persistent authoritative future research-goal contract is not exposed; Change Research selects only currently available advances",
-        ),
+        "SetGoalButton" => dialog(state.viewer.as_ref().and_then(|viewer| crate::gameplay::ui_model::operations::OperationDialog::actions(state, "Research Goal", viewer.interface.legal_actions.iter().filter(|action| action.route == "set-research-goal" && (ui.library.current.as_deref() == Some(action.target_id.as_str()) || action.payload["advance_id"].as_str() == Some(""))).cloned()))),
         _ => (None, None),
     }
 }
@@ -249,6 +257,11 @@ fn advertised(
     action.and_then(|action| ManagerCommand::advertised(state, action)).map_or_else(
         || disabled("Select an eligible entity/item; the server does not currently authorize this operation"),
         |command| enabled(ManagerIntent::Submit(command)))
+}
+
+/// Input/target selection is local until explicit valid confirmation.
+fn dialog(value: Option<crate::gameplay::ui_model::operations::OperationDialog>) -> (Option<ManagerIntent>, Option<String>) {
+    value.map_or_else(|| disabled("No currently authorized choice for this operation"), |value| enabled(ManagerIntent::Dialog(Box::new(value))))
 }
 
 /// Enabled controls carry an actual executable intent, never only a painted flag.

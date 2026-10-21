@@ -162,11 +162,11 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
     for index in 0_i32..12_i32 {
         let (label, intent, enabled) = match index {
             0 => ("Move", ControlIntent::ActivateUnit, true),
-            3 if state.authoritative => (
-                "Sleep",
-                ControlIntent::Unavailable("Server has no Sentinel/Sleep route"),
-                false,
-            ),
+            3 if state.authoritative => {
+                let sleeping = state.selected_unit().is_some_and(|unit| matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel));
+                let route = if sleeping { "wake" } else { "sleep" };
+                (if sleeping { "Wake" } else { "Sleep" }, ControlIntent::Action(InGameAction::Sentinel), legal_selected_order(state, route))
+            },
             3 => ("Sleep", ControlIntent::Action(InGameAction::Sentinel), true),
             4 if settler => (
                 "Settle",
@@ -181,7 +181,7 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
             9 => (
                 "Board Transport",
                 ControlIntent::SelectedOrder("embark"),
-                legal_selected_order(state, "embark"),
+                !candidate_orders(state, "embark").is_empty(),
             ),
             11 => (
                 "Disband",
@@ -206,7 +206,7 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
             label,
             rect,
             intent,
-            enabled: enabled && state.selected_unit().is_some(),
+            enabled: enabled && state.selected_unit().is_some() && state.network == crate::gameplay::model::NetworkStatus::Ready,
         });
     }
     controls
@@ -250,17 +250,16 @@ fn selected_order<'state>(
     state: &'state GameState,
     route: &str,
 ) -> Option<&'state crate::gameplay::server::interface::LegalAction> {
-    let unit = state.selected_unit()?;
-    let viewer = state.viewer.as_ref()?;
-    let source = viewer
-        .units
-        .iter()
-        .find(|source| crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id)?;
-    let mut actions = viewer.interface.legal_actions.iter().filter(|action| {
-        action.route == route && action.entity_id == source.id && action.http_supported()
-    });
-    let action = actions.next()?;
-    actions.next().is_none().then_some(action)
+    let candidates = candidate_orders(state, route);
+    (candidates.len() == 1).then(|| candidates[0])
+}
+
+/// Exact selected-unit candidates; multiple targets require an explicit chooser.
+fn candidate_orders<'state>(state: &'state GameState, route: &str) -> Vec<&'state crate::gameplay::server::interface::LegalAction> {
+    let Some(unit) = state.selected_unit() else { return Vec::new(); };
+    let Some(viewer) = state.viewer.as_ref() else { return Vec::new(); };
+    let Some(source) = viewer.units.iter().find(|source| crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id) else { return Vec::new(); };
+    viewer.interface.legal_actions.iter().filter(|action| action.route == route && action.entity_id == source.id && action.http_supported()).collect()
 }
 
 /// Resolves a semantic interaction by accessible label, with no coordinate clicking.
@@ -355,6 +354,8 @@ pub(super) fn apply_intent(
                     authority,
                 );
                 movement.retain_selectable(state);
+            } else {
+                ui.operation = crate::gameplay::ui_model::operations::OperationDialog::actions(state, "Choose Target", candidate_orders(state, route).into_iter().cloned());
             }
         }
         ControlIntent::Unavailable(label) => {
@@ -454,10 +455,17 @@ mod tests {
         action.payload["transport_id"] = serde_json::json!("other-carrier");
         projection.interface.legal_actions.push(action);
         let multiple = GameState::from_server_projection(&projection, 1, 42);
-        assert!(
-            intent_for_label(&multiple, ControlPanelTab::Unit, "Board Transport").is_none(),
-            "multiple targets require an explicit chooser, not a first-target shortcut"
+        assert_eq!(
+            intent_for_label(&multiple, ControlPanelTab::Unit, "Board Transport"),
+            Some(ControlIntent::SelectedOrder("embark")),
+            "multiple targets open an explicit chooser, never a first-target shortcut"
         );
+        let mut chooser_state = multiple;
+        let mut ui = crate::gameplay::ui_model::InGameUiModel::default();
+        let mut camera = super::super::Camera::centered_on_selected(&chooser_state);
+        let mut movement = super::super::MovementInputState::default();
+        super::apply_intent(ControlIntent::SelectedOrder("embark"), &mut chooser_state, &mut ui, &mut camera, &mut movement, None);
+        assert_eq!(ui.operation.as_ref().map(|dialog| dialog.choices.len()), Some(2_usize), "both exact target choices retained without submitting either");
     }
 
     #[test]

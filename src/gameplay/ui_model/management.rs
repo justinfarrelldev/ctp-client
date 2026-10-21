@@ -252,21 +252,26 @@ impl ManagerCommand {
 
     /// Carries through an advertised action without reconstructing its metadata.
     pub(super) fn advertised(state: &GameState, action: &LegalAction) -> Option<Self> {
-        action.http_supported().then(|| Self {
+        let command = Self {
             revision: state.viewer.as_ref().map_or(0, |viewer| viewer.revision),
             route: action.route.clone(),
             payload: action.payload.clone(),
-        })
+        };
+        (action.http_supported() && command.valid_for(state)).then_some(command)
     }
 }
 
 /// Semantic interaction available to real SDL input and accessible automation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManagerIntent {
+    /// Explicit revision-bound input/target dialog; opening never submits.
+    Dialog(Box<super::operations::OperationDialog>),
     /// Close only the top manager, not the application or current turn.
     Close,
     /// Open a source-verified related manager.
     Open(ManagerKind),
+    /// Open a related manager for the exact panel city, not the first owned city.
+    ForCity(ManagerKind, String),
     /// Set a presentation-only category, active tab or selected row.
     Select(String, String),
     /// Scroll one list without moving the world camera.
@@ -763,6 +768,8 @@ impl ManagementUi {
             }
             ManagerIntent::Close
             | ManagerIntent::Open(_)
+            | ManagerIntent::ForCity(..)
+            | ManagerIntent::Dialog(_)
             | ManagerIntent::Submit(_)
             | ManagerIntent::Article(_)
             | ManagerIntent::ChartArticle(_)

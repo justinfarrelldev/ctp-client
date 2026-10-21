@@ -34,6 +34,8 @@ mod animation;
 mod authority;
 /// Explicit source-aligned context selection and map information.
 mod context_input;
+/// Exclusive source-style operation/target form input.
+mod operation_input;
 /// Labeled controls shared by accessible automation and SDL pointer events.
 pub mod controls;
 /// Original software cursor art and edge-scrolling policy.
@@ -196,6 +198,7 @@ fn handle_event(
     mut authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     cursor::track_pointer(event, ui, movement);
+    if operation_input::consume(event, state, ui, authority.as_deref_mut()) { return None; }
     if management_input::consume(event, state, ui, movement, authority.as_deref_mut()) {
         return None;
     }
@@ -353,6 +356,10 @@ fn handle_left_click(
             }
             return None;
         }
+    }
+    if let Some(intent) = ui.management.panel_widgets(state, ui).into_iter().rev().find(|widget| widget.rect.contains(x, y) && widget.intent.is_some()).and_then(|widget| widget.intent) {
+        management_input::apply(intent, state, ui, authority);
+        return None;
     }
     if let Some(intent) = controls::intent_at(state, ui.active_tab, x, y) {
         movement.cancel_drag();
@@ -576,13 +583,14 @@ fn apply_authoritative_action(
             }
             true
         }
-        InGameAction::Settle | InGameAction::Fortify | InGameAction::Disband => {
+        InGameAction::Settle | InGameAction::Fortify | InGameAction::Disband | InGameAction::Sentinel => {
             let Some(unit) = state.selected_unit() else {
                 return true;
             };
             let route = match action {
                 InGameAction::Settle => "found-city",
                 InGameAction::Fortify => "fortify",
+                InGameAction::Sentinel => if matches!(unit.order, super::model::UnitOrder::Sentinel) { "wake" } else { "sleep" },
                 _ => "disband",
             };
             let id = server_unit_id_for_unit(authority, unit.id);
@@ -602,10 +610,6 @@ fn apply_authoritative_action(
                     kind: PopupKind::Info,
                 });
             }
-            true
-        }
-        InGameAction::Sentinel => {
-            state.popups.push(GameplayPopup { title:"Sentinel unavailable".to_owned(), body:"The server does not expose a Sentinel/Sleep order; Fortify is a different operation".to_owned(),kind:PopupKind::Info });
             true
         }
         InGameAction::MoveBy(dx, dy) => {

@@ -129,6 +129,13 @@ fn save_capture(canvas: &Canvas<Window>) {
     }
 }
 
+/// Measures the active input with exactly the font used by its renderer.
+fn measure_operation(ui: &mut InGameUiModel, font: Option<&sdl2::ttf::Font<'_, '_>>) {
+    if let (Some(dialog), Some(body_font)) = (ui.operation.as_mut(), font) {
+        dialog.metrics.measure(&dialog.text, |text| body_font.size_of(text).map_or(0, |size| size.0));
+    }
+}
+
 /// Runs gameplay on the existing canvas, preserving the main menu's window.
 pub(super) fn run_sdl_game_on_canvas(
     config: &SinglePlayerLaunchConfig,
@@ -192,10 +199,9 @@ pub(super) fn run_sdl_game_on_canvas(
                 outcome = Some(next);
             }
             flush_clipboard(&mut ui, &mut clipboard);
+            super::operation_input::flush(&mut ui, &mut clipboard);
         }
-        if let Some(active) = authority.as_mut() {
-            super::sync::poll(active, &mut state, &mut ui, &mut movement);
-        }
+        super::sync::poll(authority.as_mut(), &mut state, &mut ui, &mut movement);
         super::management_input::open_pending_build(&mut state, &mut ui);
         movement
             .actors
@@ -210,6 +216,7 @@ pub(super) fn run_sdl_game_on_canvas(
         if camera != before_pan {
             super::cursor::refresh_map_pointer(&state, &mut ui, &camera, &mut movement);
         }
+        measure_operation(&mut ui, font.as_ref());
         frame::draw_scaled_frame(
             canvas,
             &mut frame_texture,

@@ -18,6 +18,8 @@ pub enum ContextIntent {
     Army(UnitId),
     /// Activate movement for the clicked unit, not another selected unit.
     Move(UnitId),
+    /// Explicit input/target confirmation, without dispatch on menu open.
+    Dialog(Box<super::operations::OperationDialog>),
     /// Execute a server-projected legal payload verbatim.
     Submit(LegalAction),
     /// Inspect viewer-known map information.
@@ -196,9 +198,9 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
                 label: "Build Manager",
                 intent: ContextIntent::Build(city.id),
             },
-            unavailable("Rename City", "Server has no rename-city route"),
-            unavailable("Disband City", "Server has no disband-city route"),
-            unavailable("Turn Mayor ON", "Server has no city-governor route"),
+            city_dialog(state, city.id, "Rename City", "rename-city"),
+            city_dialog(state, city.id, "Disband City", "disband-city"),
+            city_dialog(state, city.id, "Turn Mayor ON", "set-governor"),
             info,
         ];
     }
@@ -242,7 +244,7 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
     }
     for (label, route) in [
         ("Fortify", "fortify"),
-        ("Sentinel", "sentinel"),
+        (if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) { "Wake" } else { "Sentinel" }, if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) { "wake" } else { "sleep" }),
         ("Pillage", "pillage"),
         ("Pirate Trade", "pirate-trade"),
         ("Expel", "expel"),
@@ -263,8 +265,28 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
                 ),
         });
     }
+    if let Some(viewer) = state.viewer.as_ref() {
+        if let Some(source) = viewer.units.iter().find(|source| UnitId::from_server_id(&source.id) == unit.id) {
+            if let Some(dialog) = super::operations::OperationDialog::actions(state, "Choose Order and Target", viewer.interface.legal_actions.iter().filter(|action| action.entity_id == source.id).cloned()) {
+                rows.push(ContextRow { label: "Orders and Targets…", intent: ContextIntent::Dialog(Box::new(dialog)) });
+            }
+        }
+    }
     rows.push(info);
     rows
+}
+
+/// Preserves source city priority while opening only currently authorized forms.
+fn city_dialog(state: &GameState, id: CityId, label: &'static str, route: &str) -> ContextRow {
+    let dialog = state.viewer.as_ref().and_then(|viewer| {
+        let source = viewer.cities.iter().find(|source| CityId::from_server_id(&source.id) == id)?;
+        match route {
+            "rename-city" => super::operations::OperationDialog::input(state, &source.id, super::operations::InputKind::Rename),
+            "set-governor" => super::operations::OperationDialog::governor(state, &source.id),
+            _ => super::operations::OperationDialog::actions(state, label, viewer.interface.legal_actions.iter().filter(|action| action.route == route && action.entity_id == source.id).cloned()),
+        }
+    });
+    ContextRow { label, intent: dialog.map_or(ContextIntent::Unavailable("No currently authorized operation for this city"), |dialog| ContextIntent::Dialog(Box::new(dialog))) }
 }
 
 /// Resolves only an unambiguous projected target; do not silently select the
