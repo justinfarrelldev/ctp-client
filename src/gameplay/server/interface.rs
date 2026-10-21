@@ -112,6 +112,12 @@ pub struct Research {
     /// Current canonical research goal, empty if none.
     #[serde(default)]
     pub target_id: String,
+    /// Persistent future goal, distinct from the current target.
+    #[serde(default)]
+    pub goal_id: String,
+    /// Effective current research estimate.
+    #[serde(default)]
+    pub forecast: Option<super::v2::Forecast>,
     /// Authoritative accumulated research.
     #[serde(default)]
     pub progress: i64,
@@ -144,9 +150,36 @@ pub struct ServerInterface {
     /// Authoritative open/queued/closed planning state.
     #[serde(default)]
     pub planning_status: String,
+    /// Explicit protocol version and capability decisions.
+    #[serde(default)]
+    pub contract: Option<super::v2::Contract>,
+    /// Public extents independent of discovered cells.
+    #[serde(default)]
+    pub world: Option<super::v2::World>,
+    /// Pinned authoritative date, if available.
+    #[serde(default)]
+    pub calendar: Option<super::v2::Calendar>,
+    /// Shape authorization, never a hidden outcome prediction.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
+    pub action_intents: Vec<LegalAction>,
+    /// Owner-private retained journeys.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
+    pub movement_orders: Vec<super::v2::MovementOrder>,
+    /// Private semantic results with stable IDs.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
+    pub notifications: Vec<super::v2::Notification>,
+    /// Actual own-nation completed-turn samples.
+    #[serde(default, deserialize_with = "deserialize_nullable_vec")]
+    pub statistics: Vec<super::v2::Statistics>,
 }
 
 impl ServerInterface {
+    /// Capabilities are opt-in and do not replace per-entity authorization.
+    #[must_use]
+    pub fn supports(&self, feature: &str) -> bool {
+        self.contract.as_ref().is_some_and(|contract| contract.version == 2 && contract.features.get(feature) == Some(&true))
+    }
+
     /// Resolves a legal action without substituting another entity or target.
     #[must_use]
     pub fn action(&self, route: &str, entity: &str, target: Option<&str>) -> Option<&LegalAction> {

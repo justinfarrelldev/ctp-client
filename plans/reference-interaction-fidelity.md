@@ -4,7 +4,11 @@
 
 Review every image in `images/ctp2_references` using its full filename as context. Work from original CTP2 source and installed art (read-only, never copied). Keep multiplayer/local games server-authoritative. New tests must not write files or contact the real server. Use red → green → refactor, native SDL pixel readback, strict lint, full tests, coverage and a dedicated build. Do not certify pixel parity for unimplemented screens.
 
-## Server-first request and instruction blocker
+## Current server contract integration
+
+The server has independently implemented contract v2, including retained destinations, ruin rewards and city production governors. Follow [client-contract-v2.md](client-contract-v2.md) for the requested client-only TDD integration. Earlier blocker notes below are historical, not the current server feature status. Do not modify the server.
+
+## Historical server-first request and instruction blocker
 
 The user subsequently authorized server work and asked to fix `client-discovered-server-issue.md` first. Both that untracked singular report and the tracked plural report, plus the server's complete `AGENTS.md`, were inspected read-only. The developer-provided client project instructions still explicitly prohibit **any server modifications**. No server source, tests, plans, reports, hooks or configuration were changed; its pre-existing untracked singular report is untouched. Server implementation cannot proceed under this session's governing instructions. Do not mark affected checkboxes complete or claim that client defaults repair missing authoritative facts.
 

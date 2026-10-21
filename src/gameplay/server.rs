@@ -139,10 +139,25 @@ pub struct ServerTileProjection {
     /// River metadata when supplied by a viewer-safe server projection.
     /// Older servers omit this field; omission must not fabricate rivers.
     #[serde(default)]
-    pub river: bool,
+    pub river: Option<bool>,
     /// Canonical resource ID, when exposed by the viewer-safe server contract.
     #[serde(default)]
-    pub good_id: String,
+    pub good_id: Option<String>,
+    /// Observed ruin; missing legacy data is unknown.
+    #[serde(default)]
+    pub ruin: Option<bool>,
+    /// Observed territorial owner; empty means known neutral.
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    /// Effective observed tile yields, not base rules.
+    #[serde(default)]
+    pub yields: Option<v2::TileYield>,
+    /// Terrain versus city-center yield semantics.
+    #[serde(default)]
+    pub yield_context: String,
+    /// General observed movement cost, not unit authorization.
+    #[serde(default)]
+    pub movement_cost: Option<i64>,
     /// Whether this tile is remembered but currently not visible.
     #[serde(default)]
     pub stale: bool,
@@ -208,6 +223,18 @@ pub struct ServerCityProjection {
     /// Whether the city is remembered but currently not visible.
     #[serde(default)]
     pub stale: bool,
+    /// Observed semantic age/capital facts.
+    #[serde(default)]
+    pub art: Option<v2::CityArt>,
+    /// Owner-private production governor.
+    #[serde(default)]
+    pub governor: Option<v2::Governor>,
+    /// Revision-bound price display, separate from command payload.
+    #[serde(default)]
+    pub rush_buy_quote: Option<v2::Quote>,
+    /// Effective current-economy production estimate.
+    #[serde(default)]
+    pub production_forecast: Option<v2::Forecast>,
     /// Queue, buildings, specialists, stored resources and accounting facts.
     #[serde(flatten)]
     pub facts: Value,
@@ -700,6 +727,10 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
     })
 }
 
+/// Additive viewer contracts and known/unavailable display facts.
+pub mod v2;
+#[cfg(test)]
+mod v2_tests;
 #[cfg(test)]
 mod projection_tests;
 #[cfg(test)]

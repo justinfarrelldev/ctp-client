@@ -120,6 +120,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .map_or(MIN_WORLD_HEIGHT, |value| {
             value.saturating_add(1).max(MIN_WORLD_HEIGHT)
         });
+    let (width, height) = projection.interface.world.as_ref().and_then(super::super::server::v2::World::dimensions).unwrap_or((width, height));
     let tiles = viewer_tiles(projection, width, height);
     let contacts = generated_contacts(empire_count);
     let tile_lookup = projection
@@ -140,6 +141,9 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
             );
             converted.movement_points = unit.movement;
             converted.max_movement_points = unit.max_movement.max(unit.movement);
+            if unit.facts["asleep"].as_bool() == Some(true) {
+                converted.order = super::UnitOrder::Sentinel;
+            }
             Some(converted)
         })
         .collect::<Vec<_>>();
@@ -216,8 +220,9 @@ fn viewer_tiles(projection: &ServerProjection, width: u16, height: u16) -> Vec<M
         {
             tile.terrain = terrain_from_server_id(&source.terrain);
             tile.art_base_type = terrain_art_base(&source.terrain);
-            tile.river = source.river;
-            tile.good_id = (!source.good_id.is_empty()).then(|| source.good_id.clone());
+            tile.river = source.river == Some(true);
+            tile.good_id = source.good_id.clone().filter(|id| !id.is_empty());
+            tile.feature = (source.ruin == Some(true)).then_some(super::TileFeature::Ruin);
             tile.fog = if source.stale {
                 FogState::Explored
             } else {

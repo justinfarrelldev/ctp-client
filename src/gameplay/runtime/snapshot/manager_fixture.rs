@@ -62,6 +62,7 @@ fn projection() -> ServerProjection {
                     "ADVANCE_BALLISTICS".to_owned(),
                     "ADVANCE_IRON_WORKING".to_owned(),
                 ],
+                ..Research::default()
             }),
             rules: Some(json!({
                 "ages":[{"id":"AGE_ANCIENT","index":0_i64}],
