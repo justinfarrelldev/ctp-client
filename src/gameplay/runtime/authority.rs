@@ -11,7 +11,9 @@ use super::super::server::{ServerClient, ServerGameplaySession, ServerProjection
 
 /// Live authoritative server state for an interactive runtime session.
 pub(super) struct RuntimeAuthority {
-    /// Blocking command client.
+    /// Production-only asynchronous IO; isolated legacy harnesses inject synchronous stubs.
+    pub(super) io: Option<super::network::Network>,
+    /// Blocking command client used by worker-owned transport and isolated tests.
     pub(super) client: ServerClient,
     /// Current authoritative session metadata.
     pub(super) session: ServerGameplaySession,

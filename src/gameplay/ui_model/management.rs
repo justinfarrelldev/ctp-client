@@ -236,6 +236,7 @@ impl ManagerCommand {
     /// Rejects stale confirmations and commands with no current authority.
     #[must_use]
     pub fn valid_for(&self, state: &GameState) -> bool {
+        if state.network != crate::gameplay::model::NetworkStatus::Ready { return false; }
         let Some(viewer) = state
             .viewer
             .as_ref()

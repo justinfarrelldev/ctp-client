@@ -5,14 +5,12 @@ extern crate alloc;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use sdl2::EventPump;
 use sdl2::event::Event;
 use sdl2::mouse::MouseButton;
 use sdl2::render::Canvas;
-use sdl2::ttf::{Font, Hinting, Sdl2TtfContext};
 use sdl2::video::Window;
 use serde_json::{Value, json};
 
@@ -27,17 +25,9 @@ const FRAME_DELAY: Duration = Duration::from_millis(16);
 pub(super) const DEFAULT_WINDOW_WIDTH: u32 = 800;
 /// Default SDL window height.
 pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 600;
-/// Candidate fonts used to draw gameplay labels over original-style chrome.
-const FONT_CANDIDATES: [&str; 8] = [
-    "C:/Windows/Fonts/timesbd.ttf",
-    "/usr/share/fonts/truetype/msttcorefonts/timesbd.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    "C:/Windows/Fonts/arialbd.ttf",
-];
+/// Session font discovery, independent of event dispatch.
+mod font_loader;
+use font_loader::{find_existing_font, load_gameplay_font};
 /// Directional actor presentation with an injectable monotonic clock.
 mod animation;
 /// Authoritative server state alignment helpers.
@@ -62,6 +52,12 @@ mod movement;
 mod render;
 /// Bootstrap and the live SDL presentation loop.
 mod session;
+/// Nonblocking worker transport and injectable retry/recovery boundary.
+mod network;
+/// UI-thread authoritative replacement and pending/recovery presentation.
+mod sync;
+#[cfg(test)]
+mod network_tests;
 /// Explicit opt-in framebuffer previews and capture.
 pub mod snapshot;
 /// Original CTP2 texture loading.
@@ -668,6 +664,10 @@ fn submit_authoritative_command(
     command: &str,
     payload: Value,
 ) {
+    if authority.io.is_some() {
+        sync::submit(authority, state, command, payload);
+        return;
+    }
     match authority
         .client
         .submit_command(&authority.session, command, payload)
@@ -692,6 +692,7 @@ fn replace_state_from_projection(
     state: &mut GameState,
     projection: &ServerProjection,
 ) {
+    if state.viewer.as_ref().is_some_and(|current| current.revision > projection.revision) { return; }
     let filters = state.filters;
     let selected = state.selected_unit;
     let mut next = state_from_authority_projection(authority, projection);
@@ -734,23 +735,6 @@ fn top_menu_click_action(x: i32, y: i32, ui: &mut InGameUiModel) -> (bool, Optio
         .and_then(|item| item.enabled.then_some(item.action));
     ui.open_menu = None;
     (true, action)
-}
-
-/// Loads identical original-size font/hinting for live gameplay and previews.
-fn load_gameplay_font(context: &Sdl2TtfContext) -> Option<Font<'_, 'static>> {
-    let path = find_existing_font()?;
-    let mut font = context.load_font(path, 13_u16).ok()?;
-    font.set_hinting(Hinting::Mono);
-    Some(font)
-}
-
-/// Finds an installed font suitable for gameplay labels.
-fn find_existing_font() -> Option<PathBuf> {
-    FONT_CANDIDATES
-        .iter()
-        .map(Path::new)
-        .find(|path| path.try_exists().unwrap_or(false))
-        .map(Path::to_path_buf)
 }
 
 /// Scoped dummy SDL drivers for renderer tests.

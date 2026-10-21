@@ -64,6 +64,7 @@ fn stacked_authority() -> RuntimeAuthority {
         ]
     }"#).expect("accurate viewer fixture");
     RuntimeAuthority {
+        io: None,
         client: ServerClient::from_config(&ServerConfig::disabled_for_test())
             .expect("constructing a client only parses the URL"),
         session: ServerGameplaySession {

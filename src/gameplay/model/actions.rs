@@ -42,6 +42,7 @@ impl GameState {
             filters: MapFilters::default(),
             seed,
             city_build_menu: None,
+            network: super::NetworkStatus::Ready,
             viewer: None,
         };
         state.place_initial_actors(empire_count);

@@ -11,7 +11,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Write as _;
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::thread;
@@ -272,7 +272,9 @@ impl ServerGameplaySession {
 
     /// Applies a fresh projection returned by a command receipt.
     pub fn apply_projection(&mut self, projection: ServerProjection) {
-        self.projection = Some(projection);
+        if projection.revision >= self.revision() {
+            self.projection = Some(projection);
+        }
     }
 }
 
@@ -389,25 +391,7 @@ impl ServerClient {
         command: &str,
         payload: Value,
     ) -> Result<ServerCommandResponse, GameplayError> {
-        let mut body = match payload {
-            Value::Object(map) => map,
-            _ => Map::new(),
-        };
-        let idempotency_key = unique_client_key(command)?;
-        body.insert("session_id".to_owned(), json!(session.session_id));
-        body.insert("expected_revision".to_owned(), json!(session.revision()));
-        body.insert("idempotency_key".to_owned(), json!(idempotency_key));
-        body.insert(
-            "command_id".to_owned(),
-            json!(format!("ctp-client-{idempotency_key}")),
-        );
-        let path = format!("/game/{}/{}", session.game_id, command);
-        let value = self.post_json(&path, &Value::Object(body))?;
-        serde_json::from_value(value).map_err(|error| {
-            asset_error(format!(
-                "server command response did not match schema: {error}"
-            ))
-        })
+        envelope::PreparedCommand::new(session, command, payload)?.execute(self)
     }
 
     /// Creates and logs into a unique local account for the launch session.
@@ -446,7 +430,10 @@ impl ServerClient {
     }
 
     /// Fetches a one-shot current projection through the SSE resync endpoint.
-    fn fetch_resync_projection(
+    ///
+    /// # Errors
+    /// Returns an IO, membership or inconsistent snapshot error; never falls back to canonical maps.
+    pub(in crate::gameplay) fn fetch_resync_projection(
         &self,
         game_id: i64,
         session_id: i64,
@@ -731,10 +718,16 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
 pub mod v2;
 /// Exact command input shapes and current viewer authorization.
 pub mod commands;
+/// Immutable retryable command envelopes.
+pub mod envelope;
+/// Viewer-safe streaming invalidations.
+pub(in crate::gameplay) mod stream;
 #[cfg(test)]
 mod v2_tests;
 #[cfg(test)]
 mod command_tests;
+#[cfg(test)]
+mod stream_tests;
 #[cfg(test)]
 mod projection_tests;
 #[cfg(test)]

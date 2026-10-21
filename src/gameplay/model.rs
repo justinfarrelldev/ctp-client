@@ -398,6 +398,18 @@ impl Default for MapFilters {
     }
 }
 
+/// Presentation-only connection phase; never changes engine authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum NetworkStatus {
+    /// Input may submit an authorized operation.
+    #[default]
+    Ready,
+    /// One immutable command is awaiting its receipt.
+    Pending,
+    /// A discrepancy/current-read failure blocks orders until full replacement.
+    Resynchronizing,
+}
+
 /// Complete pure gameplay state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
@@ -432,6 +444,8 @@ pub struct GameState {
     pub seed: u64,
     /// Whether the city build menu is open.
     pub city_build_menu: Option<CityId>,
+    /// Non-authoritative pending/recovery presentation.
+    pub network: NetworkStatus,
     /// Exact viewer-safe source facts used by management UI and legal orders.
     pub viewer: Option<super::server::ServerProjection>,
 }

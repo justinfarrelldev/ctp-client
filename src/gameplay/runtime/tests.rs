@@ -323,6 +323,7 @@ fn plain_left_click_with_authority_does_not_submit_move_request() {
     })
     .expect("test server URL should parse");
     let mut authority = RuntimeAuthority {
+        io: None,
         client,
         session: ServerGameplaySession {
             game_id: 44,

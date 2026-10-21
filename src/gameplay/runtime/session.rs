@@ -67,6 +67,7 @@ fn bootstrap(
     let client = ServerClient::from_config(&config.server)?;
     let session = client.bootstrap_local_singleplayer(&config.leader_name, config.empire_count)?;
     let authority = RuntimeAuthority {
+        io: Some(super::network::Network::start(client.clone(), session.clone())),
         client,
         session,
         empire_count: config.empire_count,
@@ -191,6 +192,9 @@ pub(super) fn run_sdl_game_on_canvas(
                 outcome = Some(next);
             }
             flush_clipboard(&mut ui, &mut clipboard);
+        }
+        if let Some(active) = authority.as_mut() {
+            super::sync::poll(active, &mut state, &mut ui, &mut movement);
         }
         super::management_input::open_pending_build(&mut state, &mut ui);
         movement

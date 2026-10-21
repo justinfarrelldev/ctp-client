@@ -195,6 +195,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         filters: MapFilters::default(),
         seed,
         city_build_menu: None,
+        network: super::NetworkStatus::Ready,
         viewer: Some(projection.clone()),
     }
 }

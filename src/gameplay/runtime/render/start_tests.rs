@@ -34,6 +34,7 @@ fn decoded_starting_snapshot_selects_and_renders_settler_terrain_and_minimap() {
                 ServerProjection::from_resync_event(&event).map_err(|error| error.to_string())?;
             // Constructing a client parses configuration only; this test never sends requests.
             let authority = RuntimeAuthority {
+                io: None,
                 client: ServerClient::from_config(&ServerConfig::disabled_for_test())
                     .map_err(|error| error.to_string())?,
                 session: ServerGameplaySession {

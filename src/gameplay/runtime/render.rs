@@ -79,6 +79,12 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     context::draw_context(canvas, textures, state, ui, font)?;
     management::draw_management(canvas, textures, state, ui, fonts)?;
     draw_popups(canvas, textures, state, font)?;
+    if state.network != crate::gameplay::model::NetworkStatus::Ready {
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.fill_rect(Rect::new(230, 28, 340, 24)).map_err(runtime_error)?;
+        let message = if state.network == crate::gameplay::model::NetworkStatus::Pending { "Waiting for server…" } else { "Resynchronizing…" };
+        draw_text(canvas, font, message, 240, 31, Color::RGB(255, 230, 140))?;
+    }
     draw_cursor(canvas, textures, state, ui, input)
 }
 

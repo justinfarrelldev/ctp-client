@@ -45,6 +45,7 @@ pub(super) fn snapshot() -> Value {
 /// Creates a client pointing only at the test's ephemeral listener (or unused port).
 pub(super) fn authority(port: u16, value: Value) -> RuntimeAuthority {
     RuntimeAuthority {
+        io: None,
         client: ServerClient::from_config(&ServerConfig {
             base_url: format!("http://127.0.0.1:{port}"),
             required: true,
