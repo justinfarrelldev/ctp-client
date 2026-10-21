@@ -67,7 +67,10 @@ fn bootstrap(
     let client = ServerClient::from_config(&config.server)?;
     let session = client.bootstrap_local_singleplayer(&config.leader_name, config.empire_count)?;
     let authority = RuntimeAuthority {
-        io: Some(super::network::Network::start(client.clone(), session.clone())),
+        io: Some(
+            super::network::Network::start(client.clone(), session.clone())
+                .map_err(runtime_error)?,
+        ),
         client,
         session,
         empire_count: config.empire_count,
@@ -132,7 +135,9 @@ fn save_capture(canvas: &Canvas<Window>) {
 /// Measures the active input with exactly the font used by its renderer.
 fn measure_operation(ui: &mut InGameUiModel, font: Option<&sdl2::ttf::Font<'_, '_>>) {
     if let (Some(dialog), Some(body_font)) = (ui.operation.as_mut(), font) {
-        dialog.metrics.measure(&dialog.text, |text| body_font.size_of(text).map_or(0, |size| size.0));
+        dialog.metrics.measure(&dialog.text, |text| {
+            body_font.size_of(text).map_or(0, |size| size.0)
+        });
     }
 }
 
@@ -201,7 +206,7 @@ pub(super) fn run_sdl_game_on_canvas(
             flush_clipboard(&mut ui, &mut clipboard);
             super::operation_input::flush(&mut ui, &mut clipboard);
         }
-        super::sync::poll(authority.as_mut(), &mut state, &mut ui, &mut movement);
+        super::sync::frame(authority.as_mut(), &mut state, &mut ui, &mut movement);
         super::management_input::open_pending_build(&mut state, &mut ui);
         movement
             .actors
@@ -213,6 +218,7 @@ pub(super) fn run_sdl_game_on_canvas(
             pointer_blocked(&state, &ui),
             movement.actors.now_ms,
         );
+        camera.constrain(&state);
         if camera != before_pan {
             super::cursor::refresh_map_pointer(&state, &mut ui, &camera, &mut movement);
         }

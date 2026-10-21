@@ -24,6 +24,10 @@ mod layout_tests;
 pub mod library;
 #[cfg(test)]
 mod library_tests;
+/// Source-only observed improvement art associations.
+pub mod observed_art;
+#[cfg(test)]
+mod observed_art_tests;
 /// Original channel expansion shared by terrain, actors and UI art.
 pub(crate) mod pixel;
 /// RIM/ZFS image loading for CTP2 UI art.

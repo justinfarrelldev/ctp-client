@@ -315,10 +315,14 @@ impl Walker<'_> {
             data::text(self.ui, self.state, self.view, path)
         }
         .unwrap_or_else(|| source_label(self.ui, node));
-        let selected = (self.view.kind == ManagerKind::Library
-            && path == "SortByAgeButton"
-            && self.ui.library.sort_by_age
-            && super::index::can_sort(self.ui, self.state))
+        let selected = (path == "GovernorBox.Toggle"
+            && data::city(self.state, self.view)
+                .and_then(|city| city.governor.as_ref())
+                .is_some_and(|governor| governor.enabled))
+            || (self.view.kind == ManagerKind::Library
+                && path == "SortByAgeButton"
+                && self.ui.library.sort_by_age
+                && super::index::can_sort(self.ui, self.state))
             || path
                 .strip_prefix("ItemsBox.")
                 .and_then(|name| name.strip_suffix("Button"))
@@ -551,7 +555,9 @@ fn hidden(view: &ManagerView, path: &str) -> bool {
     if view.kind == ManagerKind::Library && path == "SearchLabel" {
         return true;
     }
-    if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound) && matches!(path, "AcceptButton" | "Background") {
+    if matches!(view.kind, ManagerKind::Graphics | ManagerKind::Sound)
+        && matches!(path, "AcceptButton" | "Background")
+    {
         // The original callbacks instantiate AddClose, never this obsolete block.
         return true;
     }

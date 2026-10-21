@@ -32,6 +32,8 @@ struct Recipe {
 pub struct CityArtCatalog {
     /// Style name and ordered source age-style references.
     styles: Vec<(String, Vec<String>)>,
+    /// Installed canonical ages in original database order.
+    age_ids: Vec<String>,
     /// Age-style recipes in source declaration order.
     ages: BTreeMap<String, Vec<Recipe>>,
 }
@@ -55,6 +57,7 @@ impl CityArtCatalog {
             .collect();
         let mut catalog = Self {
             styles,
+            age_ids: Vec::new(),
             ages: BTreeMap::new(),
         };
         for (id, words) in records(ages) {
@@ -94,7 +97,35 @@ impl CityArtCatalog {
                 .map(|bytes| text::decode(&bytes))
                 .map_err(|error| asset_error(format!("{name}: {error}")))
         };
-        Self::parse(&read("citystyle.txt")?, &read("agecitystyle.txt")?)
+        Self::parse_with_ages(
+            &read("citystyle.txt")?,
+            &read("agecitystyle.txt")?,
+            &read("age.txt")?,
+        )
+    }
+
+    /// Resolves semantic ages from installed order without guessing culture/style.
+    ///
+    /// # Errors
+    /// Returns malformed city recipe errors.
+    pub fn parse_with_ages(styles: &str, ages: &str, age_ids: &str) -> Result<Self, GameplayError> {
+        let mut catalog = Self::parse(styles, ages)?;
+        catalog.age_ids = records(age_ids)
+            .into_iter()
+            .map(|record| record.0)
+            .collect();
+        Ok(catalog)
+    }
+
+    /// Uses observed age, retaining the explicit first-style visual fallback.
+    #[must_use]
+    pub fn sprite_for_age(&self, age: &str, water: bool, population: u32) -> Option<u16> {
+        self.sprite(
+            0,
+            self.age_ids.iter().position(|id| id == age)?,
+            water,
+            population,
+        )
     }
 
     /// Exact source selection, including water-to-land fallback and largest size.

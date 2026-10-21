@@ -162,18 +162,28 @@ impl Body<'_> {
             label,
             rect: frame,
             node: style,
-            intent: category.map(|category| {
-                ManagerIntent::Select("tile-category".to_owned(), category.control().0.to_owned())
-            }).or_else(|| city_intent(self.state, self.city, path)),
+            intent: category
+                .map(|category| {
+                    ManagerIntent::Select(
+                        "tile-category".to_owned(),
+                        category.control().0.to_owned(),
+                    )
+                })
+                .or_else(|| city_intent(self.state, self.city, path)),
             unavailable: None,
-            selected: category == Some(self.ui.tile_category),
+            selected: category == Some(self.ui.tile_category)
+                || (path.ends_with("GovernorSelect.Toggle")
+                    && self
+                        .city
+                        .and_then(|city| city.governor.as_ref())
+                        .is_some_and(|governor| governor.enabled)),
         });
         if lists::is_list(source) {
             let view = ManagerView {
                 kind: ManagerKind::City,
                 city_id: None,
                 selections: BTreeMap::new(),
-                scroll: BTreeMap::new(),
+                scroll: BTreeMap::from([(path.to_owned(), self.ui.messages.start)]),
             };
             let start = self.widgets.len();
             scrollbar::append(
@@ -185,8 +195,10 @@ impl Body<'_> {
                 rect,
                 &mut self.widgets,
             );
-            for widget in &mut self.widgets[start..] {
-                widget.intent = None;
+            if self.ui.active_tab != ControlPanelTab::Messages {
+                for widget in &mut self.widgets[start..] {
+                    widget.intent = None;
+                }
             }
             return;
         }
@@ -222,7 +234,7 @@ impl Body<'_> {
                 selected: false,
             });
         }
-        if path == "CitySelect.Pulldown" {
+        if matches!(path, "CitySelect.Pulldown" | "GovernorSelect.Pulldown") {
             if let Some(city) = self.city {
                 let mut style = LayoutNode::default();
                 style
@@ -230,7 +242,14 @@ impl Body<'_> {
                     .insert("fontname".to_owned(), "timesbd.ttf".to_owned());
                 self.widgets.push(ManagerWidget {
                     id: format!("{path}/selected"),
-                    label: data::city_name(city),
+                    label: if path == "GovernorSelect.Pulldown" {
+                        city.governor.as_ref().map_or_else(
+                            || "—".to_owned(),
+                            |governor| data::label(self.management, &governor.priority),
+                        )
+                    } else {
+                        data::city_name(city)
+                    },
                     rect: MenuRect {
                         x: rect.x.saturating_add(2_i32),
                         y: rect.y.saturating_add(2_i32),
@@ -283,29 +302,40 @@ impl Body<'_> {
             );
         }
         if path.ends_with(".RadialButton") {
-            return Some(
-                self.topic(path)
-                    .map_or_else(String::new, |_id| "—".to_owned()),
-            );
+            return Some(self.state.viewer.as_ref().map_or_else(
+                || "—".to_owned(),
+                |viewer| {
+                    if path.starts_with("BuildProgress") {
+                        self.city.map_or_else(
+                            || "—".to_owned(),
+                            |city| {
+                                crate::gameplay::ui_model::observed::production(
+                                    city,
+                                    viewer.revision,
+                                )
+                            },
+                        )
+                    } else {
+                        viewer
+                            .interface
+                            .research
+                            .as_ref()
+                            .and_then(|research| research.forecast.as_ref())
+                            .map_or_else(
+                                || "—".to_owned(),
+                                |forecast| forecast.label(viewer.revision),
+                            )
+                    }
+                },
+            ));
         }
         if self.ui.active_tab == ControlPanelTab::Domestic {
             return domestic(self.management, self.state, path);
         }
         if path == "RushBuyCost" {
-            return Some(self.city.map_or_else(
-                || "0".to_owned(),
-                |city| {
-                    self.state
-                        .viewer
-                        .as_ref()
-                        .and_then(|viewer| {
-                            viewer.interface.legal_actions.iter().find(|action| {
-                                action.route == "rush-buy" && action.entity_id == city.id
-                            })
-                        })
-                        .and_then(|action| action.payload["cost"].as_i64())
-                        .map_or_else(|| "—".to_owned(), |cost| cost.to_string())
-                },
+            return Some(self.city.zip(self.state.viewer.as_ref()).map_or_else(
+                || "—".to_owned(),
+                |(city, viewer)| crate::gameplay::ui_model::observed::quote(city, viewer.revision),
             ));
         }
         None
@@ -313,15 +343,36 @@ impl Body<'_> {
 }
 
 /// Source city panel controls use the selected viewer city and exact legal payload.
-fn city_intent(state: &GameState, city: Option<&ServerCityProjection>, path: &str) -> Option<ManagerIntent> {
+fn city_intent(
+    state: &GameState,
+    city: Option<&ServerCityProjection>,
+    path: &str,
+) -> Option<ManagerIntent> {
     let city = city?;
-    if path.starts_with("GovernorSelect") {
-        return crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id).map(|dialog| ManagerIntent::Dialog(Box::new(dialog)));
+    if path == "GovernorSelect.Toggle" {
+        return crate::gameplay::ui_model::operations::OperationDialog::toggle_governor(
+            state, &city.id,
+        )
+        .map(ManagerIntent::Submit);
     }
-    if path == "CitySelect.Pulldown" { return Some(ManagerIntent::ForCity(ManagerKind::City, city.id.clone())); }
-    if path.contains("IconButton") { return Some(ManagerIntent::ForCity(ManagerKind::Build, city.id.clone())); }
+    if path.starts_with("GovernorSelect") {
+        return crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id)
+            .map(|dialog| ManagerIntent::Dialog(Box::new(dialog)));
+    }
+    if path == "CitySelect.Pulldown" {
+        return Some(ManagerIntent::ForCity(ManagerKind::City, city.id.clone()));
+    }
+    if path.contains("IconButton") {
+        return Some(ManagerIntent::ForCity(ManagerKind::Build, city.id.clone()));
+    }
     if path == "RushBuyButton" {
-        let action = state.viewer.as_ref()?.interface.legal_actions.iter().find(|action| action.route == "rush-buy" && action.entity_id == city.id)?;
+        let action = state
+            .viewer
+            .as_ref()?
+            .interface
+            .legal_actions
+            .iter()
+            .find(|action| action.route == "rush-buy" && action.entity_id == city.id)?;
         return super::ManagerCommand::advertised(state, action).map(ManagerIntent::Submit);
     }
     None

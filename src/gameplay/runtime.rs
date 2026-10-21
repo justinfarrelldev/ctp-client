@@ -32,10 +32,10 @@ use font_loader::{find_existing_font, load_gameplay_font};
 mod animation;
 /// Authoritative server state alignment helpers.
 mod authority;
+#[cfg(test)]
+mod bounds_tests;
 /// Explicit source-aligned context selection and map information.
 mod context_input;
-/// Exclusive source-style operation/target form input.
-mod operation_input;
 /// Labeled controls shared by accessible automation and SDL pointer events.
 pub mod controls;
 /// Original software cursor art and edge-scrolling policy.
@@ -44,28 +44,36 @@ mod cursor;
 mod fonts;
 /// Native-frame composition and uniform final scaling.
 mod frame;
+#[cfg(test)]
+mod journey_tests;
+/// Retained server destinations and safe coordinate exploration.
+mod journeys;
 /// Original drawing/hit-test geometry.
 mod layout;
 /// Exclusive source-layout manager focus and authoritative interaction dispatch.
 mod management_input;
+/// Private semantic result selection and observed eye/location navigation.
+mod message_input;
 /// CTP2-style movement input handling.
 mod movement;
-/// Retained server destinations and safe coordinate exploration.
-mod journeys;
+/// Nonblocking worker transport and injectable retry/recovery boundary.
+mod network;
+#[cfg(test)]
+mod network_tests;
+#[cfg(test)]
+mod network_worker_tests;
+/// Exclusive source-style operation/target form input.
+mod operation_input;
 /// Gameplay frame rendering.
 mod render;
 /// Bootstrap and the live SDL presentation loop.
 mod session;
-/// Nonblocking worker transport and injectable retry/recovery boundary.
-mod network;
+/// Explicit opt-in framebuffer previews and capture.
+pub mod snapshot;
 /// UI-thread authoritative replacement and pending/recovery presentation.
 mod sync;
 #[cfg(test)]
-mod network_tests;
-#[cfg(test)]
-mod journey_tests;
-/// Explicit opt-in framebuffer previews and capture.
-pub mod snapshot;
+mod sync_tests;
 /// Original CTP2 texture loading.
 mod textures;
 /// Camera and screen/tile coordinate conversion.
@@ -73,10 +81,7 @@ mod view;
 /// Exact shared drawable/window pointer transform for scaled gameplay.
 mod viewport;
 
-use authority::{
-    RuntimeAuthority, server_unit_id_for_unit,
-    state_from_authority_projection,
-};
+use authority::{RuntimeAuthority, server_unit_id_for_unit, state_from_authority_projection};
 use layout::{click_in_non_map_ui, end_turn_button_rect};
 use movement::{MovementInputState, begin_or_activate_unit_drag};
 use session::run_sdl_game_on_canvas;
@@ -184,7 +189,9 @@ pub(crate) fn run_sdl_game_on_existing_window(
 /// Uniformly scales the reference game frame with minimal aspect-ratio borders.
 fn configure_gameplay_canvas(canvas: &mut Canvas<Window>) -> Result<(), GameplayError> {
     canvas.set_viewport(None);
-    canvas.set_logical_size(0_u32, 0_u32).map_err(|error| runtime_error(error.to_string()))?;
+    canvas
+        .set_logical_size(0_u32, 0_u32)
+        .map_err(|error| runtime_error(error.to_string()))?;
     canvas.set_scale(1.0_f32, 1.0_f32).map_err(runtime_error)
 }
 
@@ -198,7 +205,12 @@ fn handle_event(
     mut authority: Option<&mut RuntimeAuthority>,
 ) -> Option<GameplayOutcome> {
     cursor::track_pointer(event, ui, movement);
-    if operation_input::consume(event, state, ui, authority.as_deref_mut()) { return None; }
+    if operation_input::consume(event, state, ui, authority.as_deref_mut()) {
+        return None;
+    }
+    if message_input::consume(event, state, ui, camera) {
+        return None;
+    }
     if management_input::consume(event, state, ui, movement, authority.as_deref_mut()) {
         return None;
     }
@@ -357,7 +369,14 @@ fn handle_left_click(
             return None;
         }
     }
-    if let Some(intent) = ui.management.panel_widgets(state, ui).into_iter().rev().find(|widget| widget.rect.contains(x, y) && widget.intent.is_some()).and_then(|widget| widget.intent) {
+    if let Some(intent) = ui
+        .management
+        .panel_widgets(state, ui)
+        .into_iter()
+        .rev()
+        .find(|widget| widget.rect.contains(x, y) && widget.intent.is_some())
+        .and_then(|widget| widget.intent)
+    {
         management_input::apply(intent, state, ui, authority);
         return None;
     }
@@ -450,7 +469,9 @@ fn apply_finalized_move_path(
     unit_id: UnitId,
     path: &[MapPoint],
 ) {
-    if state.network != super::model::NetworkStatus::Ready { return; }
+    if state.network != super::model::NetworkStatus::Ready {
+        return;
+    }
     if !state.select_unit(unit_id) {
         movement.retain_selectable(state);
         return;
@@ -464,8 +485,13 @@ fn apply_finalized_move_path(
     if let Some(active_authority) = authority {
         submit_authoritative_move_path(active_authority, state, unit_id, path);
         if state.network == super::model::NetworkStatus::Pending {
+            movement.actors.remember(unit_id, path);
             if let (Some(unit), Some(target)) = (before.first(), path.first()) {
-                movement.actors.preview(unit, *target);
+                if super::model::planning::cost(state, *target)
+                    .is_none_or(|cost| cost <= u32::try_from(unit.movement_points).unwrap_or(0))
+                {
+                    movement.actors.preview(unit, *target);
+                }
             }
         }
     } else {
@@ -578,19 +604,34 @@ fn apply_authoritative_action(
 ) -> bool {
     match action {
         InGameAction::EndTurn => {
-            if let Some(closeout) = authority.session.projection.as_ref().and_then(|viewer| viewer.interface.end_turn()).cloned() {
+            if let Some(closeout) = authority
+                .session
+                .projection
+                .as_ref()
+                .and_then(|viewer| viewer.interface.end_turn())
+                .cloned()
+            {
                 submit_authoritative_command(authority, state, &closeout.route, closeout.payload);
             }
             true
         }
-        InGameAction::Settle | InGameAction::Fortify | InGameAction::Disband | InGameAction::Sentinel => {
+        InGameAction::Settle
+        | InGameAction::Fortify
+        | InGameAction::Disband
+        | InGameAction::Sentinel => {
             let Some(unit) = state.selected_unit() else {
                 return true;
             };
             let route = match action {
                 InGameAction::Settle => "found-city",
                 InGameAction::Fortify => "fortify",
-                InGameAction::Sentinel => if matches!(unit.order, super::model::UnitOrder::Sentinel) { "wake" } else { "sleep" },
+                InGameAction::Sentinel => {
+                    if matches!(unit.order, super::model::UnitOrder::Sentinel) {
+                        "wake"
+                    } else {
+                        "sleep"
+                    }
+                }
                 _ => "disband",
             };
             let id = server_unit_id_for_unit(authority, unit.id);
@@ -687,7 +728,13 @@ fn replace_state_from_projection(
     state: &mut GameState,
     projection: &ServerProjection,
 ) {
-    if state.viewer.as_ref().is_some_and(|current| current.revision > projection.revision) { return; }
+    if state
+        .viewer
+        .as_ref()
+        .is_some_and(|current| current.revision > projection.revision)
+    {
+        return;
+    }
     let filters = state.filters;
     let selected = state.selected_unit;
     let mut next = state_from_authority_projection(authority, projection);

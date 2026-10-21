@@ -30,6 +30,16 @@ fn extent(
         return (maximum, articles::visible_lines(ui, view, path, rect));
     }
     let page = tree::visible_rows(ui, view.kind, path, rect);
+    if path == "MessageListBox" {
+        return (
+            state
+                .viewer
+                .as_ref()
+                .map_or(0, |viewer| viewer.interface.notifications.len().min(128))
+                .saturating_sub(page),
+            page,
+        );
+    }
     (
         data::rows(ui, state, view, path).len().saturating_sub(page),
         page,

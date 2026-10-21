@@ -15,12 +15,12 @@ use super::model::{GameState, MapPoint};
 
 /// Source-aligned, viewer-safe map context menus.
 pub mod context;
-/// Explicit revision-bound input and target/priority dialogs.
-pub mod operations;
-#[cfg(test)]
-mod operation_tests;
 #[cfg(test)]
 mod context_tests;
+/// Actual own-history metrics and overflow-safe native graph geometry.
+pub mod history;
+#[cfg(test)]
+mod history_tests;
 /// Local original-article browsing and shared rich-text link layout.
 pub mod library;
 #[cfg(test)]
@@ -31,6 +31,18 @@ pub mod management;
 mod management_tests;
 /// Original CTP2 top-menu manifest and geometry helpers.
 mod menu_manifest;
+#[cfg(test)]
+mod message_tests;
+/// Bounded private semantic results and local read/unread state.
+pub mod messages;
+/// Cached observation/quote/forecast presentation without local simulation.
+pub mod observed;
+#[cfg(test)]
+mod observed_tests;
+#[cfg(test)]
+mod operation_tests;
+/// Explicit revision-bound input and target/priority dialogs.
+pub mod operations;
 /// Stable source-aligned expanded unit/army grid.
 pub mod stack;
 
@@ -329,6 +341,8 @@ pub struct InGameUiModel {
     pub management: management::ManagementUi,
     /// Explicit original-style input/target form above any manager.
     pub operation: Option<operations::OperationDialog>,
+    /// Viewer-authorized message window, never a local reward executor.
+    pub messages: messages::MessageLog,
 }
 
 impl Default for InGameUiModel {
@@ -350,6 +364,7 @@ impl Default for InGameUiModel {
             tile_category: TileCategory::Land,
             management: management::ManagementUi::default(),
             operation: None,
+            messages: messages::MessageLog::default(),
         }
     }
 }

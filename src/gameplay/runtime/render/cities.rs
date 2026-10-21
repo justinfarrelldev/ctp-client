@@ -1,8 +1,8 @@
 //! Original GC building sprites and viewer-safe city/production name strips.
 //!
-//! Missing city names/style/age are server contract gaps: a machine identity or
-//! hardcoded Warrior is never presented as an authoritative caption. Installed
-//! default city art is an explicit visual fallback, not a simulated city state.
+//! Names, observed age/capital and private production come from viewer facts.
+//! Culture/style remain unavailable: installed default styling is explicitly a
+//! visual fallback, never an inferred civilization or simulated city state.
 
 use super::{
     actors::unit_target_rect,
@@ -72,7 +72,15 @@ pub(super) fn draw_cities(
         let water = state
             .tile(point)
             .is_some_and(|tile| tile.terrain == TerrainKind::Water);
-        let Some(sprite) = textures.city_texture(population, water, explored)? else {
+        let Some(sprite) = textures.city_texture(
+            population,
+            water,
+            explored,
+            source(state, city)
+                .and_then(|source| source.art.as_ref())
+                .map(|art| art.age_id.as_str()),
+        )?
+        else {
             continue;
         };
         let size = sprite.texture.query();
@@ -110,10 +118,17 @@ pub(super) fn draw_labels(
     for city in state.cities.iter().filter(|city| visible(state, city)) {
         let source = source(state, city);
         let name = if state.authoritative {
-            source.and_then(|source| source.facts["name"].as_str()).filter(|name| !name.is_empty()).unwrap_or("—")
+            source
+                .and_then(|source| source.facts["name"].as_str())
+                .filter(|name| !name.is_empty())
+                .unwrap_or("—")
         } else {
             city.name.as_str()
         };
+        let capital_name = source
+            .filter(|source| source.art.as_ref().is_some_and(|art| art.capital))
+            .map(|_source| format!("{name} *"));
+        let name = capital_name.as_deref().unwrap_or(name);
         let (x, y) = camera.tile_to_screen(city.position);
         let zoom = i32::try_from(camera.tile_width().div_euclid(94_u32))
             .unwrap_or(1_i32)
@@ -160,13 +175,20 @@ pub(super) fn draw_labels(
                 .and_then(|item| item["id"].as_str())
             {
                 let label = ui.management.book.label(item);
-                let production = if label == item {
+                let mut production = if label == item {
                     item.trim_start_matches("UNIT_")
                         .trim_start_matches("IMPROVE_")
                         .replace('_', " ")
                 } else {
                     label.to_owned()
                 };
+                if let (Some(source), Some(viewer)) = (source, state.viewer.as_ref()) {
+                    let turns =
+                        crate::gameplay::ui_model::observed::production(source, viewer.revision);
+                    if turns != "—" {
+                        production = format!("{production} ({turns})");
+                    }
+                }
                 let rect = Rect::new(
                     x,
                     y.saturating_add(i32::try_from(height).unwrap_or(12_i32)),

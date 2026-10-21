@@ -18,6 +18,13 @@ pub(super) fn apply_context_intent(
 ) {
     match intent {
         ContextIntent::Dialog(dialog) => ui.operation = Some(*dialog),
+        ContextIntent::Command(command) => {
+            if command.valid_for(state) {
+                if let Some(authority) = authority {
+                    submit_authoritative_command(authority, state, &command.route, command.payload);
+                }
+            }
+        }
         ContextIntent::City(id) => {
             ui.selected_city = Some(id);
             ui.active_tab = ControlPanelTab::City;

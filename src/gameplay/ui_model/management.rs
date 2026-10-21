@@ -22,10 +22,6 @@ use crate::gameplay::server::interface::LegalAction;
 mod articles;
 /// Source-derived button and editable-control bindings.
 mod bindings;
-/// Stable-entry atomic queue requests and content resolution.
-mod queue;
-#[cfg(test)]
-mod queue_tests;
 /// Runtime-created original advance chart and viewer-safe local navigation.
 mod chart;
 /// Fileless source-chart regressions.
@@ -36,20 +32,13 @@ mod data;
 /// Source Empire Details/Summary lifecycle and government comparison regressions.
 #[cfg(test)]
 mod empire_tests;
+/// Source-version presentation adaptation, independent of game authority.
+mod fidelity;
 /// Reference presentation and source-version layout deltas.
 #[cfg(test)]
 mod fidelity_tests;
 /// Source government comparisons and exact currently eligible enactment identities.
 mod government;
-/// Source-version presentation adaptation, independent of game authority.
-mod fidelity;
-/// Atomic original option-slider presentation.
-mod option_art;
-/// Source-derived lower-panel bodies, with viewer-safe public captions.
-mod panel;
-/// Empty/populated lower-panel presentation regressions.
-#[cfg(test)]
-mod panel_tests;
 /// Source category-index sorting and noninteractive age headers.
 mod index;
 /// Age sorting and reference-control regressions.
@@ -60,11 +49,26 @@ mod index_tests;
 mod list_tests;
 /// Original list frame/pane separation and overflow-safe runtime sizing.
 mod lists;
+/// Atomic original option-slider presentation.
+mod option_art;
+/// Source-derived lower-panel bodies, with viewer-safe public captions.
+mod panel;
+/// Empty/populated lower-panel presentation regressions.
+#[cfg(test)]
+mod panel_tests;
 /// Verified typed policy/rate parameters and source ranger controls.
 mod policy;
 /// Parameter schemas, revision guards and source slider-direction regressions.
 #[cfg(test)]
 mod policy_tests;
+/// Stable-entry atomic queue requests and content resolution.
+mod queue;
+#[cfg(test)]
+mod queue_tests;
+/// Identity-preserving selection handoff after complete receipts/resyncs.
+mod reconcile;
+#[cfg(test)]
+mod reconcile_tests;
 /// Source row shapes, numeric values and research-list visibility regressions.
 #[cfg(test)]
 mod row_tests;
@@ -236,7 +240,9 @@ impl ManagerCommand {
     /// Rejects stale confirmations and commands with no current authority.
     #[must_use]
     pub fn valid_for(&self, state: &GameState) -> bool {
-        if state.network != crate::gameplay::model::NetworkStatus::Ready { return false; }
+        if state.network != crate::gameplay::model::NetworkStatus::Ready {
+            return false;
+        }
         let Some(viewer) = state
             .viewer
             .as_ref()
@@ -641,7 +647,11 @@ impl ManagementUi {
 
     /// Lower-panel artwork/captions, separate from open management windows.
     #[must_use]
-    pub fn panel_widgets(&self, state: &GameState, ui: &super::InGameUiModel) -> Vec<ManagerWidget> {
+    pub fn panel_widgets(
+        &self,
+        state: &GameState,
+        ui: &super::InGameUiModel,
+    ) -> Vec<ManagerWidget> {
         panel::widgets(self, state, ui)
     }
 
@@ -652,6 +662,11 @@ impl ManagementUi {
             .into_iter()
             .find(|widget| widget.id == id)?
             .intent
+    }
+
+    /// Keeps independent selections only while their exact identities still exist.
+    pub fn reconcile(&mut self, state: &GameState) {
+        reconcile::apply(self, state);
     }
 
     /// Accessible label activation requires a unique enabled match.

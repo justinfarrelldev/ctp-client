@@ -9,7 +9,7 @@ use super::actors::{draw_goods, draw_settlement_preview, draw_units};
 use super::cities::draw_cities;
 use super::{draw_tile_diamond, tile_color};
 use crate::gameplay::assets::tile::{TILE_PIXEL_HEADROOM, TILE_PIXEL_HEIGHT, TILE_PIXEL_WIDTH};
-use crate::gameplay::model::{FogState, GameState, TerrainKind, TileFeature};
+use crate::gameplay::model::{FogState, GameState, TerrainKind};
 use crate::gameplay::runtime::textures::GameplayTextures;
 use crate::gameplay::runtime::view::painter_order;
 use crate::gameplay::runtime::{
@@ -75,17 +75,7 @@ pub(super) fn draw_map(
         if state.filters.grid {
             draw_tile_diamond(canvas, camera, screen_x, screen_y, Color::RGB(20, 20, 20))?;
         }
-        if tile.feature == Some(TileFeature::Ruin) && tile.fog == FogState::Visible {
-            canvas.set_draw_color(Color::RGB(210, 185, 100));
-            canvas
-                .fill_rect(Rect::new(
-                    screen_x.saturating_add(40_i32),
-                    screen_y.saturating_add(34_i32),
-                    12,
-                    12,
-                ))
-                .map_err(runtime_error)?;
-        }
+        super::observations::draw(canvas, textures, state, camera, point)?;
     }
     draw_goods(canvas, textures, state, camera)?;
     draw_cities(canvas, textures, state, camera)?;

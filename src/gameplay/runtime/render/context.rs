@@ -101,19 +101,6 @@ fn draw_map_info(
             Color::RGB(90, 70, 60),
             false,
         )?;
-        let definition = source.and_then(|tile| {
-            state
-                .viewer
-                .as_ref()?
-                .interface
-                .rules
-                .as_ref()?
-                .get("movement")?
-                .get("terrains")?
-                .as_array()?
-                .iter()
-                .find(|terrain| terrain["id"].as_str() == Some(&tile.terrain))
-        });
         for (label, field, x, y) in [
             ("Food:", "food", 152_i32, 283_i32),
             ("Production:", "production", 152_i32, 303_i32),
@@ -121,10 +108,7 @@ fn draw_map_info(
             ("Commerce:", "gold", 497_i32, 283_i32),
         ] {
             draw_text(canvas, font, label, x, y, Color::RGB(50, 50, 50))?;
-            let value = definition.map_or_else(
-                || "—".to_owned(),
-                |definition| definition[field].as_i64().unwrap_or(0).to_string(),
-            );
+            let value = crate::gameplay::ui_model::observed::tile_value(source, field);
             draw_text(
                 canvas,
                 font,
@@ -139,7 +123,14 @@ fn draw_map_info(
             .tile(point)
             .and_then(|tile| tile.good_id.as_deref())
             .unwrap_or("—");
-        draw_text(canvas, font, goods, 567, 303, Color::RGB(50, 50, 50))?;
+        draw_text(
+            canvas,
+            font,
+            ui.management.book.label(goods),
+            567,
+            303,
+            Color::RGB(50, 50, 50),
+        )?;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
             .fill_rect(Rect::new(318, 273, 159, 80))

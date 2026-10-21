@@ -212,6 +212,39 @@ pub(super) fn caption(
     path: &str,
     rect: MenuRect,
 ) -> Option<ManagerWidget> {
+    if (view.kind == ManagerKind::City && path == "GovernorBox.Pulldown")
+        || (view.kind == ManagerKind::Statistics && path.ends_with("RankSelect.Pulldown"))
+    {
+        let label = if view.kind == ManagerKind::City {
+            data::city(state, view)
+                .and_then(|city| city.governor.as_ref())
+                .map_or_else(
+                    || "—".to_owned(),
+                    |governor| data::label(ui, &governor.priority),
+                )
+        } else {
+            format!(
+                "Own {}",
+                view.selections
+                    .get("history-metric")
+                    .map_or("score", String::as_str)
+            )
+        };
+        return Some(ManagerWidget {
+            id: format!("{path}/selected"),
+            label,
+            rect: MenuRect {
+                x: rect.x.saturating_add(3),
+                y: rect.y.saturating_add(3),
+                width: rect.width.saturating_sub(24),
+                height: 20,
+            },
+            node: ui.book.resolve("CTP2_STANDARD_FONT").unwrap_or_default(),
+            intent: None,
+            unavailable: None,
+            selected: false,
+        });
+    }
     if !valid_path(view.kind, path) {
         return None;
     }

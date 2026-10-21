@@ -470,7 +470,13 @@ impl ServerClient {
             )));
         }
         serde_json::from_str(&response.body).map_err(|error| {
-            asset_error(format!("server response for {path} was not JSON: {error}"))
+            if error.is_eof() {
+                runtime_error(format!(
+                    "failed to read server response: incomplete JSON: {error}"
+                ))
+            } else {
+                asset_error(format!("server response for {path} was not JSON: {error}"))
+            }
         })
     }
 
@@ -549,6 +555,7 @@ impl ServerClient {
             .read_to_end(&mut bytes)
             .map_err(|error| runtime_error(format!("failed to read server response: {error}")))?;
         parse_http_response(&bytes)
+            .map_err(|error| runtime_error(format!("failed to read server response: {error}")))
     }
 }
 
@@ -714,23 +721,23 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
     })
 }
 
-/// Additive viewer contracts and known/unavailable display facts.
-pub mod v2;
+#[cfg(test)]
+mod command_tests;
 /// Exact command input shapes and current viewer authorization.
 pub mod commands;
 /// Immutable retryable command envelopes.
 pub mod envelope;
+#[cfg(test)]
+mod projection_tests;
 /// Viewer-safe streaming invalidations.
 pub(in crate::gameplay) mod stream;
 #[cfg(test)]
-mod v2_tests;
-#[cfg(test)]
-mod command_tests;
-#[cfg(test)]
 mod stream_tests;
-#[cfg(test)]
-mod projection_tests;
 #[cfg(test)]
 pub(super) mod test_support;
 #[cfg(test)]
 mod tests;
+/// Additive viewer contracts and known/unavailable display facts.
+pub mod v2;
+#[cfg(test)]
+mod v2_tests;

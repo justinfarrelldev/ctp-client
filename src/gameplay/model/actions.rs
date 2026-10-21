@@ -274,8 +274,16 @@ impl GameState {
 
     /// Returns whether a point is on the map.
     #[must_use]
-    pub const fn in_bounds(&self, point: MapPoint) -> bool {
-        point.x < self.width && point.y < self.height
+    pub fn in_bounds(&self, point: MapPoint) -> bool {
+        point.x < self.width
+            && point.y < self.height
+            && self
+                .viewer
+                .as_ref()
+                .and_then(|viewer| viewer.interface.world.as_ref())
+                .is_none_or(|world| {
+                    i64::from(point.x) >= world.min_x && i64::from(point.y) >= world.min_y
+                })
     }
 
     /// Returns the city at a point, if any.

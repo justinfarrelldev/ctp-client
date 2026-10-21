@@ -104,7 +104,14 @@ pub(super) fn rows(
             .map_or_else(Vec::new, |queue| {
                 queue
                     .iter()
-                    .filter_map(|item| item["id"].as_str().map(|id| (item["entry_id"].as_str().unwrap_or(id).to_owned(), label(ui, id))))
+                    .filter_map(|item| {
+                        item["id"].as_str().map(|id| {
+                            (
+                                item["entry_id"].as_str().unwrap_or(id).to_owned(),
+                                label(ui, id),
+                            )
+                        })
+                    })
                     .collect()
             }),
         ManagerKind::Build if path.starts_with("ItemsBox.") => buildables(ui, state, view, path),
@@ -122,7 +129,7 @@ pub(super) fn rows(
             })
             .collect(),
         ManagerKind::Unit => unit_rows(ui, state, path),
-        ManagerKind::Trade => trade_rows(viewer, path),
+        ManagerKind::Trade => trade_rows(ui, viewer, path),
         ManagerKind::Diplomacy => viewer
             .diplomacy
             .as_ref()
@@ -140,6 +147,25 @@ pub(super) fn rows(
                     .collect()
             }),
 
+        ManagerKind::Statistics if path == "TabGroup.Tab1.TabPanel.List" => viewer
+            .interface
+            .statistics
+            .iter()
+            .rev()
+            .map(|sample| {
+                (
+                    sample.turn.to_string(),
+                    format!(
+                        "Turn {}: score {}  cities {}  units {}  population {}",
+                        sample.turn,
+                        sample.score,
+                        sample.city_count,
+                        sample.unit_count,
+                        sample.population
+                    ),
+                )
+            })
+            .collect(),
         ManagerKind::Army => owned_units(state)
             .iter()
             .map(|unit| {
@@ -188,6 +214,7 @@ fn unit_rows(ui: &ManagementUi, state: &GameState, path: &str) -> Vec<(String, S
 
 /// Route lists retain projected endpoint identities without inventing goods/income.
 fn trade_rows(
+    ui: &ManagementUi,
     viewer: &crate::gameplay::server::ServerProjection,
     path: &str,
 ) -> Vec<(String, String)> {
@@ -214,10 +241,26 @@ fn trade_rows(
             Some((
                 id.to_owned(),
                 format!(
-                    "{} → {}",
-                    route["source_city_id"].as_str().unwrap_or("—"),
-                    route["destination_city_id"].as_str().unwrap_or("—")
-                ),
+                        "{} → {}    {}    {}",
+                        viewer
+                            .cities
+                            .iter()
+                            .find(|city| route["source_city_id"].as_str() == Some(city.id.as_str()))
+                            .map_or_else(|| "—".to_owned(), city_name),
+                        viewer
+                            .cities
+                            .iter()
+                            .find(|city| route["destination_city_id"].as_str()
+                                == Some(city.id.as_str()))
+                            .map_or_else(|| "—".to_owned(), city_name),
+                        route["good_id"]
+                            .as_str()
+                            .filter(|good| !good.is_empty())
+                            .map_or_else(|| "—".to_owned(), |good| label(ui, good)),
+                        route["gold"]
+                            .as_i64()
+                            .map_or_else(|| "—".to_owned(), |gold| format!("{gold} gross"))
+                    ),
             ))
         })
         .collect()
@@ -237,14 +280,28 @@ fn buildables(
         _ => return Vec::new(),
     };
     let mut records = BTreeMap::new();
-    if state.viewer.as_ref().is_some_and(|viewer| viewer.interface.supports("atomic_production_queue")) {
-        if let Some(rules) = state.viewer.as_ref().and_then(|viewer| viewer.interface.rules.as_ref()) {
+    if state
+        .viewer
+        .as_ref()
+        .is_some_and(|viewer| viewer.interface.supports("atomic_production_queue"))
+    {
+        if let Some(rules) = state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| viewer.interface.rules.as_ref())
+        {
             for category in ["units", "production"] {
                 if let Some(items) = rules[category].as_array() {
                     for item in items {
-                        let item_kind = item["kind"].as_str().unwrap_or(if category == "units" { "unit" } else { "" });
+                        let item_kind = item["kind"].as_str().unwrap_or(if category == "units" {
+                            "unit"
+                        } else {
+                            ""
+                        });
                         if item_kind == kind {
-                            if let Some(id) = item["id"].as_str() { records.insert(id.to_owned(), label(ui,id)); }
+                            if let Some(id) = item["id"].as_str() {
+                                records.insert(id.to_owned(), label(ui, id));
+                            }
                         }
                     }
                 }
@@ -315,6 +372,23 @@ pub(super) fn text(
     }
     let viewer = state.viewer.as_ref()?;
     match view.kind {
+        ManagerKind::City if path == "GovernorBox.Pulldown" => Some(
+            city(state, view)
+                .and_then(|city| city.governor.as_ref())
+                .map_or_else(|| "—".to_owned(), |governor| label(ui, &governor.priority)),
+        ),
+        ManagerKind::Statistics if path == "TabGroup.Tab1.TabPanel.Total.Value" => Some(
+            viewer
+                .interface
+                .statistics
+                .last()
+                .map_or_else(|| "—".to_owned(), |sample| sample.score.to_string()),
+        ),
+        ManagerKind::Statistics
+            if path.ends_with("Rank.Value") || path.ends_with("Difficulty.Value") =>
+        {
+            Some("—".to_owned())
+        }
         ManagerKind::Science => {
             let research = viewer.interface.research.as_ref()?;
             match path {
@@ -334,7 +408,10 @@ pub(super) fn text(
                         .and_then(|advance| advance["cost"].as_i64())
                         .map_or_else(|| "—".to_owned(), |cost| cost.to_string()),
                 ),
-                "CurrentResearch.Turn.Value" => Some("—".to_owned()),
+                "CurrentResearch.Turn.Value" => Some(research.forecast.as_ref().map_or_else(
+                    || "—".to_owned(),
+                    |forecast| forecast.label(viewer.revision),
+                )),
                 _ => None,
             }
         }

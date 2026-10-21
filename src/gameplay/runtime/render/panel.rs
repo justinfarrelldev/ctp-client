@@ -45,11 +45,7 @@ pub(super) fn draw_panel<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         panel_art(canvas, textures, name, x, y)?;
     }
     panel_art(canvas, textures, "uppb01u.rim", 56, 87)?;
-    let year = if state.turn == 1_u32 {
-        "4000BC".to_owned()
-    } else {
-        format!("Turn {}", state.turn)
-    };
+    let year = crate::gameplay::ui_model::observed::date(state);
     draw_centered_text(
         canvas,
         font,
@@ -154,7 +150,11 @@ fn draw_tabs(
             font,
             TABS[index].1,
             panel_rect(x, 28, 93, 12),
-            LABEL,
+            if TABS[index].0 == ControlPanelTab::Messages && ui.messages.unread() > 0 {
+                Color::RGB(190, 20, 10)
+            } else {
+                LABEL
+            },
             false,
         )?;
     }

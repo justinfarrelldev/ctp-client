@@ -18,6 +18,8 @@ pub enum ContextIntent {
     Army(UnitId),
     /// Activate movement for the clicked unit, not another selected unit.
     Move(UnitId),
+    /// Parameterized currently authorized city operation.
+    Command(Box<super::management::ManagerCommand>),
     /// Explicit input/target confirmation, without dispatch on menu open.
     Dialog(Box<super::operations::OperationDialog>),
     /// Execute a server-projected legal payload verbatim.
@@ -189,20 +191,7 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
         .city_at(point)
         .filter(|city| city.owner == PlayerId::Human && tile.fog == FogState::Visible)
     {
-        return vec![
-            ContextRow {
-                label: "City Manager",
-                intent: ContextIntent::City(city.id),
-            },
-            ContextRow {
-                label: "Build Manager",
-                intent: ContextIntent::Build(city.id),
-            },
-            city_dialog(state, city.id, "Rename City", "rename-city"),
-            city_dialog(state, city.id, "Disband City", "disband-city"),
-            city_dialog(state, city.id, "Turn Mayor ON", "set-governor"),
-            info,
-        ];
+        return city_rows(state, city.id, info);
     }
     let unit = state
         .selected_unit()
@@ -244,7 +233,18 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
     }
     for (label, route) in [
         ("Fortify", "fortify"),
-        (if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) { "Wake" } else { "Sentinel" }, if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) { "wake" } else { "sleep" }),
+        (
+            if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) {
+                "Wake"
+            } else {
+                "Sentinel"
+            },
+            if matches!(unit.order, crate::gameplay::model::UnitOrder::Sentinel) {
+                "wake"
+            } else {
+                "sleep"
+            },
+        ),
         ("Pillage", "pillage"),
         ("Pirate Trade", "pirate-trade"),
         ("Expel", "expel"),
@@ -265,28 +265,113 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
                 ),
         });
     }
-    if let Some(viewer) = state.viewer.as_ref() {
-        if let Some(source) = viewer.units.iter().find(|source| UnitId::from_server_id(&source.id) == unit.id) {
-            if let Some(dialog) = super::operations::OperationDialog::actions(state, "Choose Order and Target", viewer.interface.legal_actions.iter().filter(|action| action.entity_id == source.id).cloned()) {
-                rows.push(ContextRow { label: "Orders and Targets…", intent: ContextIntent::Dialog(Box::new(dialog)) });
-            }
-        }
+    if let Some(row) = target_row(state, unit.id) {
+        rows.push(row);
     }
     rows.push(info);
     rows
 }
 
+/// Original owned-city row order, with no garrison command substituted.
+fn city_rows(state: &GameState, id: CityId, info: ContextRow) -> Vec<ContextRow> {
+    vec![
+        ContextRow {
+            label: "City Manager",
+            intent: ContextIntent::City(id),
+        },
+        ContextRow {
+            label: "Build Manager",
+            intent: ContextIntent::Build(id),
+        },
+        city_dialog(state, id, "Rename City", "rename-city"),
+        city_dialog(state, id, "Disband City", "disband-city"),
+        city_dialog(state, id, "Turn Mayor ON", "set-governor"),
+        info,
+    ]
+}
+
+/// Explicit target selection is separate from immediate one-payload orders.
+fn target_row(state: &GameState, id: UnitId) -> Option<ContextRow> {
+    let viewer = state.viewer.as_ref()?;
+    let source = viewer
+        .units
+        .iter()
+        .find(|source| UnitId::from_server_id(&source.id) == id)?;
+    let dialog = super::operations::OperationDialog::actions(
+        state,
+        "Choose Order and Target",
+        viewer
+            .interface
+            .legal_actions
+            .iter()
+            .filter(|action| action.entity_id == source.id)
+            .cloned(),
+    )?;
+    Some(ContextRow {
+        label: "Orders and Targets…",
+        intent: ContextIntent::Dialog(Box::new(dialog)),
+    })
+}
+
 /// Preserves source city priority while opening only currently authorized forms.
 fn city_dialog(state: &GameState, id: CityId, label: &'static str, route: &str) -> ContextRow {
+    if route == "set-governor" {
+        let command = state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| {
+                viewer
+                    .cities
+                    .iter()
+                    .find(|city| CityId::from_server_id(&city.id) == id)
+            })
+            .and_then(|city| super::operations::OperationDialog::toggle_governor(state, &city.id));
+        let caption = command.as_ref().map_or(label, |command| {
+            if command.payload["enabled"].as_bool() == Some(false) {
+                "Turn Mayor OFF"
+            } else {
+                "Turn Mayor ON"
+            }
+        });
+        return ContextRow {
+            label: caption,
+            intent: command.map_or(
+                ContextIntent::Unavailable("No authorized mayor toggle"),
+                |command| ContextIntent::Command(Box::new(command)),
+            ),
+        };
+    }
     let dialog = state.viewer.as_ref().and_then(|viewer| {
-        let source = viewer.cities.iter().find(|source| CityId::from_server_id(&source.id) == id)?;
+        let source = viewer
+            .cities
+            .iter()
+            .find(|source| CityId::from_server_id(&source.id) == id)?;
         match route {
-            "rename-city" => super::operations::OperationDialog::input(state, &source.id, super::operations::InputKind::Rename),
+            "rename-city" => super::operations::OperationDialog::input(
+                state,
+                &source.id,
+                super::operations::InputKind::Rename,
+            ),
             "set-governor" => super::operations::OperationDialog::governor(state, &source.id),
-            _ => super::operations::OperationDialog::actions(state, label, viewer.interface.legal_actions.iter().filter(|action| action.route == route && action.entity_id == source.id).cloned()),
+            _ => super::operations::OperationDialog::actions(
+                state,
+                label,
+                viewer
+                    .interface
+                    .legal_actions
+                    .iter()
+                    .filter(|action| action.route == route && action.entity_id == source.id)
+                    .cloned(),
+            ),
         }
     });
-    ContextRow { label, intent: dialog.map_or(ContextIntent::Unavailable("No currently authorized operation for this city"), |dialog| ContextIntent::Dialog(Box::new(dialog))) }
+    ContextRow {
+        label,
+        intent: dialog.map_or(
+            ContextIntent::Unavailable("No currently authorized operation for this city"),
+            |dialog| ContextIntent::Dialog(Box::new(dialog)),
+        ),
+    }
 }
 
 /// Resolves only an unambiguous projected target; do not silently select the
@@ -301,11 +386,21 @@ fn legal_for_unit<'viewer>(
         .units
         .iter()
         .find(|source| UnitId::from_server_id(&source.id) == id)?;
+    let entity = if route == "cancel-movement-order" {
+        viewer
+            .interface
+            .movement_orders
+            .iter()
+            .find(|order| order.unit_id == source.id || order.unit_ids.contains(&source.id))
+            .map_or(source.id.as_str(), |order| order.unit_id.as_str())
+    } else {
+        source.id.as_str()
+    };
     let mut actions = viewer
         .interface
         .legal_actions
         .iter()
-        .filter(|action| action.entity_id == source.id && action.route == route);
+        .filter(|action| action.entity_id == entity && action.route == route);
     let action = actions.next()?;
     if actions.next().is_some() {
         None

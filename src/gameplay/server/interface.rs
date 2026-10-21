@@ -48,8 +48,8 @@ pub struct LegalAction {
 }
 
 impl LegalAction {
-    /// The server currently advertises some engine-only actions that its HTTP
-    /// gateway does not register. Do not present those as executable orders.
+    /// Explicit gateway manifest, reconciled with server contract v2.
+    /// A registered route alone never grants current entity/phase permission.
     #[must_use]
     pub fn http_supported(&self) -> bool {
         matches!(
@@ -99,13 +99,34 @@ impl LegalAction {
                 | "create-trade-route"
                 | "leave"
                 | "end-early"
-                | "assassinate-ruler" | "bio-terror" | "bombard" | "convert-city"
-                | "create-franchise" | "create-park" | "expel" | "injoin"
-                | "investigate-city" | "nano-terror" | "plague" | "plant-nuke"
-                | "reform" | "settler-slave-raid" | "slave-raid" | "sue"
-                | "underground-railway" | "upgrade-unit" | "pillage"
-                | "edit-production" | "sleep" | "wake" | "rename-city" | "disband-city"
-                | "set-governor" | "set-research-goal" | "set-movement-order" | "cancel-movement-order"
+                | "assassinate-ruler"
+                | "bio-terror"
+                | "bombard"
+                | "convert-city"
+                | "create-franchise"
+                | "create-park"
+                | "expel"
+                | "injoin"
+                | "investigate-city"
+                | "nano-terror"
+                | "plague"
+                | "plant-nuke"
+                | "reform"
+                | "settler-slave-raid"
+                | "slave-raid"
+                | "sue"
+                | "underground-railway"
+                | "upgrade-unit"
+                | "pillage"
+                | "edit-production"
+                | "sleep"
+                | "wake"
+                | "rename-city"
+                | "disband-city"
+                | "set-governor"
+                | "set-research-goal"
+                | "set-movement-order"
+                | "cancel-movement-order"
         )
     }
 }
@@ -184,13 +205,21 @@ impl ServerInterface {
     /// Capabilities are opt-in and do not replace per-entity authorization.
     #[must_use]
     pub fn supports(&self, feature: &str) -> bool {
-        self.contract.as_ref().is_some_and(|contract| contract.version == 2 && contract.features.get(feature) == Some(&true))
+        self.contract.as_ref().is_some_and(|contract| {
+            contract.version == 2 && contract.features.get(feature) == Some(&true)
+        })
     }
 
     /// Exact currently authorized closeout; waiting and terminal snapshots have none.
     #[must_use]
     pub fn end_turn(&self) -> Option<&LegalAction> {
-        self.legal_actions.iter().find(|action| matches!(action.route.as_str(), "round-complete" | "pass") && action.payload.as_object().is_some_and(serde_json::Map::is_empty))
+        self.legal_actions.iter().find(|action| {
+            matches!(action.route.as_str(), "round-complete" | "pass")
+                && action
+                    .payload
+                    .as_object()
+                    .is_some_and(serde_json::Map::is_empty)
+        })
     }
 
     /// Resolves a legal action without substituting another entity or target.

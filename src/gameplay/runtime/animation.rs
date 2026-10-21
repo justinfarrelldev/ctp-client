@@ -149,6 +149,8 @@ pub(super) struct ActorAnimations {
     motions: BTreeMap<UnitId, ConfirmedMotion>,
     /// Temporary pixels only; canonical unit positions remain unchanged.
     provisional: BTreeSet<UnitId>,
+    /// Exact submitted paths, retained only until authoritative reconciliation.
+    requested: BTreeMap<UnitId, Vec<MapPoint>>,
 }
 
 impl Default for ActorAnimations {
@@ -159,6 +161,7 @@ impl Default for ActorAnimations {
             enabled: true,
             motions: BTreeMap::new(),
             provisional: BTreeSet::new(),
+            requested: BTreeMap::new(),
         }
     }
 }
@@ -166,24 +169,71 @@ impl Default for ActorAnimations {
 impl ActorAnimations {
     /// Starts a one-step provisional presentation without touching canonical state.
     pub(super) fn preview(&mut self, unit: &Unit, target: MapPoint) {
-        if unit.position.tile_distance(target) != 1 { return; }
+        if unit.movement_points <= 0 || unit.position.tile_distance(target) != 1 {
+            return;
+        }
         self.provisional.insert(unit.id);
-        self.motions.insert(unit.id, ConfirmedMotion { points: vec![unit.position, target], started: self.now_ms, pending_start: true });
+        self.motions.insert(
+            unit.id,
+            ConfirmedMotion {
+                points: vec![unit.position, target],
+                started: self.now_ms,
+                pending_start: true,
+            },
+        );
     }
 
     /// Queued/rejected attempts and resyncs return provisional pixels to authority.
     pub(super) fn rollback(&mut self) {
-        for id in &self.provisional { self.motions.remove(id); }
+        for id in &self.provisional {
+            self.motions.remove(id);
+        }
         self.provisional.clear();
+        self.requested.clear();
+    }
+
+    /// Remembers a user-submitted route, never a locally executed multi-turn order.
+    pub(super) fn remember(&mut self, id: UnitId, path: &[MapPoint]) {
+        self.requested.insert(id, path.to_vec());
     }
 
     /// Animates only actual owner movement observed in a complete new snapshot.
     pub(super) fn reconcile(&mut self, before: &GameState, after: &GameState) {
+        let mut requested = core::mem::take(&mut self.requested);
         self.rollback();
-        for unit in before.units.iter().filter(|unit| unit.owner == crate::gameplay::model::PlayerId::Human) {
-            if let Some(next) = after.units.iter().find(|next| next.id == unit.id && next.owner == unit.owner) {
+        self.motions
+            .retain(|id, _motion| after.units.iter().any(|unit| unit.id == *id && unit.alive));
+        for unit in before
+            .units
+            .iter()
+            .filter(|unit| unit.owner == crate::gameplay::model::PlayerId::Human)
+        {
+            if let Some(next) = after
+                .units
+                .iter()
+                .find(|next| next.id == unit.id && next.owner == unit.owner)
+            {
                 if unit.position != next.position {
-                    self.confirm(core::slice::from_ref(unit), after, &super::journeys::line(unit.position, next.position));
+                    let retained = before
+                        .viewer
+                        .iter()
+                        .chain(after.viewer.iter())
+                        .flat_map(|viewer| &viewer.interface.movement_orders)
+                        .any(|order| {
+                            UnitId::from_server_id(&order.unit_id) == unit.id
+                                || order
+                                    .unit_ids
+                                    .iter()
+                                    .any(|member| UnitId::from_server_id(member) == unit.id)
+                        });
+                    let path = requested.remove(&unit.id).or_else(|| {
+                        retained.then(|| super::journeys::line(unit.position, next.position))
+                    });
+                    if let Some(path) = path {
+                        self.confirm(core::slice::from_ref(unit), after, &path);
+                    } else {
+                        self.motions.remove(&unit.id);
+                    }
                 }
             }
         }
@@ -253,11 +303,9 @@ impl ActorAnimations {
             moving: false,
             elapsed: self.now_ms,
         };
-        let Some(motion) = self
-            .motions
-            .get(&unit.id)
-            .filter(|motion| motion.points.last() == Some(&unit.position) || self.provisional.contains(&unit.id))
-        else {
+        let Some(motion) = self.motions.get(&unit.id).filter(|motion| {
+            motion.points.last() == Some(&unit.position) || self.provisional.contains(&unit.id)
+        }) else {
             return stationary;
         };
         let duration = duration.max(1);

@@ -24,8 +24,8 @@ pub(super) fn binding(
         return binding;
     }
     let name = node.name.as_str();
-    if view.kind == ManagerKind::City && path.starts_with("GovernorBox.") && matches!(name, "Toggle" | "Pulldown" | "autobutton") {
-        return dialog(super::data::city(state, view).and_then(|city| crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id)));
+    if let Some(binding) = governor_binding(state, view, path, name) {
+        return binding;
     }
     if matches!(
         name,
@@ -34,6 +34,11 @@ pub(super) fn binding(
         return enabled(ManagerIntent::Close);
     }
     match view.kind {
+        ManagerKind::Statistics
+            if path.contains("RankSelect") && matches!(name, "Pulldown" | "autobutton") =>
+        {
+            history_metric(view)
+        }
         ManagerKind::Build => build(ui, state, view, path),
         ManagerKind::Science
             if matches!(
@@ -49,7 +54,20 @@ pub(super) fn binding(
         ManagerKind::Library => library(ui, state, name),
         ManagerKind::National | ManagerKind::City if name == "DisbandButton" => {
             let city = view.selections.get("city").or(view.city_id.as_ref());
-            dialog(state.viewer.as_ref().and_then(|viewer| crate::gameplay::ui_model::operations::OperationDialog::actions(state, "Disband City?", viewer.interface.legal_actions.iter().filter(|action| action.route == "disband-city" && city == Some(&action.entity_id)).cloned())))
+            dialog(state.viewer.as_ref().and_then(|viewer| {
+                crate::gameplay::ui_model::operations::OperationDialog::actions(
+                    state,
+                    "Disband City?",
+                    viewer
+                        .interface
+                        .legal_actions
+                        .iter()
+                        .filter(|action| {
+                            action.route == "disband-city" && city == Some(&action.entity_id)
+                        })
+                        .cloned(),
+                )
+            }))
         }
         ManagerKind::National if name == "BuildQueueButton" => {
             selected_city_navigation(view, ManagerKind::Build)
@@ -93,6 +111,56 @@ pub(super) fn binding(
     }
 }
 
+/// Original toggle dispatches immediately; the pulldown chooses pinned priorities.
+fn governor_binding(
+    state: &GameState,
+    view: &ManagerView,
+    path: &str,
+    name: &str,
+) -> Option<(Option<ManagerIntent>, Option<String>)> {
+    if view.kind != ManagerKind::City {
+        return None;
+    }
+    if path == "GovernorBox.Toggle" {
+        return Some(
+            data::city(state, view)
+                .and_then(|city| {
+                    crate::gameplay::ui_model::operations::OperationDialog::toggle_governor(
+                        state, &city.id,
+                    )
+                })
+                .map_or_else(
+                    || disabled("No authorized mayor toggle"),
+                    |command| enabled(ManagerIntent::Submit(command)),
+                ),
+        );
+    }
+    (path.starts_with("GovernorBox.") && matches!(name, "Pulldown" | "autobutton")).then(|| {
+        dialog(data::city(state, view).and_then(|city| {
+            crate::gameplay::ui_model::operations::OperationDialog::governor(state, &city.id)
+        }))
+    })
+}
+
+/// Cycles actual own-history metrics, never a foreign or fabricated graph.
+fn history_metric(view: &ManagerView) -> (Option<ManagerIntent>, Option<String>) {
+    let metrics = crate::gameplay::ui_model::history::METRICS;
+    let current = view
+        .selections
+        .get("history-metric")
+        .map_or("score", String::as_str);
+    let next = metrics
+        .iter()
+        .position(|metric| *metric == current)
+        .unwrap_or(0)
+        .saturating_add(1)
+        .rem_euclid(metrics.len());
+    enabled(ManagerIntent::Select(
+        "history-metric".to_owned(),
+        metrics[next].to_owned(),
+    ))
+}
+
 /// Independent buildable/queue selection is required before issuing an order.
 fn build(
     ui: &ManagementUi,
@@ -100,8 +168,17 @@ fn build(
     view: &ManagerView,
     path: &str,
 ) -> (Option<ManagerIntent>, Option<String>) {
-    if matches!(path, "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton") {
-        return dialog(super::data::city(state, view).and_then(|city| crate::gameplay::ui_model::operations::OperationDialog::input(state, &city.id, crate::gameplay::ui_model::operations::InputKind::Queue)));
+    if matches!(
+        path,
+        "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton"
+    ) {
+        return dialog(super::data::city(state, view).and_then(|city| {
+            crate::gameplay::ui_model::operations::OperationDialog::input(
+                state,
+                &city.id,
+                crate::gameplay::ui_model::operations::InputKind::Queue,
+            )
+        }));
     }
     if let Some(command) = super::queue::request(state, view, path) {
         return enabled(ManagerIntent::Submit(command));
@@ -219,7 +296,17 @@ fn selected_action(
             })
             .collect()
     });
-    advertised(state, (candidates.len() == 1).then(|| candidates[0]))
+    if candidates.len() == 1 {
+        advertised(state, Some(candidates[0]))
+    } else {
+        dialog(
+            crate::gameplay::ui_model::operations::OperationDialog::actions(
+                state,
+                "Choose exact target",
+                candidates.into_iter().cloned(),
+            ),
+        )
+    }
 }
 
 /// Local category switching does not change rules, research or discovery state.
@@ -244,7 +331,35 @@ fn library(
         "BackButton" | "ForwardButton" => {
             disabled("No article in this direction of browser history")
         }
-        "SetGoalButton" => dialog(state.viewer.as_ref().and_then(|viewer| crate::gameplay::ui_model::operations::OperationDialog::actions(state, "Research Goal", viewer.interface.legal_actions.iter().filter(|action| action.route == "set-research-goal" && (ui.library.current.as_deref() == Some(action.target_id.as_str()) || action.payload["advance_id"].as_str() == Some(""))).cloned()))),
+        "SetGoalButton" => dialog(state.viewer.as_ref().and_then(|viewer| {
+            let goal = viewer
+                .interface
+                .research
+                .as_ref()
+                .map_or("", |research| research.goal_id.as_str());
+            let title = format!(
+                "Research Goal: {}",
+                if goal.is_empty() {
+                    "None"
+                } else {
+                    ui.book.label(goal)
+                }
+            );
+            crate::gameplay::ui_model::operations::OperationDialog::actions(
+                state,
+                &title,
+                viewer
+                    .interface
+                    .legal_actions
+                    .iter()
+                    .filter(|action| {
+                        action.route == "set-research-goal"
+                            && (ui.library.current.as_deref() == Some(action.target_id.as_str())
+                                || action.payload["advance_id"].as_str() == Some(""))
+                    })
+                    .cloned(),
+            )
+        })),
         _ => (None, None),
     }
 }
@@ -260,8 +375,13 @@ fn advertised(
 }
 
 /// Input/target selection is local until explicit valid confirmation.
-fn dialog(value: Option<crate::gameplay::ui_model::operations::OperationDialog>) -> (Option<ManagerIntent>, Option<String>) {
-    value.map_or_else(|| disabled("No currently authorized choice for this operation"), |value| enabled(ManagerIntent::Dialog(Box::new(value))))
+fn dialog(
+    value: Option<crate::gameplay::ui_model::operations::OperationDialog>,
+) -> (Option<ManagerIntent>, Option<String>) {
+    value.map_or_else(
+        || disabled("No currently authorized choice for this operation"),
+        |value| enabled(ManagerIntent::Dialog(Box::new(value))),
+    )
 }
 
 /// Enabled controls carry an actual executable intent, never only a painted flag.

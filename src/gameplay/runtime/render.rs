@@ -17,20 +17,26 @@ use crate::gameplay::{GameplayError, runtime_error};
 
 /// Actor rendering and original sprite anchoring.
 mod actors;
-/// Original city sprites and viewer-safe map caption strips.
-mod cities;
 /// LDL chrome and original-art copy helpers.
 mod chrome;
+/// Original city sprites and viewer-safe map caption strips.
+mod cities;
 /// Source-aligned context menus and terrain information.
 mod context;
+/// Original Statistics graph pane with only authorized own history.
+mod history;
 /// Original source-layout manager windows and controls.
 mod management;
-/// Explicit source-style operation/target confirmation forms.
-mod operations;
 /// Menu bar, resource counters and weakly-modal dropdowns.
 mod menus;
+/// Native private notification rows and original gold-framed message windows.
+mod messages;
 /// Drag-movement overlay drawing.
 mod movement;
+/// Observed improvement art, remembered ruins and political edges.
+mod observations;
+/// Explicit source-style operation/target confirmation forms.
+mod operations;
 /// Complete lower-right control panel.
 mod panel;
 /// Lower-left radar and filter toolbar.
@@ -80,12 +86,20 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     menus::draw_top_menu(canvas, textures, state, ui, font)?;
     context::draw_context(canvas, textures, state, ui, font)?;
     management::draw_management(canvas, textures, state, ui, fonts)?;
+    history::draw(canvas, state, ui, font)?;
     draw_popups(canvas, textures, state, font)?;
+    messages::draw(canvas, textures, state, ui, font)?;
     operations::draw(canvas, textures, state, ui, font)?;
     if state.network != crate::gameplay::model::NetworkStatus::Ready {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(Rect::new(230, 28, 340, 24)).map_err(runtime_error)?;
-        let message = if state.network == crate::gameplay::model::NetworkStatus::Pending { "Waiting for server…" } else { "Resynchronizing…" };
+        canvas
+            .fill_rect(Rect::new(230, 28, 340, 24))
+            .map_err(runtime_error)?;
+        let message = if state.network == crate::gameplay::model::NetworkStatus::Pending {
+            "Waiting for server…"
+        } else {
+            "Resynchronizing…"
+        };
         draw_text(canvas, font, message, 240, 31, Color::RGB(255, 230, 140))?;
     }
     draw_cursor(canvas, textures, state, ui, input)
@@ -195,13 +209,13 @@ const fn tile_color(terrain: TerrainKind) -> Color {
 mod animation_tests;
 #[cfg(test)]
 mod chart_tests;
+/// Original GC building-art and remembered-city privacy regressions.
+#[cfg(test)]
+mod city_tests;
 #[cfg(test)]
 mod context_tests;
 #[cfg(test)]
 mod cursor_tests;
-/// Original GC building-art and remembered-city privacy regressions.
-#[cfg(test)]
-mod city_tests;
 #[cfg(test)]
 mod editor_tests;
 #[cfg(test)]
@@ -210,23 +224,20 @@ mod fog_tests;
 mod health_tests;
 #[cfg(test)]
 mod management_tests;
+/// Original option slider pixels and popup lifecycle.
+#[cfg(test)]
+mod option_tests;
+/// Native lower-panel portraits and semantic category selection.
+#[cfg(test)]
+mod panel_tests;
 #[cfg(test)]
 mod pixel_tests;
 /// Independent source-art checks for native policy sliders and percentage controls.
 #[cfg(test)]
 mod policy_tests;
-/// Original option slider pixels and popup lifecycle.
-#[cfg(test)]
-mod option_tests;
 /// In-memory masked comparisons against supplied release captures.
 #[cfg(test)]
 mod reference_tests;
-/// Native sizable-strip clipping regressions.
-#[cfg(test)]
-mod strip_tests;
-/// Native lower-panel portraits and semantic category selection.
-#[cfg(test)]
-mod panel_tests;
 #[cfg(test)]
 mod resource_tests;
 /// Independent source list-frame/content and discovery-column native pixel checks.
@@ -239,9 +250,15 @@ mod scrollbar_tests;
 mod selector_tests;
 #[cfg(test)]
 mod start_tests;
+/// Native sizable-strip clipping regressions.
+#[cfg(test)]
+mod strip_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod text_tests;
+/// Native source-art and newly populated contract-v2 UI regressions.
+#[cfg(test)]
+mod v2_tests;
 #[cfg(test)]
 mod visual_tests;

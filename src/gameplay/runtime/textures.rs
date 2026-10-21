@@ -21,6 +21,8 @@ use crate::gameplay::{GameplayError, asset_error, runtime_error};
 
 /// Source-art names and pixel-accurate map icon colorization.
 mod art;
+/// Revision-bound observed-coordinate lookup shared by overlay and border drawing.
+mod observed;
 #[cfg(test)]
 mod tests;
 /// Directional action/frame uploads and sequence sampling.
@@ -93,7 +95,11 @@ pub(super) struct GameplayTextures<'texture> {
     /// Lazily uploaded portraits and other original management artwork.
     dynamic_ui: BTreeMap<String, Texture<'texture>>,
     /// Decoded standard tile overlays uploaded only when needed.
-    improvements: BTreeMap<u16, Texture<'texture>>,
+    improvements: BTreeMap<(u16, bool), Texture<'texture>>,
+    /// Installed improvement art recipes; never used to place improvements.
+    improvement_catalog: crate::gameplay::assets::observed_art::ImprovementArt,
+    /// Only server-observed coordinate indices for this rendering session.
+    observed: observed::ObservedTiles,
     /// Live sessions reject missing art; explicit asset-free previews may stub it.
     strict: bool,
 }
@@ -119,6 +125,8 @@ impl<'texture> GameplayTextures<'texture> {
             unit_catalog: BTreeMap::new(),
             dynamic_ui: BTreeMap::new(),
             improvements: BTreeMap::new(),
+            improvement_catalog: crate::gameplay::assets::observed_art::ImprovementArt::default(),
+            observed: observed::ObservedTiles::default(),
             strict: false,
         }
     }
@@ -163,6 +171,14 @@ impl<'texture> GameplayTextures<'texture> {
             },
             dynamic_ui: BTreeMap::new(),
             improvements: BTreeMap::new(),
+            improvement_catalog: match crate::gameplay::assets::observed_art::ImprovementArt::load(
+                root,
+            ) {
+                Ok(catalog) => catalog,
+                Err(error) if strict => return Err(error),
+                Err(_) => crate::gameplay::assets::observed_art::ImprovementArt::default(),
+            },
+            observed: observed::ObservedTiles::default(),
             strict,
         };
         for &name in art::UI_NAMES {
@@ -444,16 +460,42 @@ impl<'texture> GameplayTextures<'texture> {
         &mut self,
         id: u16,
     ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        self.observed_improvement(id, false)
+    }
+
+    /// Caches source overlays with immutable original packed-channel fog variants.
+    pub(super) fn observed_improvement(
+        &mut self,
+        id: u16,
+        explored: bool,
+    ) -> Result<Option<&Texture<'texture>>, GameplayError> {
         let (Some(creator), Some(tiles)) = (self.creator, self.tiles.as_ref()) else {
             return Ok(None);
         };
-        if let alloc::collections::btree_map::Entry::Vacant(entry) = self.improvements.entry(id) {
-            let Some(image) = tiles.improvement_image(id)? else {
+        if let alloc::collections::btree_map::Entry::Vacant(entry) =
+            self.improvements.entry((id, explored))
+        {
+            let Some(mut image) = tiles.improvement_image(id)? else {
                 return Ok(None);
             };
+            if explored {
+                crate::gameplay::assets::pixel::shade_explored(&mut image.data, true);
+            }
             entry.insert(texture_from_rgba(creator, &image)?);
         }
-        Ok(self.improvements.get(&id))
+        Ok(self.improvements.get(&(id, explored)))
+    }
+
+    /// Looks up a visual recipe only after its canonical ID was observed.
+    pub(super) fn improvement_art(
+        &self,
+        id: &str,
+        terrain: &str,
+        remaining: u32,
+        total: u32,
+    ) -> Option<u16> {
+        self.improvement_catalog
+            .index(id, terrain, remaining, total)
     }
 
     /// Returns original resource art only for an explicitly projected good ID.
@@ -484,15 +526,41 @@ impl<'texture> GameplayTextures<'texture> {
         Ok(self.goods.get(&key))
     }
 
-    /// Uses source ancient/default styling until viewer-safe style/age metadata
-    /// exists. This is visual fallback art, never a claim about a city's nation.
-    pub(super) fn city_texture(&mut self, population: u32, water: bool, explored: bool) -> Result<Option<&SpriteTexture<'texture>>, GameplayError> {
-        let Some(id) = self.city_catalog.sprite(0_usize, 0_usize, water, population).or_else(|| self.city_catalog.fallback()) else { return Ok(None); };
-        let Some(creator) = self.creator else { return Ok(None); };
-        if let alloc::collections::btree_map::Entry::Vacant(entry) = self.cities.entry((id, explored)) {
+    /// Observed ages select installed recipes. Culture/style still use explicit
+    /// default styling, never an inferred claim about a city's civilization.
+    pub(super) fn city_texture(
+        &mut self,
+        population: u32,
+        water: bool,
+        explored: bool,
+        age: Option<&str>,
+    ) -> Result<Option<&SpriteTexture<'texture>>, GameplayError> {
+        let Some(id) = age
+            .and_then(|age| self.city_catalog.sprite_for_age(age, water, population))
+            .or_else(|| {
+                self.city_catalog
+                    .sprite(0_usize, 0_usize, water, population)
+            })
+            .or_else(|| self.city_catalog.fallback())
+        else {
+            return Ok(None);
+        };
+        let Some(creator) = self.creator else {
+            return Ok(None);
+        };
+        if let alloc::collections::btree_map::Entry::Vacant(entry) =
+            self.cities.entry((id, explored))
+        {
             let sprite = crate::gameplay::assets::cities::load_sprite(&self.root, id)?;
-            let mut frame = sprite.actions.into_iter().find(|action| action.action_index == 2_usize).and_then(|action| action.frames.into_iter().next()).ok_or_else(|| asset_error(format!("city sprite GC{id:03} has no idle frame")))?;
-            if explored { crate::gameplay::assets::pixel::shade_explored(&mut frame.rgba, true); }
+            let mut frame = sprite
+                .actions
+                .into_iter()
+                .find(|action| action.action_index == 2_usize)
+                .and_then(|action| action.frames.into_iter().next())
+                .ok_or_else(|| asset_error(format!("city sprite GC{id:03} has no idle frame")))?;
+            if explored {
+                crate::gameplay::assets::pixel::shade_explored(&mut frame.rgba, true);
+            }
             entry.insert(texture_from_frame(creator, &frame)?);
         }
         Ok(self.cities.get(&(id, explored)))

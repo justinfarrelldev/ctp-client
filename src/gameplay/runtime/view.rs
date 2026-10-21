@@ -100,6 +100,63 @@ impl Camera {
         }
     }
 
+    /// Centers a legally known eye/location without changing zoom or game state.
+    pub(super) fn center_on(&mut self, point: MapPoint) {
+        let (x, y) = self.tile_click_center_to_screen(point);
+        self.pan_pixels(
+            x.saturating_sub(VIEW_CENTER_X),
+            y.saturating_sub(VIEW_CENTER_Y),
+        );
+    }
+
+    /// Bounds camera travel using public coordinates only, never discovered maxima.
+    pub(super) fn constrain(&mut self, state: &GameState) {
+        let Some(world) = state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| viewer.interface.world.as_ref())
+        else {
+            return;
+        };
+        let Some((width, height)) = world.dimensions() else {
+            return;
+        };
+        let Some(column) = rounded_div(
+            VIEW_CENTER_X
+                .saturating_sub(self.offset_x)
+                .saturating_sub(TILE_STEP_X.saturating_mul(self.zoom)),
+            TILE_STEP_X.saturating_mul(self.zoom),
+        ) else {
+            return;
+        };
+        let Some(row) = rounded_div(
+            VIEW_CENTER_Y
+                .saturating_sub(self.offset_y)
+                .saturating_sub(i32::try_from(MENU_BAR_HEIGHT).unwrap_or(24_i32))
+                .saturating_sub(
+                    TILE_HEIGHT
+                        .saturating_sub(TILE_STEP_Y)
+                        .saturating_mul(self.zoom),
+                ),
+            TILE_STEP_Y.saturating_mul(self.zoom),
+        ) else {
+            return;
+        };
+        let x = row.saturating_add(column).div_euclid(2);
+        let y = row.saturating_sub(column).div_euclid(2);
+        let minimum_x = i32::try_from(world.min_x).unwrap_or(0_i32);
+        let minimum_y = i32::try_from(world.min_y).unwrap_or(0_i32);
+        let bounded_x = x.clamp(minimum_x, i32::from(width).saturating_sub(1));
+        let bounded_y = y.clamp(minimum_y, i32::from(height).saturating_sub(1));
+        if x != bounded_x || y != bounded_y {
+            if let (Ok(target_x), Ok(target_y)) =
+                (u16::try_from(bounded_x), u16::try_from(bounded_y))
+            {
+                self.center_on(MapPoint::new(target_x, target_y));
+            }
+        }
+    }
+
     /// Converts tile to screen coordinates.
     pub(super) fn tile_to_screen(self, point: MapPoint) -> (i32, i32) {
         let step_x = TILE_STEP_X.saturating_mul(self.zoom);
