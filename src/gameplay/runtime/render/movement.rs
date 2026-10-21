@@ -122,8 +122,9 @@ pub(super) fn draw_planned_path(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     if let Some(origin) = input.planned_path_origin() {
-        for segment in planned_path_segments(camera, origin, input.planned_path()) {
-            draw_thick_line(canvas, segment, MOVEMENT_GO_COLOR)?;
+        for (segment, point) in planned_path_segments(camera, origin, input.planned_path()).into_iter().zip(input.planned_path()) {
+            let color = if crate::gameplay::model::planning::cost(state, *point).is_some() { MOVEMENT_GO_COLOR } else { MOVEMENT_WAIT_COLOR };
+            draw_thick_line(canvas, segment, color)?;
         }
         if let Some(id) = input.active_unit() {
             for boundary in
@@ -143,6 +144,16 @@ pub(super) fn draw_planned_path(
                         MOVEMENT_WAIT_COLOR
                     },
                 )?;
+            }
+        }
+    }
+    if input.planned_path().is_empty() {
+        if let Some(unit) = state.selected_unit() {
+            if let Some(viewer) = state.viewer.as_ref() {
+                if let Some(order) = viewer.interface.movement_orders.iter().find(|order| crate::gameplay::model::UnitId::from_server_id(&order.unit_id) == unit.id || order.unit_ids.iter().any(|id| crate::gameplay::model::UnitId::from_server_id(id) == unit.id)) {
+                    let path = super::super::journeys::line(unit.position, MapPoint::new(order.target_x, order.target_y));
+                    for segment in planned_path_segments(camera, unit.position, &path) { draw_thick_line(canvas, segment, MOVEMENT_WAIT_COLOR)?; }
+                }
             }
         }
     }

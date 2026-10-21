@@ -295,6 +295,9 @@ fn computed_path_between(
     start: MapPoint,
     target: MapPoint,
 ) -> Option<Vec<MapPoint>> {
+    if state.viewer.as_ref().is_some_and(|viewer| viewer.interface.supports("retained_movement_orders")) && state.in_bounds(target) {
+        return Some(super::journeys::line(start, target));
+    }
     if start == target {
         return Some(Vec::new());
     }

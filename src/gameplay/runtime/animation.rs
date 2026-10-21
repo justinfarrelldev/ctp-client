@@ -7,7 +7,7 @@
 
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 
 use super::Camera;
 use crate::gameplay::assets::sprite::SpriteAnimation;
@@ -147,6 +147,8 @@ pub(super) struct ActorAnimations {
     pub(super) enabled: bool,
     /// Confirmed motions, retained after arrival only for last-facing/idle epoch.
     motions: BTreeMap<UnitId, ConfirmedMotion>,
+    /// Temporary pixels only; canonical unit positions remain unchanged.
+    provisional: BTreeSet<UnitId>,
 }
 
 impl Default for ActorAnimations {
@@ -156,11 +158,37 @@ impl Default for ActorAnimations {
             speed: 5,
             enabled: true,
             motions: BTreeMap::new(),
+            provisional: BTreeSet::new(),
         }
     }
 }
 
 impl ActorAnimations {
+    /// Starts a one-step provisional presentation without touching canonical state.
+    pub(super) fn preview(&mut self, unit: &Unit, target: MapPoint) {
+        if unit.position.tile_distance(target) != 1 { return; }
+        self.provisional.insert(unit.id);
+        self.motions.insert(unit.id, ConfirmedMotion { points: vec![unit.position, target], started: self.now_ms, pending_start: true });
+    }
+
+    /// Queued/rejected attempts and resyncs return provisional pixels to authority.
+    pub(super) fn rollback(&mut self) {
+        for id in &self.provisional { self.motions.remove(id); }
+        self.provisional.clear();
+    }
+
+    /// Animates only actual owner movement observed in a complete new snapshot.
+    pub(super) fn reconcile(&mut self, before: &GameState, after: &GameState) {
+        self.rollback();
+        for unit in before.units.iter().filter(|unit| unit.owner == crate::gameplay::model::PlayerId::Human) {
+            if let Some(next) = after.units.iter().find(|next| next.id == unit.id && next.owner == unit.owner) {
+                if unit.position != next.position {
+                    self.confirm(core::slice::from_ref(unit), after, &super::journeys::line(unit.position, next.position));
+                }
+            }
+        }
+    }
+
     /// Anchors new paths after event/HTTP processing, so network latency cannot
     /// consume their animation before the accepted result can be displayed.
     pub(super) fn begin_frame(&mut self, now: u64) {
@@ -228,7 +256,7 @@ impl ActorAnimations {
         let Some(motion) = self
             .motions
             .get(&unit.id)
-            .filter(|motion| motion.points.last() == Some(&unit.position))
+            .filter(|motion| motion.points.last() == Some(&unit.position) || self.provisional.contains(&unit.id))
         else {
             return stationary;
         };

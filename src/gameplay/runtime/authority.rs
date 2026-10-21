@@ -127,15 +127,7 @@ fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> Str
         .tiles
         .iter()
         .find(|tile| tile.x == point.x && tile.y == point.y)
-        .map_or_else(
-            || canonical_local_server_tile_id(point),
-            |tile| tile.id.clone(),
-        )
-}
-
-/// Returns the Open CTP local-server canonical tile id for an unprojected frontier tile.
-fn canonical_local_server_tile_id(point: MapPoint) -> String {
-    format!("tile-{}-{}", point.x, point.y)
+        .map_or_else(String::new, |tile| tile.id.clone())
 }
 
 #[cfg(test)]
@@ -190,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn server_path_conversion_synthesizes_frontier_tile_ids_missing_from_projection() {
+    fn server_path_conversion_never_synthesizes_hidden_tile_ids() {
         let projection = ServerProjection {
             tiles: vec![ServerTileProjection {
                 id: "east".to_owned(),
@@ -202,16 +194,9 @@ mod tests {
             ..ServerProjection::default()
         };
 
-        let ids = server_tile_ids_for_path(
+        assert!(server_tile_ids_for_path(
             Some(&projection),
             &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
-        )
-        .expect("projected and frontier tiles should map to server ids");
-
-        assert_eq!(
-            ids,
-            vec!["east".to_owned(), "tile-6-5".to_owned()],
-            "frontier exploration should use canonical local server tile ids when the viewer projection omits an unseen tile"
-        );
+        ).is_none(), "frontier exploration uses coordinate intents, never fabricated tile IDs");
     }
 }

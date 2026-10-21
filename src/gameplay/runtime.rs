@@ -12,7 +12,7 @@ use sdl2::event::Event;
 use sdl2::mouse::MouseButton;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind, UnitId};
 use super::server::ServerProjection;
@@ -48,6 +48,8 @@ mod layout;
 mod management_input;
 /// CTP2-style movement input handling.
 mod movement;
+/// Retained server destinations and safe coordinate exploration.
+mod journeys;
 /// Gameplay frame rendering.
 mod render;
 /// Bootstrap and the live SDL presentation loop.
@@ -58,6 +60,8 @@ mod network;
 mod sync;
 #[cfg(test)]
 mod network_tests;
+#[cfg(test)]
+mod journey_tests;
 /// Explicit opt-in framebuffer previews and capture.
 pub mod snapshot;
 /// Original CTP2 texture loading.
@@ -68,7 +72,7 @@ mod view;
 mod viewport;
 
 use authority::{
-    RuntimeAuthority, server_tile_ids_for_path, server_unit_id_for_unit,
+    RuntimeAuthority, server_unit_id_for_unit,
     state_from_authority_projection,
 };
 use layout::{click_in_non_map_ui, end_turn_button_rect};
@@ -439,6 +443,7 @@ fn apply_finalized_move_path(
     unit_id: UnitId,
     path: &[MapPoint],
 ) {
+    if state.network != super::model::NetworkStatus::Ready { return; }
     if !state.select_unit(unit_id) {
         movement.retain_selectable(state);
         return;
@@ -451,6 +456,11 @@ fn apply_finalized_move_path(
         .collect::<Vec<_>>();
     if let Some(active_authority) = authority {
         submit_authoritative_move_path(active_authority, state, unit_id, path);
+        if state.network == super::model::NetworkStatus::Pending {
+            if let (Some(unit), Some(target)) = (before.first(), path.first()) {
+                movement.actors.preview(unit, *target);
+            }
+        }
     } else {
         state.order_selected_along_path(path.to_vec());
     }
@@ -633,28 +643,9 @@ fn submit_authoritative_move_path(
     if path.is_empty() {
         return;
     }
-    let Some(unit) = state
-        .units
-        .iter()
-        .find(|unit| unit.id == unit_id && unit.alive)
-    else {
-        return;
-    };
-    let Some(path_ids) = server_tile_ids_for_path(authority.session.projection.as_ref(), path)
-    else {
-        state.popups.push(GameplayPopup {
-            title: "Move Path Unavailable".to_owned(),
-            body: "The dragged path includes a tile missing from the authoritative projection."
-                .to_owned(),
-            kind: PopupKind::Info,
-        });
-        return;
-    };
-    let payload = json!({
-        "unit_id": server_unit_id_for_unit(authority, unit.id),
-        "path": path_ids
-    });
-    submit_authoritative_command(authority, state, "move", payload);
+    if let Some((route, payload)) = journeys::request(state, unit_id, path) {
+        submit_authoritative_command(authority, state, route, payload);
+    }
 }
 
 /// Submits a command and rebuilds local state from the returned projection.

@@ -246,7 +246,8 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
         ("Pillage", "pillage"),
         ("Pirate Trade", "pirate-trade"),
         ("Expel", "expel"),
-        ("Reform City", "reform-city"),
+        ("Reform City", "reform"),
+        ("Cancel Movement", "cancel-movement-order"),
         ("Board Transport", "embark"),
         ("Disband Army", "disband"),
     ] {

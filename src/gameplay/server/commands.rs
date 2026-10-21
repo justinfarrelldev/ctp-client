@@ -69,8 +69,7 @@ fn governor(viewer: &ServerProjection, payload: &Value) -> bool {
 fn coordinate(viewer: &ServerProjection, route: &str, payload: &Value, adjacent: bool) -> bool {
     if !shape(payload,&["unit_id","target_x","target_y"],&[]) { return false; }
     let Some(id)=payload["unit_id"].as_str() else { return false; };
-    let source=if adjacent { &viewer.interface.action_intents } else { &viewer.interface.legal_actions };
-    if !source.iter().any(|action| action.route == route && action.entity_id == id) { return false; }
+    if !viewer.interface.action_intents.iter().chain(&viewer.interface.legal_actions).any(|action| action.route == route && action.entity_id == id) { return false; }
     let (Some(x),Some(y))=(payload["target_x"].as_u64(),payload["target_y"].as_u64()) else { return false; };
     let Some((width,height))=viewer.interface.world.as_ref().and_then(super::v2::World::dimensions) else { return false; };
     if x >= u64::from(width) || y >= u64::from(height) { return false; }

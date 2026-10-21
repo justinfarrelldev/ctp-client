@@ -25,8 +25,11 @@ pub(super) fn poll(authority:&mut RuntimeAuthority,state:&mut GameState,ui:&mut 
         Some(Outcome::Snapshot(snapshot))=>{
             if snapshot.revision < authority.session.revision() { return; }
             let pending=state.network == NetworkStatus::Pending;
+            if pending && snapshot.revision == authority.session.revision() { return; }
             authority.session.apply_projection(*snapshot.clone());
+            let before=state.clone();
             replace_state_from_projection(authority,state,&snapshot);
+            movement.actors.reconcile(&before,state);
             if pending { state.network=NetworkStatus::Pending; }
             ui.status_text.clear();
             movement.retain_selectable(state);
@@ -34,7 +37,9 @@ pub(super) fn poll(authority:&mut RuntimeAuthority,state:&mut GameState,ui:&mut 
         Some(Outcome::Receipt(snapshot))=>{
             if snapshot.revision >= authority.session.revision() {
                 authority.session.apply_projection(*snapshot.clone());
+                let before=state.clone();
                 replace_state_from_projection(authority,state,&snapshot);
+                movement.actors.reconcile(&before,state);
             }
             state.network=NetworkStatus::Ready;
             ui.status_text.clear();
@@ -44,6 +49,7 @@ pub(super) fn poll(authority:&mut RuntimeAuthority,state:&mut GameState,ui:&mut 
             state.network=NetworkStatus::Resynchronizing;
             ui.status_text=format!("Resynchronizing: {error}");
             movement.cancel_drag();
+            movement.actors.rollback();
         }
         None=>{}
     }
