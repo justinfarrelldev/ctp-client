@@ -125,7 +125,7 @@ pub fn panel_controls(state: &GameState, active_tab: ControlPanelTab) -> Vec<Gam
         label: "End Turn",
         rect: end_turn_button_rect(),
         intent: ControlIntent::Action(InGameAction::EndTurn),
-        enabled: true,
+        enabled: !state.authoritative || state.viewer.as_ref().is_some_and(|viewer| viewer.interface.end_turn().is_some()),
     });
     for (_, x, y, label, action) in SHORTCUTS {
         controls.push(control(

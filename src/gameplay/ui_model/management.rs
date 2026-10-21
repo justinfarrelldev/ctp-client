@@ -22,6 +22,10 @@ use crate::gameplay::server::interface::LegalAction;
 mod articles;
 /// Source-derived button and editable-control bindings.
 mod bindings;
+/// Stable-entry atomic queue requests and content resolution.
+mod queue;
+#[cfg(test)]
+mod queue_tests;
 /// Runtime-created original advance chart and viewer-safe local navigation.
 mod chart;
 /// Fileless source-chart regressions.
@@ -239,28 +243,10 @@ impl ManagerCommand {
         else {
             return false;
         };
-        if self.route == "set-research" {
-            if self
-                .payload
-                .as_object()
-                .is_none_or(|fields| fields.len() != 1_usize)
-            {
-                return false;
-            }
-            return self.payload["advance_id"].as_str().is_some_and(|target| {
-                viewer
-                    .interface
-                    .research
-                    .as_ref()
-                    .is_some_and(|research| research.available.iter().any(|id| id == target))
-            });
-        }
         if let Some(valid) = policy::validate(viewer, &self.route, &self.payload) {
             return valid;
         }
-        viewer.interface.legal_actions.iter().any(|action| {
-            action.http_supported() && action.route == self.route && action.payload == self.payload
-        })
+        crate::gameplay::server::commands::valid(viewer, &self.route, &self.payload)
     }
 
     /// Carries through an advertised action without reconstructing its metadata.

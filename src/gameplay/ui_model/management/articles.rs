@@ -211,7 +211,7 @@ fn document<'catalog>(
             (id, section)
         }
         ManagerKind::Build if path == "ItemDescription" => {
-            let id = selected_description(view)?.to_owned();
+            let id = selected_description(view, state)?.to_owned();
             if let Some(document) = ui
                 .library
                 .catalog
@@ -245,12 +245,13 @@ fn document<'catalog>(
 }
 
 /// Last interacted list controls the description without discarding either selection.
-pub(super) fn selected_description(view: &ManagerView) -> Option<&str> {
-    view.selections
+pub(super) fn selected_description<'view>(view: &'view ManagerView, state: &'view GameState) -> Option<&'view str> {
+    let selected = view.selections
         .get("description")
         .or_else(|| view.selections.get("buildable"))
         .or_else(|| view.selections.get("queue"))
-        .map(String::as_str)
+        .map(String::as_str)?;
+    Some(super::queue::content(state, view, selected).unwrap_or(selected))
 }
 
 /// Visible article title/index/search text, not client-authored game facts.
@@ -360,7 +361,7 @@ pub(super) fn image(
             )
         }
         ManagerKind::Build if path == "ItemImage.IconBorder.IconButton" => {
-            (selected_description(view)?, true)
+            (selected_description(view, state)?, true)
         }
         _ => return None,
     };

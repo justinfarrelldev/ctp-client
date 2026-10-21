@@ -104,7 +104,7 @@ pub(super) fn rows(
             .map_or_else(Vec::new, |queue| {
                 queue
                     .iter()
-                    .filter_map(|item| item["id"].as_str().map(|id| (id.to_owned(), label(ui, id))))
+                    .filter_map(|item| item["id"].as_str().map(|id| (item["entry_id"].as_str().unwrap_or(id).to_owned(), label(ui, id))))
                     .collect()
             }),
         ManagerKind::Build if path.starts_with("ItemsBox.") => buildables(ui, state, view, path),
@@ -237,6 +237,20 @@ fn buildables(
         _ => return Vec::new(),
     };
     let mut records = BTreeMap::new();
+    if state.viewer.as_ref().is_some_and(|viewer| viewer.interface.supports("atomic_production_queue")) {
+        if let Some(rules) = state.viewer.as_ref().and_then(|viewer| viewer.interface.rules.as_ref()) {
+            for category in ["units", "production"] {
+                if let Some(items) = rules[category].as_array() {
+                    for item in items {
+                        let item_kind = item["kind"].as_str().unwrap_or(if category == "units" { "unit" } else { "" });
+                        if item_kind == kind {
+                            if let Some(id) = item["id"].as_str() { records.insert(id.to_owned(), label(ui,id)); }
+                        }
+                    }
+                }
+            }
+        }
+    }
     for action in city_actions(state, view, "queue-production") {
         if action.payload["item"]["kind"].as_str() == Some(kind) {
             records.insert(action.target_id.clone(), label(ui, &action.target_id));
@@ -325,7 +339,7 @@ pub(super) fn text(
             }
         }
         ManagerKind::Build if path == "ItemDescription" => {
-            let id = articles::selected_description(view)?;
+            let id = articles::selected_description(view, state)?;
             Some(label(ui, id))
         }
         ManagerKind::Empire => {

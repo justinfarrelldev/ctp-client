@@ -729,8 +729,12 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
 
 /// Additive viewer contracts and known/unavailable display facts.
 pub mod v2;
+/// Exact command input shapes and current viewer authorization.
+pub mod commands;
 #[cfg(test)]
 mod v2_tests;
+#[cfg(test)]
+mod command_tests;
 #[cfg(test)]
 mod projection_tests;
 #[cfg(test)]

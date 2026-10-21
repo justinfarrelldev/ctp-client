@@ -565,7 +565,9 @@ fn apply_authoritative_action(
 ) -> bool {
     match action {
         InGameAction::EndTurn => {
-            submit_authoritative_command(authority, state, "round-complete", json!({}));
+            if let Some(closeout) = authority.session.projection.as_ref().and_then(|viewer| viewer.interface.end_turn()).cloned() {
+                submit_authoritative_command(authority, state, &closeout.route, closeout.payload);
+            }
             true
         }
         InGameAction::Settle | InGameAction::Fortify | InGameAction::Disband => {

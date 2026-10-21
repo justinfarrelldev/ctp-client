@@ -492,7 +492,7 @@ impl InGameUiModel {
     pub fn action_for_key(keycode: Keycode, keymod: Mod) -> InGameAction {
         let ctrl = keymod.intersects(Mod::LCTRLMOD | Mod::RCTRLMOD);
         match (keycode, ctrl) {
-            (Keycode::A | Keycode::RETURN, false) => InGameAction::EndTurn,
+            (Keycode::A | Keycode::RETURN | Keycode::KP_ENTER, false) => InGameAction::EndTurn,
             (Keycode::SPACE, false) => InGameAction::Sentinel,
             (Keycode::B, false) => InGameAction::Settle,
             (Keycode::B, true) => InGameAction::OpenCityBuild,

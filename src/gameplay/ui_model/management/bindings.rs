@@ -93,6 +93,9 @@ fn build(
     view: &ManagerView,
     path: &str,
 ) -> (Option<ManagerIntent>, Option<String>) {
+    if let Some(command) = super::queue::request(state, view, path) {
+        return enabled(ManagerIntent::Submit(command));
+    }
     match path {
         "ItemsBox.UnitsButton" => enabled(ManagerIntent::Select(
             "build-category".to_owned(),
@@ -141,7 +144,7 @@ fn build(
         "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton" => disabled(
             "Applying a custom queue requires a safe authoritative queue-edit contract (QUEUE-02/03)",
         ),
-        "LibraryButton" => super::articles::selected_description(view)
+        "LibraryButton" => super::articles::selected_description(view, state)
             .filter(|id| ui.library.catalog.article(id).is_some())
             .map_or_else(
                 || disabled("Select an installed buildable/queue topic first"),

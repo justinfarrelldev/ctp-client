@@ -89,8 +89,8 @@ fn advertised_engine_only_routes_are_not_misrepresented_as_http_commands() {
         ..super::interface::LegalAction::default()
     };
     assert!(
-        !action.http_supported(),
-        "visibility.go advertises expel, but http.go has no expel registration"
+        action.http_supported(),
+        "current server now registers advertised expel"
     );
     let fortify = super::interface::LegalAction {
         route: "fortify".to_owned(),
