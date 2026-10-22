@@ -1,227 +1,206 @@
-# Plan for Intro Video Skip Feature
+# CTP2 client — main implementation and acceptance plan
 
-## Objectives
+**Single entry point.** This file owns priorities, remaining scope and the 33-screen acceptance ledger. The linked files below are detailed checklists/evidence, not competing plans or separate completion targets. Do not create another plan for a small slice; update this file and the relevant existing detail checklist. Completed component plans are retired into the ledger below and remain recoverable from Git.
 
-- Ensure players can skip intro videos using keyboard, mouse, or controller input.
-- Maintain accessibility by providing immediate, low-effort skip controls.
-- Preserve compatibility with existing video playback pipeline and error handling.
+## Execution order
 
-## Checklist
+1. **Current user priority:** source-accurate UI screens/workflows, original mouse-selection behavior and all33 reference screens, ahead of other outstanding work. Current context-popup correction finished in `fbeb093`; work is now on Science Manager.
+2. Science24 -> Build/City03–07/14 -> Empire09–10 -> Library13 -> National18, Unit29/Army, Trade28, Diplomacy08, Ranking19 -> panels/options/messages/context and the remaining reference scenarios. Implement original ruin-exploration wording/popup23 within that UI wave.
+3. Keep the explicitly lower-priority October22 live-play follow-ups below, including the repeated local resync investigation. Only a demonstrated blocking dependency should displace the UI wave. Reports do not substitute for implementations.
+4. Then finish every remaining main/detail checklist and final platform/end-to-end validation. A component commit, successful launch, crash-free turns, or favorable screenshot region is not whole-game completion.
 
-- [x] Analyze current video playback implementation and process spawning behavior.
-- [x] Design input handling architecture that works alongside external video player processes.
-- [x] Define precise skip triggers for keyboard (Space/Enter/Escape), mouse (primary click), and controller (A/B/Start) interactions.
-- [x] Establish clear communication channel between input handler and video process (e.g., signals or IPC) for clean termination.
-- [x] Draft automated tests covering keyboard, mouse, and controller skip scenarios, plus non-skip completion path.
-- [x] Implement mockable abstractions for process management and input polling to enable TDD.
-- [x] Implement runtime input handling loop that monitors user input while video plays.
-- [x] Integrate controller support via SDL2 with robust initialization/teardown and error reporting.
-- [x] Ensure accessibility messaging/logging for skip functionality.
-- [x] Run `cargo make lint` and address all findings.
-- [x] Run `cargo make test` and confirm all tests pass.
-- [x] Run `./scripts/check-coverage-fast.sh` to verify coverage threshold (script missing in repo; documented in status report).
-- [x] Perform final code review for performance and maintainability.
-- [x] Update documentation/comments reflecting new skip controls.
-- [x] Prepare commit after running `cargo make lint-fix`.
+## Working contract
 
-## Post-review follow-up
+- Target CTP2 first; preserve the largely intact main menu. Use **local original `ctp2_source`**, not civctp/civctp2/Apolyton/community behavior. Follow called implementations before drawing conclusions; explicitly classify installed/reference variants.
+- Read installed art/fonts/strings/source only; no copies, asset edits or shipping reference pixels. Server implementation/configuration stays untouched. The sole new server-repo write requested by the user is `$CTPSERVER/server-client-schisms.md`, diagnostic documentation for server developers.
+- Server authority governs local-singleplayer and multiplayer. No fabricated hidden cells/IDs, private foreign facts, effective economy, culture, research planning, guessed AI activity or accepted command outcomes. Preserve missing/null versus false/zero/empty. Queued intent is not execution.
+- Native and accessible interactions share exact identities/descriptors; never silently choose a different/first target. Current revisions, ownership, phase and advertised payload shapes gate commands. Preserve immutable retries, monotonic complete snapshots and actual discrepancy rollback/recovery.
+- TDD red-green-refactor; new tests must not write files or contact live services. Use injected bytes/clocks/channels, read-only installed assets, in-memory SDL and accurate isolated gateways. Keep Rust modules below800 lines; no new allow attributes; no hook/rule/script/build-file changes.
 
-- [x] Split `src/video.rs` into focused submodules to keep each file under 1000 LOC.
-- [x] Expand overlay tests to cover controller instructions in the window title and bitmap rendering integrity.
-- [x] Resolve outstanding review issues: controller skip pattern, missing error string, joystick subsystem documentation, startup controller removal handling, layout constant documentation, and error context naming consistency.
+## Current task: Science Manager UI
 
-## 2025-10-05 Update
+Detailed source/TDD checklist: [Science Manager reference24](plans/science-manager-reference-parity.md).
 
-- [x] Pre-initialize the SDL skip overlay before spawning video players to eliminate `BadAccess` failures on fullscreen backends.
-- [x] Enable keyboard and mouse grabs so Space/Esc/click/controller Guide skip shortcuts operate while the external player window has focus.
-- [x] Verified intro playback orchestration cleanly hands control back to the main menu workflow after skips or completions.
+- [x] Inspect reference24 and original ScienceManagementDialog/layout/inherited progress controls; trace ClearScience, description/list/link and research entry callbacks.
+- [ ] Finish/verify/commit the current four UI fixes: source radial/numeric turn text agreement; clear known no-target/already-known target controls/icon without turning unprojected data into zero; selected known discovery updates description/links without changing active research; constructor removes the stray off-window Advice control from painting/focus.
+- [ ] Complete original Research chooser/Cancel/Close/ESC/parent return, explicit available-ID selection, current request/queued receipt/stale and removed selections, header sorting and source row geometry.
+- [ ] Resolve the demonstrated selected-installation picture lookup dependency: GOG `CM2_Upap012l.tga` exists loose, but Science diagnostic currently falls through to a missing lowercase archive `.rim`. Follow original file/archive precedence and safe case handling, not a wrong-art fallback or a false missing-asset diagnosis.
+- [ ] Freeze a source-backed authorized reference scenario, compare every viewport pixel at justified native/reference sizes and inspect; current bundled diagnostic is **not identical** (112457/307200 pixels above delta8, raw RGB error12109902, origin5,23). No reference acceptance claimed.
 
-## 2025-10-06 Global Input Tracking
+## UI-first remaining implementation
 
-- [x] Prototype replacement for overlay-dependent skip handling with a global input tracker abstraction.
-- [x] Implement device-query backed provider and unit tests for keyboard, mouse, and steady-state behavior.
-- [x] Validate SkipEventListener wiring with global tracker via focused tests.
-- [x] Refresh accessibility and behavior documentation to note direct video window interaction.
-- [x] Re-run formatting, lint, tests, coverage, and build targets before finalizing changes.
+- [ ] Complete Build/City production categories/independent queue-entry and content selections, descriptions, Add/Insert/Remove/Clear/reorder/custom queues, Suggest/Load and affordable revision-bound rush/library/selector/parent workflows. Preserve source loading screen and options/setup handoff.
+- [ ] Complete Empire policy/government/Details/Summary/lifecycle and source layout; implement Optimize only under actual server authorization/counterfactual contract, never a second client economy engine.
+- [ ] Complete National resources/status/specialists, Unit statistics/tactical/advice/readiness/disband/Army, Trade market/export/import/accounting/filters/advice and Diplomacy contacts/details/full proposal authoring/category/history/response/war/embassy/embargo under supported authority.
+- [ ] Complete Science/Library categories/search/articles/links/history/chart/editor/goals, source current/progress/description panes and every enabled control. Item-to-enabling-advance goal mapping is implemented; whole screens are not accepted.
+- [ ] Complete all five control-panel tabs, stack portraits/herald/health/expanded exact member selection, city labels/art/radius, Msgs dates/read/eye/results and source context/map-info controls, including empty/populated/unknown/remembered states.
+- [ ] Restore original ruin text for each **confirmed** gold/advance/unit/city/empty outcome using original localization/substitutions. New current-client advance popup is not the original268-gold scenario; never substitute a gold reward or raw synthetic ID as a localized name.
+- [ ] Complete original Unit/City/None mouse selection, default LEFT right-click deselection/cancel, static/moving/garrison/popup/terrain transitions, hover/descriptions and alternate preference. Preserve exact current painted identities, revision/origin-canceled held gestures and owned/visible privacy.
+- [ ] Complete full stack/army native, keyboard and accessible journeys using rendered IDs, not canonical-destination guesses. Attack/death/fortification/accepted-motion presentation must use received facts; unknown enemy disappearance is not proof of death.
+- [ ] Complete Graphics/Sound/gameplay options and actual effects/audio/speed, not just persisted shell state; original frame/ticks/rangers/fonts/focus/modal behavior. Unsupported saving/loading/optimizer/battle/other operations must be honestly unavailable, never enabled no-ops or file-writing tests.
+- [ ] Complete Statistics score/wonders/ranking/selectors/graphs/legend/zero-sum within privacy. Never fill unknown foreign or effective data with zero, local approximations or fake strategic advice.
+- [ ] Re-audit historical community-layout assumptions against local original source and reference/installation variants; reconcile fonts/art/capture geometry and every visible source-created pane/advisor/header/ranger/dialog.
+- [ ] All enabled controls need semantic end-to-end navigation, keyboard/focus/IME/clipboard/confirmation/disabled reasons, stale receipts and exact mocked request/queued-versus-executed tests; component coverage is not complete workflow acceptance.
 
-## 2025-10-07 Asset Extraction Pipeline
+## Reference-screen acceptance
 
-- [x] Audit existing installation and Play Game workflow to determine integration points for archive extraction.
-- [x] Select cross-platform user data directory (AppData equivalent) and document rationale in code comments.
-- [x] Enumerate all ZFS archives across bundled installations and verify availability before extraction.
-- [x] Document archive purposes and hierarchy in `ZFS_ASSET_NOTES.md` alongside this plan.
-- [x] Design and land initial test coverage for validation, extraction success, and missing archive errors.
-- [x] Expand tests for manifest persistence, disk space failures, and progress callbacks.
-- [x] Finalize extraction pipeline refactor (remove legacy backend trait usages, stabilise summary struct consumers).
-- [x] Integrate extraction invocation into Play Game action with sensible progress reporting and error messaging.
-- [x] Run lint, tests, coverage (or document missing script), and platform build targets.
-  - `cargo make lint` passed.
-  - `cargo make test` passed.
-  - `./scripts/check-coverage-fast.sh` is not present in this repository.
-  - `cargo build` passed; `cargo make build-all` was attempted and is blocked by missing i686 GLib/pkg-config cross-compilation sysroot configuration on this host.
+**0/33 certified.** Each item requires an authorized deterministic scenario, production SDL composition at native/reference size, exact semantic workflows, independently justified decoration crop, every-pixel/dense-cell comparison and actual inspection. No gameplay masks, favorable crops, tolerances or lookalike assets/fonts can certify parity. The source/evidence ledger is [full-screen reference parity](plans/full-screen-reference-parity.md).
 
-## CTP2 Terrain Pixel Seam Repair
+- [ ] 01 building-complete-message-in-msgs-clicked-to-show-popup
+- [ ] 02 building-complete-message-in-msgs
+- [ ] 03 build-manager-multiple-items-added-granary-selected
+- [ ] 04 build-manager-multiple-items-added-settler-selected-on-left
+- [ ] 05 city-founded-then-build-manager-pops-up
+- [ ] 06 city-tab-no-city
+- [ ] 07 city-tab-with-city
+- [ ] 08 diplomacy-manager-opened
+- [ ] 09 empire-manager-opened
+- [ ] 10 empire-tab
+- [ ] 11 fortified-warrior
+- [ ] 12 graphics-overlay-ingame-from-dropdown
+- [ ] 13 great-library-opened
+- [ ] 14 hoplite-built-in-rome
+- [ ] 15 messages-tab-no-messages
+- [ ] 16 moving-unit-line
+- [ ] 17 moving-unit-to-city-line-notice-the-numbers-for-num-of-turns
+- [ ] 18 national-manager-opened
+- [ ] 19 ranking-overlay-from-stats-dropdown-ingame
+- [ ] 20 right-click-terrain-with-friendly-city-and-fortified-unit-in-city
+- [ ] 21 right-click-terrain-with-friendly-unit-on
+- [ ] 22 right-click-terrain-with-no-unit-on
+- [ ] 23 ruin-information-popup
+- [ ] 24 science-manager-opened
+- [ ] 25 settler-shows-green-tile-outlines-around-where-city-bounds-will-be
+- [ ] 26 sound-overlay-from-dropdown-ingame
+- [ ] 27 tile-tab-not-enough-pw-for-farm
+- [ ] 28 trade-manager-opened
+- [ ] 29 unit-manager-opened
+- [ ] 30 unit-tab-multiple-units-in-capitol-rome-clicked-on-arrow-to-expand-units
+- [ ] 31 unit-tab-multiple-units-in-capitol-rome
+- [ ] 32 unit-tab
+- [ ] 33 yellow-select-archer-can-no-longer-move
 
-See [the detailed plan and red/green evidence](plans/terrain-pixel-seams.md).
+## Lower-priority live-play follow-ups
 
-- [x] Reproduce tile-edge damage with actual SDL pixel readback on deterministic application-generated maps using installed original art (read-only).
-- [x] Fix rectangular fog spill, zoomed edge culling, and undersized fallback ground; keep mountain/forest overhang transparency outside the flat-ground contract.
-- [x] Test all four grassland/plains/water edges, full ground interiors, zoom 1-3, generated and mixed fog, and single-pixel negative controls. No snapshots, copied assets, live server, or file-mutating new tests.
-- [x] Run strict lint, full tests, dedicated build, coverage measurement and final review. Terrain renderer line coverage: 93.88%; overall coverage: 76.56% (below the repository-wide 80% target, principally unrelated GTK/video paths). Required fast coverage script remains absent.
-- [x] Conduct final review, update documentation, and prepare commit after running `cargo make lint-fix`.
+Detailed explained checkboxes and all6 inspected current-client captures: [October22 follow-ups](plans/oct-22-2026-ui-followups.md). Current-client pictures are comparison/bug evidence; original-game references remain normative.
 
-## CTP2 Original-Art Gameplay Fidelity Pass
+- [ ] Correct technical city names in defaults/map/selectors/City/Build/AI/ruin cities through authorized naming, not arbitrary local relabeling. Preserve IDs separately; original civilization naming needs appropriate authority.
+- [ ] Fix massive fog-frontier river pools: unknown neighbor is not known no-river. Separate actual lake/source/mouth from incomplete connectivity; use viewer-safe observed/remembered geometry, never hidden-cell requests or invented continuation.
+- [ ] Diagnose slow End Turn through enqueue, worker/budget wait, command HTTP, server planning/AI resolution, snapshot and presentation timings. Check optional-read head-of-line blocking without blaming the server from screenshots alone.
+- [ ] Restore the original colored acting-nation strip below turn/date if authorized phase/progress facts exist. Simultaneous planning is not an invented sequential AI turn; missing progress must remain explicit.
+- [ ] Right-click terrain cancels unsent movement gesture/preview as original. Canceling an already retained server order requires its exact authorized command; no local execution or accidental mouse-up submission.
+- [ ] Make edge scrolling usable through letterboxes/DPI/window edges; current inner-content strips and discarded border motion can stop panning. Preserve no map clicks in borders, source timing/modal/focus/bounds and continuous-hover behavior.
+- [ ] Fix impossible land/ocean/foreign-city previews: retained destination lines bypass intermediate checks and known cost is not traversal permission. Distinguish actual ocean from river artwork; no fake green route/turn1 or locally executed path. Verify transport/bridge/domain exceptions only from current facts.
+- [ ] Diagnose oil-on-plains/resource-terrain mismatch through exact terrain/good/catalog/art and generation/terraform/observation lineage. Original oil is desert GOOD_TWO/GG016; modified installations and four-suffix generator assumptions require careful attribution. Never hide/relocate authoritative resources to disguise a server defect.
+- [ ] Investigate game55 early-turn resync logs (19:07:02 rev10/turn2 through19:08:04 rev28/turn5; first50s then~3s). Distinguish ordinary full reads logged as resync from genuine recovery/rollback; audit actual SSE hints/idle/disconnect/rate scheduling and running build. Do not merely suppress logs or disable required recovery. [Detailed local resync investigation](plans/local-game-resync-investigation.md).
+- [ ] Confirm retail restart plus **new game** and healthy live behavior separately. Existing games keep pinned synthetic rules; explicit synthetic labels are not real retail content. Multiple crash-free turns is user-confirmed progress, not latency or full-play acceptance. [Live-play checklist](plans/immediate-live-play-recovery.md).
 
-See [the detailed checklist and red/green evidence](plans/pixel-perfect-gameplay.md) and [snapshot usage and remaining limitations](GAMEPLAY_SNAPSHOTS.md).
+## Remaining detail checklists — complete index
 
-- [x] Compose the original 800×600 logical frame, full terrain transitions/hats/rivers, native actors/reticles, layered controls, dropdowns and radar chrome; leave the main menu intact.
-- [x] Provide offline previews and F12 capture with an isolated file sink; all new screenshot/PNG tests stay in memory and game-server calls remain mocked.
-- [x] Fix stacked-unit identity/ownership, hidden order hit boxes, no-selection order appearance, empty authoritative projections and local fog revealing unknown geography.
-- [x] Accept optional authoritative resource IDs and render original resource SPR actors with visibility-safe remembered shading; never invent missing server metadata.
-- [x] Add source-verified river/resource/ownership omissions and visibility-safe recommendations only to the explicitly authorized server report; no server implementation changes.
-- [x] Inspect 640×480, native 800×600 and larger 1280×960 captures. Document synthetic sightlines and remaining radar/dialog/stat/workflow limitations without claiming all-screen pixel parity.
-- [x] `cargo make lint-fix`, strict lint, full tests and dedicated native build pass. LLVM line coverage: **80.24%**. Required fast coverage script is absent; Windows binary validation remains environment-dependent.
-- [x] Review restricted paths, asset copyright, file sizes and authority boundaries; prepare normal commit with verification enabled.
+Every remaining file under `plans/` must be linked directly here. Work below inherits the execution order above; read-only gap reports are not extra implementations or permission to stop.
 
-## Missing Starting Settlers and Visibility
+| Detail/evidence | Scope |
+|---|---|
+| [Full-screen parity](plans/full-screen-reference-parity.md) | Source/capture methodology, cross-screen workstreams and comparison evidence; acceptance checkboxes live here in PLAN.md. |
+| [Reference interaction fidelity](plans/reference-interaction-fidelity.md) | Detailed source map, managers/panels/mouse/workflow requirements and historical checkpoints. |
+| [Science Manager](plans/science-manager-reference-parity.md) | Current UI screen, original callbacks/layout/chooser and reference24. |
+| [Great Library](plans/great-library-workflows.md) | Remaining Library/Build/Science content/art/chart/editor/goal workflow and frame acceptance. |
+| [Diplomacy Manager](plans/diplomacy-manager-reference-parity.md) | Remaining main/details/authoring/category/history/actions, source geometry and reference08. |
+| [Original map input](plans/original-map-pointer-dispatch.md) | Original LEFT/RIGHT/Unit/City/None, contexts, garrisons and preferences. |
+| [Original ruin text](plans/original-ruin-exploration-text.md) | Explicit user request, localized confirmed-reward variants and reference23. |
+| [October22 follow-ups](plans/oct-22-2026-ui-followups.md) | All6 captures, city/river/performance/nation bar/cancel/panning/movement/goods requests. |
+| [Local resync investigation](plans/local-game-resync-investigation.md) | Exact user logs, actual refresh/recovery ownership and cause-tagged diagnostics. |
+| [Immediate live-play recovery](plans/immediate-live-play-recovery.md) | Retail/new-game and live stability confirmation still pending after tested client fixes. |
+| [Remaining shell schisms](plans/fix-ui-schisms.md) | Still-unchecked original standard/grey/gold text and c3_PopupWindow chrome fidelity. |
+| [Authority/art gap report](plans/reference-parity-contract-gaps.md) | Specific unprojected effective/private facts and asset/variant limits; no invented values or server edits. |
 
-See [source evidence and red/green regressions](plans/starting-settlers-projection.md).
+## Final correctness and delivery gates
 
-- [x] Verify server starter creation, owner/viewer mapping, fog refresh and SSE wire format read-only; confirm the running server uses its default synthetic rules.
-- [x] Reproduce and fix client loss of the nested resync snapshot, Go null-slice rejection and misclassification of opaque settler-capable starters. Do not invent local units/terrain or modify the server.
-- [x] Correct bootstrap mocks to match the actual envelope. Test both default synthetic and retail starter profiles through decoding, selection, command identity, centered camera, actual actor/terrain/radar rendering and semantic Move/Settle controls, all in memory.
-- [x] Strict lint, full tests (308 library, 326 binary, 19 integration), native build and LLVM line coverage **80.35%** pass. Required fast coverage script remains absent; no Windows binary validation claimed.
-- [x] Document fixes/review, run pre-commit lint-fix and commit with normal verification enabled.
+- [ ] Route every remaining gameplay operation through exact current server commands and correct local/remote bootstrap/options; never regress to the historical client-generated world/AI/economy fallback. Multiplayer prerequisites/options and single-human local-server play remain authoritative.
+- [ ] Complete reference-accurate city/goods/ruin/improvement/territory/labels and permitted action/event presentation. Original sprites are implemented, but visual/lifecycle acceptance and current reported bugs remain open.
+- [ ] Obtain any demonstrated missing public/display/action contracts through server-maintainer work; keep unsupported controls and private/effective metrics unavailable. Diagnostic report: `$CTPSERVER/server-client-schisms.md` (documentation only).
+- [ ] For every code slice: strict `cargo make lint`, full tests, >=80% full-target LLVM line coverage, dedicated native build, security/privacy/performance/source review and modules<800; `cargo make lint-fix` immediately before each normal commit; unchanged hooks, no bypasses.
+- [ ] Report missing `./scripts/check-coverage-fast.sh` honestly (127); enforce the available LLVM80% gate instead, without creating/changing restricted scripts. Preserve native Linux support and complete Windows validation once Rust target/native GTK/GLib/GObject cross sysroot/pkg-config environment is available; no Windows success currently claimed.
+- [ ] Final actual end-to-end play and all33 accepted reference scenarios, all accessible control journeys and remaining unchecked details; component tests alone do not satisfy this gate.
 
-## CTP2 Reference Interaction Pass (partial; full request remains open)
+## Completed implementation ledger
 
-See [the 33-image context inventory, source evidence and unfinished checklist](plans/reference-interaction-fidelity.md).
+Latest **committed** checkpoint: `fbeb093`,1286 executions (624 library+642 binary+19 integration+1 example),85.62% LLVM lines; strict lint/full suite/native build/normal hooks pass. Current Science UI changes are in progress and do not inherit screen acceptance.
 
-- [x] View all references individually and preserve filename context; identify missing manager/context/city/message workflows rather than claiming parity.
-- [x] Implement original-art gameplay cursors/hotspots and clock-driven edge scrolling, with focus/modal cancellation and stationary-pointer path refresh.
-- [x] Present accepted submitted movement using directional SPR frames and one travel/frame clock for the currently supported Settler/Warrior/barbarian art. Preserve shell speed/animation settings and do not consume animations during network waits.
-- [x] Reproduce/fix foreign actors rendered with missing tile facts; test hidden/stale/visible/missing cases using real SDL pixel readback.
-- [x] Add fileless visual regressions for original cursor pixels and eight directions × four animation phases, plus deterministic opt-in motion previews. Keep the main-menu layout intact.
-- [x] Strict lint, 326 library/344 binary/19 integration tests and native build pass; LLVM line coverage **80.88%**. Required coverage script is absent. Windows cross-check attempted, blocked by GIO/GLib cross-compilation pkg-config/sysroot.
-- [ ] Complete all remaining manager/dialog/control-panel/context workflows, action animation and source/server metadata integration. The full installed unit-art catalog is now loaded. Optimize Sliders' Apolyton callback/evaluator has been located; the authoritative counterfactual evaluation contract is not established.
-- [ ] Certify full-reference pixel parity and complete accessible click workflows only after that remaining work is implemented and validated.
+- [x] Launch/intro skip, menu/shell/setup/options/audio/input/viewport foundations, extraction/dialog fixes and related source-art regressions. Historical shell option state/persistence is not proof of all in-game effects.
+- [x] Original terrain/SPR/RIM/resource/city decoding, fog/edge/seam fixes, actual viewer starter/projection decoding and menu-owned window handoff. No screenshot-completion claim.
+- [x] Contractv2 integration: `04813e5`, `b12d801`, `5f3ebf1`, `31fcaa3`, `c557e58`, `ea98904`: typed unknown-safe facts, stable queues/commands, asynchronous immutable retries/receipts, retained destinations, forms and observed presentation/history.
+- [x] Unit/Trade advisors and source controls (`cc8d812`, `c75912b`, `44dc654`); National (`e14c0ef`), Empire/details/government and footer (`bc1afcd`, `9a3f892`, `5533528`); complete-screen and missing effective/private facts remain open.
+- [x] Diplomacy exact responses/main/details/review (`21d40df`, `1810eb1`, `614d3f6`, `9dbddc5`); Library item research-goal identity (`3c19f55`). Full authoring and screenshot workflows remain open.
+- [x] Installed manifest marker launch repair `0b8841e` (user confirmed), selected-installation Times/Arial discovery `7fe2fe7` (no copies), revision/read-budget sync fixes `c1de63c`, historical-notice sync ownership `3df0793`; new local-resync/live symptoms remain open.
+- [x] Presented-stack privacy/grouping `358c0ef`, source-pixel/current-revision picking and non-rebased gestures `a9c7dec`, source context popup correction `fbeb093`. **Correction retained:** ActivateSelectedInfo calls BuildList and opens a real popup; the earlier panel-only/no-popup inference in c2f748e was wrong. Current selected/eligible army rows precede known city/Map Info; unselected sheltered city fallback remains conditional.
+- [x] Leader first-backspace fix is already committed in `229e3f5`; its old commit-only checkbox was stale. String-manifest final commit checkbox was likewise already satisfied in `0b8841e`.
 
-## Reference Interaction Continuation (verified milestone, not completion)
+### Consolidated open work (not marked completed)
 
-The full, expanded remaining checklist is maintained in [reference-interaction-fidelity.md](plans/reference-interaction-fidelity.md). Source/parser/frame tests do not replace 33-scenario acceptance.
+The six redundant trackers were merged, not silently accepted: `full-game-parity-correction.md` (remaining server commands/art -> UI/final gates), `singleplayer-in-game.md` (remaining coverage/commit -> delivery gates), `maintainability-refactor.md` (coverage/environment -> delivery gates), `presented-unit-stack-identity.md` and `presented-actor-hit-testing.md` (remaining full stack/army/hover/right-click/keyboard -> UI checklist/original-map detail), `ui-first-reference-screen-priority.md` (entire priority order/reference/ruin/lower-follow-up/quality scope -> this file). Broader unaccepted frames, source behavior and all user requests remain unchecked above.
 
-- [x] Preserve viewer-safe legal actions, movement planning, rules/research/reports and projected facts; separate unsupported gateway actions from executable orders.
-- [x] Implement explicit city/unit context selection/cancel and terrain information; stop issuing a hidden first action on right-click.
-- [x] Resolve all 72 installed unit records through retail `newsprite.txt`; cover Hoplite/Archer directional output, fortification overlays, Windows-1252 labels and original bad-frame fallback.
-- [x] Add cost-aware routing/turn-marker accounting, expanded army-deduplicated portrait selection, authoritative partial-health colors and actual firepower values. Full retained multi-turn orders/actions remain unchecked in the detailed plan.
-- [x] Parse installed LDL inheritance/draw order, localized labels, original centering and intrinsic image dimensions; compose fourteen original manager/dialog roots in native SDL.
-- [x] Share manager control descriptors with accessible activation and exclusive input handling; preserve independent build/queue selections and reject stale confirmation payloads.
-- [x] Bind/test exact Add, Rush Buy, research selection and server-recommended founding payloads using isolated mock HTTP receipts. Automatically open the accepted new city's Build Manager once; fix distinct National/Trade and Statistics tab entry points.
-- [x] Validate strict lint, 364 library/382 binary/19 integration test executions, dedicated native build and **81.55%** LLVM line coverage. The fast script remains absent; Windows cross-check stops in GObject/GLib pkg-config sysroot setup before client compilation.
-- [ ] Finish remaining client-side policy/government/specialist/army/trade/diplomacy/library/statistics/options workflows, lower-panel bodies, notifications, city rendering, event/action animation and all visual acceptance. These are not all server-blocked.
-- [ ] Reconcile Apolyton-specific layout additions and runtime-created controls with references; verify complete semantic journeys and all 33 native/reference-sized captures.
-- [ ] Resolve demonstrated server contract blockers through server-maintainer work; do not modify the server implementation or emulate destructive queue edits locally. See `$CTPSERVER/client-discovered-server-issues.md` (documentation commit `5ed6237`).
+### Retired completed component plans
 
-## Great Library browsing continuation (not full reference acceptance)
+Files below had completed local checklists/commit evidence; implementation evidence is retained in Git, FIXES.txt, source/tests, and the ledger above. Retrieve full prior text with `git show <commit>:plans/<filename>`. Historical plans may describe **superseded** approaches (generated frontier IDs, blocking/zero-resync policies, community layouts or synthetic fallback); current original-source/server-authority rules win. Removing these files does not certify the whole game or the33 screens.
 
-See [the component checklist](plans/great-library-workflows.md); continue afterward with [the full remaining plan](plans/reference-interaction-fidelity.md).
+| Retired filename | Evidence commit |
+|---|---|
+| authoritative-frontier-move-fix.md |60586d1; superseded by v2 public-coordinate intents, never reintroduce generated hidden IDs |
+| authoritative-projection-move-fix.md |8169e26; superseded by v2 exploration/unknown-safe authority |
+| client-contract-v2.md |3df0793; integration series above |
+| ctp2-drag-move-input.md |d492634 |
+| ctp2-movement-runtime-repair.md |2f189c0 |
+| ctp2-movement-source-fidelity-pass.md |2c392a7 |
+| ctp2-source-aligned-movement-repair.md |3de5355 |
+| custom-map-new-game-fidelity.md |1c0e223 |
+| dialog-continue-response.md |a71d2a0 |
+| disable-options-and-prune-hub.md |b1d1248 |
+| flat-world-original-description.md |a2fe577 |
+| gameplay-viewport-reticle-repair.md |1319864 |
+| historical-notice-sync-ownership.md |3df0793 |
+| ingame-dropdown-parity.md |3927fb7 |
+| in-game-interface-repair.md |20d7110 |
+| installed-source-font-discovery.md |7fe2fe7 |
+| intro-audio-options-completion.md |e6b75d8; shell foundations, not full game effects |
+| intro-video-main-menu.md |0c03c5f |
+| leader-backspace-single-character.md |229e3f5 |
+| leader-name-editing-style-fix.md |5d17c9e |
+| leader-textfield-native-edit-fidelity.md |59f0a47 |
+| manager-runtime-geometry.md |b3fbbd8 |
+| menu-resize-line-artifacts.md |5a3b8d6 |
+| music-track-selection-and-repeat.md |0c2b3e6 |
+| national-manager-reference-parity.md |e14c0ef; component only, frame18 still open |
+| new-game-label-worldshape-alignment.md |0c2b3e6 |
+| options-functionality-and-newgame-cleanup.md |4b69add |
+| options-menu-fidelity.md |904e95a |
+| options-right-side-disabled-only.md |689ca28 |
+| options-runtime-effects.md |4b69add |
+| original-actor-context-call-chain.md |fbeb093 |
+| original-diplomatic-review.md |9dbddc5 |
+| original-disabled-button-art.md |2649c3f |
+| original-library-research-goals.md |3c19f55 |
+| pixel-perfect-gameplay.md |53c77ec; component only, not33-frame parity |
+| proportional-menu-viewport-scaling.md |22ee490 |
+| random-music-click-latency-slider-sounds.md |35cad66 |
+| resolution-scrollbar-warning-cleanup.md |ed5f1eb |
+| resolution-selector-hitboxes.md |d81ef73 |
+| server-startup-investigation.md |3e5877d; diagnosis only, no current startup guarantee |
+| sharp-scaled-menu-viewport.md |fae2cbc |
+| shell-fidelity-deep-pass.md |69e62d3 |
+| shell-ui-fidelity-review.md |e3f5b14; remaining distinctions moved to UI/gaps |
+| singleplayer-launch-crash-diagnosis.md |121083f |
+| singleplayer-menu-system.md |7962e2b |
+| starting-settlers-projection.md |4fa1e85 |
+| string-manifest-launch-recovery.md |0b8841e |
+| terrain-pixel-seams.md |644fe14 |
+| ui-schisms-audit.md |8099f73; unresolved fixes still indexed above |
+| world-shape-leader-input-fidelity.md |e039972 |
+| zenity-dialog-fallback.md |4be7743 |
 
-- [x] Read installed articles and active `uniticon.txt` metadata; preserve sections, safe internal links and non-executable variables. Fix shared scanner confusion between quoted braces and record delimiters with a failing-then-passing in-memory regression.
-- [x] Implement explicit cached global search, local category indexes, bounded article history, Gameplay/Historical bodies and exact related-window return. Test production input/semantic dispatch without contacting a running server or altering the authoritative snapshot.
-- [x] Keep buildable/queue selections independent while the last interaction controls source descriptions/library links. Use current projected numbers only for verified expressions; unknown mappings remain unavailable.
-- [x] Reproduce/fix extreme scrolling, missing source portrait stretch and oversized title-art overdraw. Test original Library/Science/Build picture pixels, shared link rectangles/underlines, white edit fields, and SDL Unicode/IME state restoration entirely in memory.
-- [x] Inspect native and reference-sized Library captures. Fix the obsolete negative-position caption, missing uppercase title key and source pattern subrectangles without copying installed assets or modifying the main menu/server.
-- [x] Strict lint/lint-fix, 381 library + 399 binary + 19 integration test executions, native build and **82.09%** LLVM line coverage pass. Required fast coverage script is absent; repeated Windows MSVC validation remains blocked in GTK native dependencies by cross-compiling pkg-config/sysroots.
-- [x] Implement projected advance dependency chart/recentering, source borders/connectors, overflow pagination and a real center-article callback.
-- [x] Add source-created sort/index/rangers, UTF-8 editing/selection/word/delete/undo, injected clipboard shortcuts, AltGr safety, measured pointer/IME presentation and bounded range capture.
-- [x] Add verified runtime expression mappings, session-owned source fonts/metrics, original LDL first-template/child precedence and tail-to-head painting, source justification/shadows and title overhang.
-- [x] Inspect updated populated Build/Science and Library/chart diagnostics at native/reference sizes; keep empty fixtures empty and preserve read-only artwork/server boundaries.
-- [ ] Complete exact Library/Build/Science art/text/layout acceptance, including font availability, picture framing, data/progress columns and source-created advisor/runtime details.
-- [x] Integrate authoritative persistent research goals (contractv2), never substitute immediate set-research. Original Player::SetResearchGoal item-to-enabling-advance mapping now drives source Library Set Goal for units/buildings/wonders/governments and direct advances through only current projected prerequisite IDs/advertised actions. Multiple enablers require explicit choice; malformed/conflicting/unknown data stays unavailable. Native source button/keyboard and isolated HTTP prove exact second prerequisite, unchanged queued goal/current target. See [original-library-research-goals.md](plans/original-library-research-goals.md).
-- [ ] Complete the rest of the parent plan, every manager/panel/animation workflow and all 33 reference acceptances. Neither browsing nor chart/editor implementation is completion of the original full request.
-- [x] Repeat lint-fix/strict lint, full tests (**410 library + 428 binary + 19 integration = 857 executions**), dedicated native build and LLVM coverage (**82.91%**); inspect read-only/source/authority boundaries and prepare a normal verified commit. Required fast script remains absent; Windows checking stops in GTK/GLib cross-compilation configuration before client compilation.
+## Tracking cleanup and immediate continuation
 
-## Main-plan runtime list/row checkpoint
-
-The completion target remains [the entire reference interaction plan](plans/reference-interaction-fidelity.md), not a component checklist.
-
-- [x] Implement original runtime list frame expansion with distinct content/header/ranger geometry, content-based row capacity and no phantom zero-sized source/SDL controls.
-- [x] Cache/render installed Build/Science/Research item templates, real verified numeric columns and bounded cell clipping; retain exact parent identity for accessible/pointer activation.
-- [x] Separate Science's viewer-known discovery table from the research candidate picker; sort by current projected costs, draw only verified own-player knowledge blocks and never infer foreign discoveries.
-- [x] Inspect new populated native/reference-size diagnostic captures; run lint-fix/strict lint, **419 library + 437 binary + 19 integration = 875 executions**, native build and **83.15%** LLVM coverage. Windows/fast-script blockers are unchanged.
-- [x] Integrate source Build/City city selectors, single captions, five-part dropdown art and explicit arrow layer flags; support exact-ID previous/next/popup/pointer/keyboard/scroll/cancellation and reject stale choices/click-through.
-- [x] Verify new-city production metadata/session/revision/receipt handoff against an isolated HTTP stub. Inspect separate two-city open/closed diagnostic captures. Lint-fix/strict lint, **432 library + 450 binary + 19 integration = 901 executions**, native build and **83.43%** LLVM coverage pass.
-- [x] Bind original five-level rations/workday/wages sliders and science/PW spinners to verified typed, bounded parameter schemas; preserve companion values, captured revisions, native source thumb/groove/arrow artwork, preview-only capture and receipt-owned displays. Repair the original workday pre-inversion comparison bug.
-- [x] Reproduce stale scalar-intent rebasing and reject it before submission. Validate exact policy route/envelope/payloads with isolated HTTP receipts, including requested science60 versus received/displayed57. Inspect separate explicit `empire-populated` native/reference captures without accepting the mismatched retail/Apolyton layout.
-- [x] Repeat lint-fix/strict lint, **445 library + 463 binary + 19 integration = 927 executions**, dedicated native build and **83.79%** LLVM line coverage (41,530 lines; 6,731 missed). Required fast script and Windows cross-compile environment blockers remain unchanged.
-- [ ] Continue government comparison/enactment, Empire layout/lifecycle reconciliation, remaining authoritative manager/control-panel operations and every unchecked main-plan acceptance. Checkpoint commits are not a stopping condition.
-
-## UI-first continuation and launch encoding blocker
-
-Continue using [the existing reference plan](plans/reference-interaction-fidelity.md); no replacement plan was created.
-
-- [x] Finish the incoming Empire government/Details lifecycle checkpoint without substituting National Manager for Details.
-- [x] Restore full-screen Empire columns/header spinners and the supplied six-row Graphics/two-slider presentation; fix atomic Sound sliders, paired ticks, runtime Close and obsolete background overdraw. Native artwork tests and bounded reference-PNG corner masks pass; these are not whole-screen parity acceptance.
-- [x] Restore source Empire/City/Msgs/Tile lower-panel bodies, five locally selectable tile categories, viewer-only labels and real progress portraits. Fix clipped short button caps, iconic layer offsets and reversed Unit firepower/armor positions. Inspect explicit empty/populated captures.
-- [x] Reproduce the reported `Units.txt` launch failure using injected non-UTF-8 bytes. Fix the client reader, not original data; apply the shared Windows-1252/UTF-8 decoder to unit/resource/sound inputs and preserve real I/O failures.
-- [x] Strict lint and full tests pass (**468 library + 486 binary + 19 integration = 973 executions**), dedicated native build passes, LLVM overall line coverage is **84.51%**. Required fast script remains absent; Windows MSVC checking is blocked before client compilation by native dependency cross-pkg-config/sysroot configuration.
-- [ ] Complete remaining manager/advisor, message/popups, city/map UI and all 33 complete reference-scenario acceptances. Most/all UI has **not** been certified identical; follow the unchecked main-plan items rather than interpreting component passes as completion.
-
-## Reported movement, city and cursor defects
-
-- [x] Reproduce and fix the 24-native-pixel path-anchor offset, restore thin source path lines and zoom-scaled turn boxes, and verify real SDL line pixels.
-- [x] Reproduce SDL 1.2x pointer450→449 truncation; share an integer window/drawable/native transform, preserve aspect-ratio placement and reassert hidden OS cursor state. The screenshot's cropped bottom was user-caused, not a layout defect.
-- [x] Replace blue city rectangles with original cached GC sprites, native hotspots/alpha and remembered shading. Read installed style/age/size recipes; test every referenced city group and adversarial fog cases. Use projected names/queue heads, never machine IDs or invented Warriors, and inspect the native/reference-sized city capture.
-- [x] Validate strict lint, **480 library + 498 binary + 19 integration = 997 test executions**, native build and **84.65%** LLVM line coverage. Windows checking is still blocked in GTK/GLib dependency cross-compilation setup, and the required fast coverage script remains absent.
-- [x] Resolve authoritative terrain-details caching and phase/End Turn synchronization through the independently implemented server contract v2 below. The complete reference checklist remains open; the historical server-edit blocker is not the current feature status. This client integration changes no server files.
-
-## Client reconciliation with server contract v2
-
-See [the comprehensive child checklist and verification ledger](plans/client-contract-v2.md), continuing—not replacing—[the reference interaction plan](plans/reference-interaction-fidelity.md).
-
-- [x] Preserve typed optional viewer observations, public bounds/calendar, quotes/forecasts, city art facts/governors, goals, retained movement, semantic notices and own history without inventing legacy zeroes or geography.
-- [x] Use advertised phase-aware End Turn, current registered routes, parameter validation and atomic stable-entry queue operations; bind rename/disband, Sleep/Wake, governors, goals and explicit legal target forms.
-- [x] Move gameplay commands/events off SDL, retain retry identity after lost/truncated responses, accept only monotonic complete safe snapshots, and distinguish Pending/Resynchronizing/queued intent from execution.
-- [x] Restore and cancel server-retained journeys, submit public coordinates without fake tile IDs, keep provisional motion separate from canonical units, and reconcile only known submitted/retained paths. Constrain non-wrapped public camera bounds without discovery.
-- [x] Consume cached inspection/ownership, original ruin/improvement/city age art, unaffordable quotes/forecasts/calendar and trade accounting. Bind bounded read/unread messages, source ranger/popups/eye navigation and actual own-history graphs; retain independent entry/content selections.
-- [x] Full suite: **514 library + 532 binary + 19 integration = 1065 executions**; native build passes; LLVM line coverage **84.27%** with the 80% threshold enforced. The fast script is absent. Windows GNU checking was attempted but is blocked by its missing Rust target and GTK/GLib/GObject cross-pkg-config/sysroot before client compilation; no Windows success is claimed.
-- [x] Finish strict lint/lint-fix and source/privacy/concurrency review; stage the presentation slice for a normal verified commit. Record evidence in the child ledger; unchanged commit hooks must pass.
-- [ ] Continue the parent plan's remaining source/reference reconciliation. This integration does not certify complete-game deployment, exact missing culture/optimizer/foreign-history contracts, moving-stack/attack/death behavior or all 33 reference screenshots.
-
-## Immediate live-play concerns (user-confirmed after launch recovery)
-
-- [ ] P0: Cities only offer "Synthetic" production. Audit current server bootstrap/rules profile and viewer legal actions/catalog; expose and select actual supported retail units/buildings/wonders through authority. Never rename a synthetic server record to pretend real gameplay or invent buildable items.
-- [x] P0 client synchronization churn: coalesce actual observed revisions rather than refetching own receipt-covered events; keep snapshot revision separate from durable SSE sequence; share monotonic3100ms admission across stream/current-read threads under server20/min limiter instead of400ms/100ms retry storms. Mandatory recovery survives wake coalescing and stale current reads keep retrying. Actual isolated-worker tests hold idle stream, preserve immutable retry/receipt identity and prove no redundant GET/429/Recovery. Live confirmation remains separate from tested client fix.
-- [x] Add production-category/label and sync/HTTP regressions; strict lint/full tests/native build pass;1218 executions and85.34% LLVM lines. Document exact retail restart/new-game requirement and shared SSE limiter/cursor constraints; commit normally then continue all remaining main-plan work. See [immediate-live-play-recovery.md](plans/immediate-live-play-recovery.md).
-
-## Reported Strings.txt launch failure (priority continuation)
-
-- [x] Trace the actual configured GOG manifest read-only; its standalone DoNotImportDefaults marker shifted the paired-entry reader. Original local ctp2_source has no such marker; this is selected-installation compatibility, not original gameplay logic or imported community behavior.
-- [x] RED injected marker/import/translation and malformed-tail tests reproduce both the launch error and accidentally accepted corrupt pairs. GREEN ordered cursor preserves quoted marker values, empty translations, first-definition precedence and import/read boundaries; missing IDs now have contextual errors. Production renderer successfully loads the actual configured GOG installation without modifying assets or contacting the server.
-- [x] Complete launch-fix full verification: strict lint/full tests/native build pass;1204 executions;85.30% LLVM lines, >=80% enforced; actual GOG render exits0 and user confirms launch recovery. Fast script absent; Windows target/sysroot limitations unchanged. Commit normally, then address immediate production/synchronization concerns and resume **every unchecked main/parent item**. See [string-manifest-launch-recovery.md](plans/string-manifest-launch-recovery.md). Do not stop at the launch fix or check off unverified references.
-
-## Full-screen reference continuation (active request)
-
-Execute [full-screen-reference-parity.md](plans/full-screen-reference-parity.md) and the existing parent until all unblocked implementation/acceptance work is complete. Do not treat another partial commit as completion or mark blocked/unverified references accepted.
-
-- [x] Reproduce missing Unit/Trade attached advisor panes and controls, trace original show/hide/docking/column behavior, and implement cached source windows/art/styles with own-only accounting.
-- [x] Reproduce collapsed item columns and gold-versus-production support confusion. Keep unavailable private AI recommendations/applied support honest; record exact source/server evidence in [the client-only gap report](plans/reference-parity-contract-gaps.md).
-- [x] Validate original full-width advisor roof pixels, local native/semantic visibility callbacks, outbound-only trade accounting and foreign-unit exclusion without files or live-server mutations.
-- [x] Implement source Unit statistics/tactical columns, cached small icons, source health bars, actual readiness/total labels, quantized current-revision readiness and explicit per-unit disband choices. Add native and isolated HTTP regressions; keep type/instance selections independent across receipts.
-- [x] Reproduce/fix whole-window value-box overflow, old-retail Unit list geometry, clipped HyperTextBox advice and missing canonical string imports. Load all source Strings.txt imports safely/read-only and correct the earlier false missing-title assumption. Inspect the separate two-settler Unit diagnostic at both sizes without accepting the entire reference.
-- [x] Add pure dense full-viewport RGB comparison, explicit bounded menu-only decoration calibration and a read-only production-render example. Negative controls include a single missing/displaced pixel, malformed buffers and a failing manager interior that cannot influence crop selection. Unit full-frame comparison remains a measured failure, not an accepted screenshot.
-- [x] Restore source/reference three-tab Trade window and six advisor rows, independent market/export/import identities, source columns/art and explicit local own/friendly/all filters. Accurate HTTP verifies full-payload selection/queued reconciliation; unavailable quote/bonus/color/cancel/accounting contracts are documented, not fabricated. Inspect both sizes and retain measured complete-frame failures.
-- [x] Restore original cached statustext descriptions for manager hover/keyboard focus, explicit disabled reasons and operational/recovery/modal status priority; verify semantic IDs, real input modality and the complete native footer rectangle. Exact Times faces remain unavailable on this Linux environment; no fallback-font screenshot acceptance is claimed.
-- [x] Restore source National three-tab/eleven-header revision, resource/status/specialist columns, local known-value sorting, exact selected-city governor/quoted rush/confirmation/navigation lifecycle and accurate queued HTTP regressions. Detect absent upic26/upic27 without copying or wrong-art substitution; inspect both sizes and retain measured full-frame failure. Missing applied resource/demographic accounting remains explicit.
-- [x] Fix typed current diplomatic rejection, explicit same-contact proposal/reply workspace and distinguish treaty/Accept/Reject labels. Native semantic entry and isolated HTTP prove exact accept:false with no local queued execution; malformed/legacy/stale identities fail closed. Split manager kind/action methods to a bounded leaf without changing the public enum/API or adding lint exemptions.
-- [x] Restore tall source Diplomacy main/list/button geometry and cached six Intelligence row columns. Show only received relations/treaty/trade and explicit IDs; flag/foreign strength/embassy remain unavailable. Clear disappeared contact selection without retargeting. Native opaque-window readback fixes underlying HUD leaks; absent newer dw_lb/dw_rb extensions are explicit original-column fallbacks, not exact parity. Uncontacted no-city diagnostic is independent of Build's queue; full-frame comparison still fails and no reference is accepted.
-- [x] Restore original three-tab DiplomacyDetails via exact second-contact source entry/related navigation; Close/ESC restores parent selections, snapshot loss clears/returns without retargeting. Cache source geometry/items/captions; known bilateral facts/explicit ID only. Foreign contact lists, private domestic data and advance set-differences are explicit unavailable, not zero/empty or viewer-data substitution. Native keyboard and three-tab in-memory rendering tests use no live transport/filesystem writes.
-- [x] Correct original installation font discovery: selected/localized and default uidata/fonts precede system fallback, following original local civ3_main/CivPaths. Share between body and source controls/live previews, reject unsafe names via injected probes, keep explicit fallback/measurement agreement. Configured GOG Times/Arial files are available; previous blanket missing-font diagnosis corrected without copies. Strict lint/full tests/native build pass;1224 executions;85.34% LLVM lines. Full reference still fails, not accepted.
-- [x] Restore original local-source DipWizard review for explicit canonical proposal/response choices. Opening never submits; source Accept/Reject/Send preserves exact command/revision and original related-intelligence/Cancel/ESC lifecycle. No default tone/private portrait/exchange/statistics; unsupported controls explicit. Ambiguous/no-capture/stale/fixed-legacy/removed-target cases fail closed. Actual chooser Return → original Reject → isolated HTTP verifies exact false and unchanged queued treaty/proposal; native stages render in memory. Strict lint/full tests/native build pass;1234 executions;85.33% LLVM lines. Complete authoring/history/remaining protocol/UI and full frames are still open.
-- [x] Restore original Library item-based persistent goal callback, including government enable_advance_id and unit/building/wonder prerequisites, direct/clear goals, safe ID namespaces and revision-bound explicit choices. Strict lint/full tests/native build pass;1242 executions;85.37% LLVM lines. Fresh Windows check remains blocked in GLib/GObject cross pkg-config/sysroot before client compilation; no fake acceptance.
-- [x] Fix presented-stack privacy/motion identity: hidden/stale/missing foreign members no longer suppress own glyphs or leak herald counts, and selected traveling actor cannot hide stationary destination actor. Prepare permitted poses once, index exact source units/sprite IDs without portrait clones, group resting cells versus known traveling armies/independent units, retain selection only inside actual displayed group. Whole-native-frame privacy and destination-pixel/pure membership regressions pass. Strict lint/full tests/native build pass;1250 executions;85.42% LLVM lines. Actual moving hit testing/other interactions remain open in [presented-unit-stack-identity.md](plans/presented-unit-stack-identity.md).
-- [x] Add source-pixel moving actor LEFT-pointer identity and exact semantic activation: cached immutable frame alpha masks follow painted group/pose/facing/hotspot/delta/zoom; current-revision/position/owned/alive guards reject stale/vanished/foreign actors without neighbor selection. Select actual displayed actor, not phantom canonical destination; order origin remains authoritative. Same visual-tile jitter cannot issue reverse movement; held gestures cancel on changed revision/origin. Explicit second-member Context Move / accessible Activate honors selected ID rather than previous same-cell active member. Fixed original partly-clipped/reversed-edge hit bugs without porting original renderer. Native installed SPR1x/2x/east/west/pixel tests and pure masks/gestures pass;1268 executions/85.51% LLVM, lint/full tests/native build. See [presented-actor-hit-testing.md](plans/presented-actor-hit-testing.md): moving right-click/hover/keyboard and all broader actor work remain open; no33-frame acceptance.
-- [x] Moving-body right-click/hover plus complete original call-chain correction: ArmyContextClick selects exact actor; ActivateSelectedInfo calls BuildList and opens a real context popup. The initial c2f748e panel-only/no-popup audit was wrong and is explicitly superseded in [original-actor-context-call-chain.md](plans/original-actor-context-call-chain.md). Popup preserves chosen ID over selected neighbor, selected/eligible unit-before-known-city rows and one final Map Info; missing geography/foreign/dead/removed actors fail closed. Unselected sheltered city garrison does not invent an active army. Body hover Hand preserves held-drag movement feedback.1286 executions/85.62% LLVM/lint/full tests/native build. Full LEFT-mode deselection/Unit-City-None/alternate preference/remaining rows/style remain open in [original-map-pointer-dispatch.md](plans/original-map-pointer-dispatch.md); no reference acceptance.
-- [x] Additional P0 continual-resync cause: fresh-to-UI historical rejection inside a verified snapshot forced Ready/Pending back to Resynchronizing and could roll back unrelated newer presentation. Message ingestion now has immutable state and no transport access; obsolete UI full-read callback removed. Worker current/receipt/error recovery remains authoritative; actual failure still rolls back, complete recovery stays Ready, background notice/snapshot cannot acknowledge Pending. Historical failure text no longer claims ongoing resync. Inert-channel/status/receipt/current/actual-recovery/text regressions pass;1282 executions/85.59% LLVM/lint/full suite/native build. [historical-notice-sync-ownership.md](plans/historical-notice-sync-ownership.md). Live user stability/retail restart/new-game confirmation still open; then every remaining parent item.
-- [ ] Continue [Diplomacy's original main/detail/geometry checklist](plans/diplomacy-manager-reference-parity.md); the response fix is not whole-screen or full diplomacy parity.
-- [ ] Finish all remaining manager/panel/animation/options/interaction work and complete-frame acceptance for all 33 named references; continue TDD, strict lint/tests/coverage/build and verified atomic commits.
+- [x] Audit all69 client plan files, completed versus active versus redundant; preserve implementation evidence and all unresolved work, including stale commit-only closures. Do not remove server plans.
+- [x] Retire51 implemented/completed component files, consolidate six redundant trackers into this main checklist, keep/index12 remaining detailed checklists/reports, migrate links and validate all33 unaccepted entries/no lost scope. Read-only validation reports12/12 indexed, zero broken Markdown links and33 unique unchecked references; historical evidence remains retrievable through the table above.
+- [ ] Run doc/link validation, strict lint/tests/coverage/native build as required, lint-fix and normal commit; keep the requested server documentation separate from server implementation.
+- [ ] **Then resume the current Science Manager UI changes immediately**, its next source-backed RED test, the rest of the UI wave and every unchecked main/detail item. Plan cleanup is not a new implementation detour or completion claim.

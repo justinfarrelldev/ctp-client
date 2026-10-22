@@ -4,7 +4,11 @@ Continuation of [reference-interaction-fidelity.md](reference-interaction-fideli
 
 Immediate live-play P0 continuation: [production catalog and persistent resynchronization](immediate-live-play-recovery.md), requested after user-confirmed launch recovery. Audit/fix before more cosmetic work; never fabricate retail production or hide true sync failures. Font investigation correction: actual selected GOG installation contains Times/Arial under uidata/fonts; previous blanket missing-font conclusion was incomplete because font discovery searched system paths only. Correct selected-installation discovery after P0 recovery, without copying fonts.
 
-Priority launch recovery: [string-manifest-launch-recovery.md](string-manifest-launch-recovery.md). Continue this entire plan afterward. Source clarification: use **local original ctp2_source**, not community/Apolyton source, as behavior/style authority for new work. Earlier community-reference evidence in this historical ledger is not permission to port its accumulated changes. Installed variant metadata may require explicitly scoped compatibility without changing original semantics.
+Completed launch recovery: [main implementation ledger](../PLAN.md#completed-implementation-ledger), commit0b8841e; its old component plan is retired. Continue this entire plan afterward. Source clarification: use **local original ctp2_source**, not community/Apolyton source, as behavior/style authority for new work. Earlier community-reference evidence in this historical ledger is not permission to port its accumulated changes. Installed variant metadata may require explicitly scoped compatibility without changing original semantics.
+
+## Latest user priority
+
+Source-accurate UI workflows/screens, original mouse-selection behavior and all33 references take precedence over other outstanding work. Current context correction finished in fbeb093; start screens now: Science24 -> Build/City/Empire/Library -> remaining managers/panels/options/context. See [main execution order](../PLAN.md#execution-order). Explicit added workload: original ruin exploration wording/native popup for reference23, tracked in original-ruin-exploration-text.md; use confirmed reward metadata only. Historical P0/font entries below are checkpoints, not permission to displace the current UI-first order with unrelated work.
 
 ## Completion rules
 
@@ -16,7 +20,7 @@ Priority launch recovery: [string-manifest-launch-recovery.md](string-manifest-l
 
 ## Workstreams
 
-National's verified implementation ledger: [National Manager reference parity](national-manager-reference-parity.md), commit e14c0ef. Active next manager: [Diplomacy Manager reference parity](diplomacy-manager-reference-parity.md); complete its remaining original panes/geometry after the initial response fix, then continue all other workstreams and still-unaccepted reference cases below.
+National's verified component is in the [main completed ledger](../PLAN.md#completed-implementation-ledger), commit e14c0ef; reference18 remains open. Diplomacy remains unfinished in [Diplomacy Manager reference parity](diplomacy-manager-reference-parity.md), but the latest UI-first screen wave starts with Science24; follow [PLAN.md's execution order](../PLAN.md#execution-order) and complete all remaining panes/geometry/workstreams and still-unaccepted references.
 
 - [ ] Re-audit all 33 references/current output and original source; build source-backed scenario/geometry/interaction manifests without copying reference pixels into production or shipping assets.
 - [ ] Full-frame viewer-fixture rendering and in-memory comparison/oracle, decoration crop normalization, native/reference-size checks and negative controls.
@@ -39,39 +43,7 @@ National's verified implementation ledger: [National Manager reference parity](n
 
 ## Per-reference complete-frame acceptance
 
-- [ ] 01 building-complete-message-in-msgs-clicked-to-show-popup
-- [ ] 02 building-complete-message-in-msgs
-- [ ] 03 build-manager-multiple-items-added-granary-selected
-- [ ] 04 build-manager-multiple-items-added-settler-selected-on-left
-- [ ] 05 city-founded-then-build-manager-pops-up
-- [ ] 06 city-tab-no-city
-- [ ] 07 city-tab-with-city
-- [ ] 08 diplomacy-manager-opened
-- [ ] 09 empire-manager-opened
-- [ ] 10 empire-tab
-- [ ] 11 fortified-warrior
-- [ ] 12 graphics-overlay-ingame-from-dropdown
-- [ ] 13 great-library-opened
-- [ ] 14 hoplite-built-in-rome
-- [ ] 15 messages-tab-no-messages
-- [ ] 16 moving-unit-line
-- [ ] 17 moving-unit-to-city-line-notice-the-numbers-for-num-of-turns
-- [ ] 18 national-manager-opened
-- [ ] 19 ranking-overlay-from-stats-dropdown-ingame
-- [ ] 20 right-click-terrain-with-friendly-city-and-fortified-unit-in-city
-- [ ] 21 right-click-terrain-with-friendly-unit-on
-- [ ] 22 right-click-terrain-with-no-unit-on
-- [ ] 23 ruin-information-popup
-- [ ] 24 science-manager-opened
-- [ ] 25 settler-shows-green-tile-outlines-around-where-city-bounds-will-be
-- [ ] 26 sound-overlay-from-dropdown-ingame
-- [ ] 27 tile-tab-not-enough-pw-for-farm
-- [ ] 28 trade-manager-opened
-- [ ] 29 unit-manager-opened
-- [ ] 30 unit-tab-multiple-units-in-capitol-rome-clicked-on-arrow-to-expand-units
-- [ ] 31 unit-tab-multiple-units-in-capitol-rome
-- [ ] 32 unit-tab
-- [ ] 33 yellow-select-archer-can-no-longer-move
+The **single authoritative 33-checkbox ledger** now lives in [PLAN.md: Reference-screen acceptance](../PLAN.md#reference-screen-acceptance). All33 remain unchecked. This detail file retains methodology/source/comparison evidence without a second divergent acceptance list.
 
 ## Evidence ledger
 
@@ -143,12 +115,12 @@ Goal checkpoint:strict lint/full tests/dedicated native build pass;1242 executio
 
 Presented-stack identity/privacy slice: native RED caught hidden/stale/missing foreign co-location suppressing own actor or leaking herald count, and selected traveler suppressing stationary destination actor. GREEN prepares permitted poses first, indexes canonical source metadata and resolves sprite numbers without unused portrait/icon/name clones, groups resting cells versus exact received traveling army+pose/destination or independent unit, and keeps selection/count within that displayed group. No coincident-position army inference; source sprite cadence/hotspot/delta/flags/reticles preserved. Whole native frames compare owned-only with forbidden member permutations (selected/unselected/both orders/fog disabled); separate native destination body and pure same-army/independent/convergence/unknown-authoritative-type tests pass. No files/live server/canonical changes.
 
-Render-identity checkpoint:strict lint/full tests/dedicated build pass;1250 executions;85.42% LLVM lines >=80%;all modules<800/server unchanged. Fast script absent/latest Windows cross sysroot block unchanged. Actual moving-stack pointer/accessible interactions, remaining actor workflows and every33 full-reference acceptance remain unchecked; continue linked presented-unit-stack-identity.md after normal lint-fix/hooks commit.
+Render-identity checkpoint:strict lint/full tests/dedicated build pass;1250 executions;85.42% LLVM lines >=80%;all modules<800/server unchanged. Fast script absent/latest Windows cross sysroot block unchanged. Actual moving-stack pointer/accessible interactions, remaining actor workflows and every33 full-reference acceptance remain unchecked; continue the [main UI/mouse/stack checklist](../PLAN.md#ui-first-remaining-implementation); original completed stack evidence is in its implementation ledger.
 
-Source-pixel LEFT actor interaction checkpoint: last-presented own SPR frame masks share painted group/clock/pose/facing/hotspot/delta/integer zoom; no pointer-time asset IO or coordinate-cell substitute for a moving glyph. Revision/position/owner/liveness fail closed without neighbor rebasing. Phantom destination excluded, visual gesture tile differs from authoritative command origin, tiny jitter cannot reverse-order, and changed revision/origin cancels held gestures. Explicit second-member Context Move/accessible Activate now honors exact selection over prior active neighbor. Native source frame pixels match in-memory alpha hits both east/west at1x/2x; original clipped-edge/reversed-run hit bugs fixed instead of copied.1268 executions/85.51% LLVM, lint/full tests/native build pass; modules<800/runtime770 after authority helper moved into authority leaf. Fast-script/Windows blockers unchanged. See presented-actor-hit-testing.md: right-click/hover/remaining actor workflows and all33 full-reference acceptances remain unchecked; normal lint-fix/hooks commit follows.
+Source-pixel LEFT actor interaction checkpoint: last-presented own SPR frame masks share painted group/clock/pose/facing/hotspot/delta/integer zoom; no pointer-time asset IO or coordinate-cell substitute for a moving glyph. Revision/position/owner/liveness fail closed without neighbor rebasing. Phantom destination excluded, visual gesture tile differs from authoritative command origin, tiny jitter cannot reverse-order, and changed revision/origin cancels held gestures. Explicit second-member Context Move/accessible Activate now honors exact selection over prior active neighbor. Native source frame pixels match in-memory alpha hits both east/west at1x/2x; original clipped-edge/reversed-run hit bugs fixed instead of copied.1268 executions/85.51% LLVM, lint/full tests/native build pass; modules<800/runtime770 after authority helper moved into authority leaf. Fast-script/Windows blockers unchanged. See [main UI/mouse/stack checklist](../PLAN.md#ui-first-remaining-implementation): right-click/hover/remaining actor workflows and all33 full-reference acceptances remain unchecked; normal lint-fix/hooks commit follows.
 
-Original map input/full-call-chain correction: c2f748e's panel-only/no-popup finding was wrong. Local ArmyContextClick selects exact unit; ActivateSelectedInfo calls BuildList then opens the real context popup. Cached displayed body now preserves exact received actor over selected neighbor, selected/eligible unit-before-known-city rows and one final Map Info; known sheltered unselected garrison does not invent active army, unknown geography/foreign/dead/missing IDs fail closed. Hover Hand preserves held movement gestures. Three call-chain/composition/privacy REDs and selected/sheltered tests pass;1286 executions/85.62% LLVM/lint/full suite/native build. See original-actor-context-call-chain.md. Full Unit/City/None/default deselection/static/alternate preference/remaining source rows/style are client work in original-map-pointer-dispatch.md, not server blockers. All33 references remain unaccepted.
+Original map input/full-call-chain correction: c2f748e's panel-only/no-popup finding was wrong. Local ArmyContextClick selects exact unit; ActivateSelectedInfo calls BuildList then opens the real context popup. Cached displayed body now preserves exact received actor over selected neighbor, selected/eligible unit-before-known-city rows and one final Map Info; known sheltered unselected garrison does not invent active army, unknown geography/foreign/dead/missing IDs fail closed. Hover Hand preserves held movement gestures. Three call-chain/composition/privacy REDs and selected/sheltered tests pass;1286 executions/85.62% LLVM/lint/full suite/native build. See [main completed call-chain ledger](../PLAN.md#completed-implementation-ledger), fbeb093. Full Unit/City/None/default deselection/static/alternate preference/remaining source rows/style are client work in original-map-pointer-dispatch.md, not server blockers. All33 references remain unaccepted.
 
-Additional P0 sync-ownership checkpoint: historical rejected-order display previously reopened recovery after a verified full snapshot, overwrote unrelated Pending and rolled back newer presentation. Display now has immutable state/no authority transport; UI current-read callback removed while worker invalidation/real-disagreement rollback/full recovery remain intact. Actual receipt stays Ready, background snapshot cannot acknowledge Pending, repeated old notices neither resync nor execute anything; message wording no longer permanently claims recovery. Inert-channel/real-recovery/text regressions pass;1282 executions/85.59% LLVM/lint/full suite/native build, modules<800/server/assets unchanged. See historical-notice-sync-ownership.md. Live stability/retail confirmation and every33 complete-reference acceptance remain open.
+Additional P0 sync-ownership checkpoint: historical rejected-order display previously reopened recovery after a verified full snapshot, overwrote unrelated Pending and rolled back newer presentation. Display now has immutable state/no authority transport; UI current-read callback removed while worker invalidation/real-disagreement rollback/full recovery remain intact. Actual receipt stays Ready, background snapshot cannot acknowledge Pending, repeated old notices neither resync nor execute anything; message wording no longer permanently claims recovery. Inert-channel/real-recovery/text regressions pass;1282 executions/85.59% LLVM/lint/full suite/native build, modules<800/server/assets unchanged. See [main completed sync-ownership ledger](../PLAN.md#completed-implementation-ledger),3df0793. Live stability/retail confirmation and every33 complete-reference acceptance remain open.
 
 After each coherent slice continue the next unchecked workstream and all remaining parent/component acceptance items; a partial commit is not task completion.
