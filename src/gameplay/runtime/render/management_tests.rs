@@ -17,6 +17,54 @@ use serde_json::json;
 use std::path::Path;
 
 #[test]
+fn national_reference_revision_keeps_rendering_when_optional_newer_icons_are_not_installed() {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let state = crate::gameplay::runtime::snapshot::scene::preview_state(
+            crate::gameplay::runtime::snapshot::scene::PreviewScene::PopulatedManager {
+                kind: ManagerKind::National,
+                chart: false,
+            },
+        );
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        ui.management.open(ManagerKind::National, &state, None);
+        canvas.set_draw_color(Color::RGB(0_u8, 0_u8, 0_u8));
+        canvas.clear();
+        draw_management(canvas, &mut textures, &state, &ui, None)
+            .map_err(|error| error.to_string())?;
+        let resources = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+        let specialists = ui
+            .management
+            .activate_id("TabGroup.Tab3.TabButton", &state)
+            .ok_or_else(|| "missing accessible Specialists tab".to_owned())?;
+        ui.management.apply_local(specialists);
+        canvas.clear();
+        draw_management(canvas, &mut textures, &state, &ui, None)
+            .map_err(|error| error.to_string())?;
+        if canvas.read_pixels(None, PixelFormatEnum::RGBA32)? == resources {
+            return Err(
+                "independent original specialist icons/tab did not change the actual frame"
+                    .to_owned(),
+            );
+        }
+        Ok(())
+    });
+    assert!(
+        result.is_ok(),
+        "source National remains usable without copying missing newer art: {result:?}"
+    );
+}
+
+#[test]
 fn docked_advisor_roof_is_the_actual_original_full_width_art_and_hides_with_its_callback() {
     let result = with_canvas((800, 600), |canvas| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");

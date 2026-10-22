@@ -55,6 +55,11 @@ mod index_tests;
 mod list_tests;
 /// Original list frame/pane separation and overflow-safe runtime sizing.
 mod lists;
+/// Source National revision and exact own-city accounting/control boundaries.
+mod national;
+/// Source National three-tab rows, private-safe values and exact-city actions.
+#[cfg(test)]
+mod national_tests;
 /// Atomic original option-slider presentation.
 mod option_art;
 /// Source-derived lower-panel bodies, with viewer-safe public captions.

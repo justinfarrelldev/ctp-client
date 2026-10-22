@@ -49,29 +49,32 @@ fn unit_reference_diagnostic_is_two_owned_settlers_not_the_unrelated_city_previe
 }
 
 #[test]
-fn trade_reference_fixture_is_an_explicit_no_city_start_not_builds_unrelated_queue() {
-    let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
-        kind: ManagerKind::Trade,
-        chart: false,
-    });
-    assert!(
-        state.cities.is_empty(),
-        "original no-opportunity Trade reference has not founded a city"
-    );
-    assert_eq!(
-        state.units.len(),
-        2,
-        "same explicit two-settler starting profile"
-    );
-    assert_eq!(
-        state
-            .viewer
-            .as_ref()
-            .and_then(|viewer| viewer.interface.contract.as_ref())
-            .map(|contract| contract.version),
-        Some(2_u32),
-        "complete v2 facts justify empty own-city accounting sums"
-    );
+fn trade_and_national_reference_fixtures_are_explicit_no_city_starts_not_builds_queue() {
+    for kind in [ManagerKind::Trade, ManagerKind::National] {
+        let state =
+            snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
+                kind,
+                chart: false,
+            });
+        assert!(
+            state.cities.is_empty(),
+            "original empty manager reference has not founded a city"
+        );
+        assert_eq!(
+            state.units.len(),
+            2,
+            "same explicit two-settler starting profile"
+        );
+        assert_eq!(
+            state
+                .viewer
+                .as_ref()
+                .and_then(|viewer| viewer.interface.contract.as_ref())
+                .map(|contract| contract.version),
+            Some(2_u32),
+            "complete v2 facts justify empty own-city accounting sums"
+        );
+    }
 }
 
 #[test]

@@ -213,6 +213,8 @@ pub(super) fn caption(
     rect: MenuRect,
 ) -> Option<ManagerWidget> {
     if (view.kind == ManagerKind::City && path == "GovernorBox.Pulldown")
+        || (view.kind == ManagerKind::National
+            && path == "TabGroup.Tab2.TabPanel.GovernorSelect.Pulldown")
         || (view.kind == ManagerKind::Statistics && path.ends_with("RankSelect.Pulldown"))
     {
         let label = if view.kind == ManagerKind::City {
@@ -222,6 +224,8 @@ pub(super) fn caption(
                     || "—".to_owned(),
                     |governor| data::label(ui, &governor.priority),
                 )
+        } else if view.kind == ManagerKind::National {
+            super::national::priority_label(ui, state, view)
         } else {
             format!(
                 "Own {}",

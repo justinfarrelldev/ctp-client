@@ -11,7 +11,7 @@ use alloc::collections::BTreeMap;
 pub(super) fn templates(
     book: &LayoutBook,
 ) -> Result<BTreeMap<&'static str, LayoutNode>, GameplayError> {
-    [
+    let mut templates = [
         "eq_UnitItem",
         "eq_BuildingWonderItem",
         "eq_QueueListItem",
@@ -24,10 +24,14 @@ pub(super) fn templates(
         "UnitTacticalItem",
         "CreateRouteItem",
         "TradeSummaryItem",
+        "NationalResourceListItem",
+        "NationalStatusListItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
-    .collect()
+    .collect::<Result<_, _>>()?;
+    super::national::templates(&mut templates)?;
+    Ok(templates)
 }
 
 /// Immutable source/value context for one exact selectable row identity.
@@ -57,7 +61,10 @@ impl Row<'_> {
         let Some(template) = self.ui.row_templates.get(name) else {
             return false;
         };
-        if matches!(self.view.kind, ManagerKind::Unit | ManagerKind::Trade) {
+        if matches!(
+            self.view.kind,
+            ManagerKind::Unit | ManagerKind::Trade | ManagerKind::National
+        ) {
             self.columns(template, widgets);
         } else if self.view.kind == ManagerKind::Science {
             self.science(template, widgets);
@@ -93,6 +100,9 @@ impl Row<'_> {
     fn value(&self, name: &str) -> String {
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
+        if self.view.kind == ManagerKind::National {
+            return super::national::value(self.ui, self.state, self.path, self.id, name);
         }
         if self.view.kind == ManagerKind::Trade {
             return super::trade::value(self.ui, self.state, self.path, self.id, name);
@@ -181,6 +191,15 @@ impl Row<'_> {
                 {
                     widget.node.fields.insert("image00".to_owned(), image);
                 }
+            }
+            if self.view.kind == ManagerKind::National {
+                super::national::style(
+                    self.state,
+                    self.id,
+                    self.path,
+                    &column.name,
+                    &mut widget.node,
+                );
             }
             widgets.push(widget);
             if self.view.kind == ManagerKind::Unit && column.name == "Health" {
@@ -306,6 +325,13 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Unit if path == "Advisor.List" => Some("UnitManagerAdviceItem"),
         ManagerKind::Unit if path.contains("Tactical") => Some("UnitTacticalItem"),
         ManagerKind::Unit => Some("UnitStatsItem"),
+        ManagerKind::National if path == super::national::RESOURCE => {
+            Some("NationalResourceListItem")
+        }
+        ManagerKind::National if path == super::national::STATUS => Some("NationalStatusListItem"),
+        ManagerKind::National if path == super::national::SPECIALISTS => {
+            Some("NationalSpecialistListItem")
+        }
         ManagerKind::Trade if path == super::trade::MARKET => Some("CreateRouteItem"),
         ManagerKind::Trade if matches!(path, super::trade::SUMMARY | super::trade::IMPORT) => {
             Some("TradeSummaryItem")

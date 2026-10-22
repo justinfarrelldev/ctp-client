@@ -23,6 +23,9 @@ pub(super) fn binding(
     if let Some(binding) = super::selectors::binding(state, view, path) {
         return binding;
     }
+    if let Some(binding) = super::national::binding(state, view, path) {
+        return binding;
+    }
     if let Some(binding) = super::trade::binding(state, view, path) {
         return binding;
     }

@@ -20,6 +20,7 @@ pub(super) fn configure(
         ManagerKind::Graphics => graphics(root, book)?,
         ManagerKind::Unit => unit(root),
         ManagerKind::Trade => super::trade_layout::main(root, book)?,
+        ManagerKind::National => super::national::configure(root, book)?,
         _ => {}
     }
     Ok(())

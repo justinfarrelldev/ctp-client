@@ -120,17 +120,7 @@ pub(super) fn rows(
         ManagerKind::Build if path.starts_with("ItemsBox.") => buildables(ui, state, view, path),
         ManagerKind::Science => super::rows::advances(ui, state, true),
         ManagerKind::Research => super::rows::advances(ui, state, false),
-        ManagerKind::National => owned_city_ids(state)
-            .into_iter()
-            .map(|id| {
-                let title = viewer
-                    .cities
-                    .iter()
-                    .find(|city| city.id == id)
-                    .map_or_else(|| id.clone(), city_name);
-                (id, title)
-            })
-            .collect(),
+        ManagerKind::National => super::national::rows(ui, state, view, path),
         ManagerKind::Unit => unit_rows(ui, state, path),
         ManagerKind::Trade => super::trade::rows(state, view, path),
         ManagerKind::Diplomacy => viewer
@@ -319,7 +309,10 @@ pub(super) fn text(
     if let Some(text) = super::advisors::text(ui, state, view, path) {
         return Some(text);
     }
-    if let Some(text) = articles::text(ui, view, path).or_else(|| super::trade::text(view, path)) {
+    if let Some(text) = articles::text(ui, view, path)
+        .or_else(|| super::trade::text(view, path))
+        .or_else(|| super::national::text(state, view, path))
+    {
         return Some(text);
     }
     let viewer = state.viewer.as_ref()?;

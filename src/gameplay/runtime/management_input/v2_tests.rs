@@ -9,6 +9,89 @@ use serde_json::json;
 use std::{net::TcpListener, thread};
 
 #[test]
+fn national_selected_city_mayor_and_quoted_rush_keep_exact_envelopes_and_only_received_state() {
+    for (route, control, payload) in [
+        (
+            "set-governor",
+            "GovernorSelect.Toggle",
+            json!({"city_id":"c2","enabled":false}),
+        ),
+        ("rush-buy", "RushBuyButton", json!({"city_id":"c2"})),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("isolated gateway");
+        let port = listener.local_addr().expect("ephemeral port").port();
+        let (target, fields) = if route == "set-governor" {
+            ("disabled", json!(["city_id", "enabled"]))
+        } else {
+            ("UNIT_HOPLITE", json!(["city_id"]))
+        };
+        let initial = json!({"revision":17_i64,"turn":3_u32,"contract":{"version":2_u32},"tiles":[{"id":"a","x":1_u16,"y":1_u16,"terrain":"plains"},{"id":"b","x":2_u16,"y":1_u16,"terrain":"plains"}],"cities":[{"id":"c1","name":"Rome","owner_id":"account-7","tile_id":"a","population":1_u32},{"id":"c2","name":"Athens","owner_id":"account-7","tile_id":"b","population":2_u32,"governor":{"enabled":true,"priority":"production"},"queue":[{"entry_id":"c2:1","id":"UNIT_HOPLITE","kind":"unit","cost":20_i64}],"rush_buy_quote":{"revision":17_i64,"status":"available","cost":30_i64}}],"diplomacy":{"gold":100_i32},"rules":{"governor_priorities":["production","science"]},"legal_actions":[{"route":route,"entity_id":"c2","target_id":target,"fields":fields,"payload":payload}]});
+        let mut returned = initial.clone();
+        returned["revision"] = json!(18_i64);
+        returned["planning_status"] = json!("queued");
+        returned["cities"][1]["rush_buy_quote"]["revision"] = json!(18_i64);
+        let worker = thread::spawn(move || respond(&listener, &returned));
+        let mut active = authority(port, initial);
+        let mut state = state_from_authority_projection(
+            &active,
+            active.session.projection.as_ref().expect("viewer"),
+        );
+        state.popups.clear();
+        let mut model = super::tests::ui();
+        model.management.open(
+            crate::gameplay::ui_model::management::ManagerKind::National,
+            &state,
+            None,
+        );
+        super::apply(
+            ManagerIntent::Select("city".to_owned(), "c2".to_owned()),
+            &mut state,
+            &mut model,
+            Some(&mut active),
+        );
+        let tab = model
+            .management
+            .activate_id("TabGroup.Tab2.TabButton", &state)
+            .expect("original status tab");
+        super::apply(tab, &mut state, &mut model, Some(&mut active));
+        let command = model
+            .management
+            .activate_id(&format!("TabGroup.Tab2.TabPanel.{control}"), &state)
+            .expect("exact selected city control");
+        super::apply(command, &mut state, &mut model, Some(&mut active));
+        let request = worker.join().expect("HTTP worker").expect("one request");
+        assert!(
+            request.line.starts_with(&format!("POST /game/44/{route} ")),
+            "registered selected-city route"
+        );
+        assert_eq!(
+            payload_after_validating_envelope(&request.body),
+            payload,
+            "no first-city fallback or client economics"
+        );
+        let viewer = state.viewer.as_ref().expect("received queued snapshot");
+        assert!(
+            viewer.cities[1]
+                .governor
+                .as_ref()
+                .expect("received mayor")
+                .enabled,
+            "queued request is not completed mayor change"
+        );
+        assert_eq!(
+            viewer.diplomacy.as_ref().expect("received treasury").gold,
+            100_i32,
+            "no optimistic rush deduction"
+        );
+        assert_eq!(
+            viewer.cities[1].facts["queue"][0]["entry_id"],
+            json!("c2:1"),
+            "queued receipt does not pop/rebuild production"
+        );
+    }
+}
+
+#[test]
 fn trade_selection_posts_exact_source_to_shared_destination_and_never_invents_queued_route() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("isolated transport");
     let port = listener.local_addr().expect("ephemeral port").port();

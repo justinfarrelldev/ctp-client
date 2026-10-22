@@ -16,6 +16,9 @@ mod editor_tests;
 /// Government chooser navigation, stale identities and exact isolated HTTP receipts.
 #[cfg(test)]
 mod government_tests;
+/// Accessible National manager navigation preserves exact city/return identity.
+#[cfg(test)]
+mod national_tests;
 /// Source thumb capture and keyboard range behavior.
 mod scroll_input;
 /// Source ranger capture and accessible-value regressions.
