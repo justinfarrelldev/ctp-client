@@ -353,30 +353,44 @@ impl<'texture> GameplayTextures<'texture> {
                 crate::gameplay::model::UnitId::from_server_id(&source.id) == unit.id
             })
         });
+        let Some(sprite) = self.unit_sprite(unit, source)? else {
+            return Ok(None);
+        };
         let art = source
             .and_then(|source| self.unit_catalog.get(&source.type_id))
             .cloned()
-            .or_else(|| {
-                (source.is_none() || unit.kind == UnitKind::Settler).then(|| {
-                    crate::gameplay::assets::unit_catalog::UnitArt {
-                        sprite: unit.kind.sprite_id(),
-                        portrait: format!("upup{:03}l.rim", unit.kind.sprite_id()),
-                        icon: format!("upup{:03}a.rim", unit.kind.sprite_id()),
-                        label: unit.kind.label().to_owned(),
-                    }
-                })
+            .unwrap_or_else(|| crate::gameplay::assets::unit_catalog::UnitArt {
+                sprite,
+                portrait: format!("upup{sprite:03}l.rim"),
+                icon: format!("upup{sprite:03}a.rim"),
+                label: unit.kind.label().to_owned(),
             });
-        if let Some(art) = art.as_ref().filter(|_| self.creator.is_some()) {
-            if let Err(error) = self.units.ensure(&self.root, art.sprite) {
+        Ok(Some(art))
+    }
+
+    /// Resolves only the sprite number from an already-indexed exact viewer unit;
+    /// map preparation avoids per-member portrait strings and repeated viewer scans.
+    pub(super) fn unit_sprite(
+        &mut self,
+        unit: &crate::gameplay::model::Unit,
+        source: Option<&crate::gameplay::server::ServerUnitProjection>,
+    ) -> Result<Option<u16>, GameplayError> {
+        let sprite = source
+            .and_then(|source| self.unit_catalog.get(&source.type_id))
+            .map(|art| art.sprite)
+            .or_else(|| {
+                (source.is_none() || unit.kind == UnitKind::Settler).then(|| unit.kind.sprite_id())
+            });
+        if let Some(id) = sprite.filter(|_| self.creator.is_some()) {
+            if let Err(error) = self.units.ensure(&self.root, id) {
                 if self.strict {
                     return Err(error);
                 }
                 return Ok(None);
             }
         }
-        Ok(art)
+        Ok(sprite)
     }
-
     /// Duration for an exact retail sprite, not a three-family artwork fallback.
     pub(super) fn unit_duration(&self, id: u16, speed: i32, enabled: bool) -> u64 {
         self.units.duration(id, speed, enabled)

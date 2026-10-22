@@ -11,6 +11,12 @@ use crate::gameplay::runtime::textures::GameplayTextures;
 use crate::gameplay::runtime::{Camera, MovementInputState};
 use crate::gameplay::{GameplayError, runtime_error};
 
+/// Pure presented-group and authoritative membership regressions.
+#[cfg(test)]
+mod stack_tests;
+/// Prepared viewer-permitted poses keep motion and hidden members out of false stacks.
+mod stacks;
+
 /// Draws original resource actors only when the viewer explicitly knows them.
 pub(super) fn draw_goods(
     canvas: &mut Canvas<Window>,
@@ -96,38 +102,16 @@ pub(super) fn draw_units(
     camera: &Camera,
     input: &MovementInputState,
 ) -> Result<(), GameplayError> {
-    for unit in state.units.iter().filter(|unit| unit.alive) {
-        if unit.owner != PlayerId::Human
-            && state
-                .tile(unit.position)
-                .is_none_or(|tile| tile.fog != FogState::Visible)
-        {
-            continue;
-        }
-        let top = state
-            .selected_unit()
-            .filter(|selected| selected.position == unit.position)
-            .or_else(|| {
-                state
-                    .units
-                    .iter()
-                    .find(|candidate| candidate.alive && candidate.position == unit.position)
-            });
-        if top.is_some_and(|top| top.id != unit.id) {
-            continue;
-        }
-        let art = textures.unit_art(state, unit)?;
-        let duration = textures.unit_duration(
-            art.as_ref().map_or(unit.kind.sprite_id(), |art| art.sprite),
-            input.actors.speed,
-            input.actors.enabled,
-        );
-        let pose = input.actors.pose(unit, camera, duration);
+    for presented in stacks::prepare(textures, state, camera, input)? {
+        let unit = presented.unit;
+        let sprite = presented.sprite;
+        let duration = presented.duration;
+        let pose = presented.pose;
         let (x, y) = pose.position;
         let zoom = i32::try_from(camera.tile_width()).map_or(1_i32, |v| v.div_euclid(94_i32));
         draw_fortification(canvas, textures, state, unit, pose.position, camera)?;
-        let sampled = if let Some(art) = art {
-            textures.unit_texture(art.sprite, pose, duration, input.actors.enabled)?
+        let sampled = if let Some(id) = sprite {
+            textures.unit_texture(id, pose, duration, input.actors.enabled)?
         } else {
             None
         };
@@ -166,11 +150,7 @@ pub(super) fn draw_units(
                 .map_err(runtime_error)?;
             (70_i32, 10_i32)
         };
-        let stack = state
-            .units
-            .iter()
-            .filter(|candidate| candidate.alive && candidate.position == unit.position)
-            .count();
+        let stack = presented.count;
         let shield_x = x.saturating_add(shield.0.saturating_mul(zoom));
         let shield_y = y.saturating_add(shield.1.saturating_mul(zoom));
         draw_stack_shield(
