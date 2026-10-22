@@ -1,0 +1,20 @@
+# Original map pointer dispatch / remaining actor interactions
+
+Parent: presented-actor-hit-testing.md -> full-screen-reference-parity.md -> PLAN.md. **Local original source only.** Continue all parent tasks afterwards, not merely this component.
+
+Audited anchors: TiledMap::AdjustForOverlappingSprite / UnitActor::HitTest / FacedSprite::HitTest; SelItemClick.cpp::InitializeClickFunctions / RegisterClick / DeselectClick / ArmyContextClick / TerrainContextClick. Installed retail, local source and configured GOG userprofile all set UseLeftClick=Yes, though ProfileDB constructor fallback is false. In LEFT mode, right click with a selected local army is DeselectClick; with NONE, own army is ArmyContextClick -> SelectArmyClick + ActivateSelectedInfo, not an invented action popup. TerrainContextClick shows explored help. RIGHT mode instead uses right click to issue movement for selected army. Do not pretend current native ContextView action rows certify the original UI or extend that mismatch casually.
+
+- [x] Audit original input table/defaults before implementation; identify client canonical-grid context targeting and non-source native action-menu behavior.
+- [x] RED no-selection right-click on displayed moving own glyph must select its exact received ID and source Unit panel, no destination-city/neighbor action menu or command.
+- [x] RED own painted glyph hover uses Hand rather than misleading Move/NoMove feedback for terrain behind a traveling actor; reject stale/foreign/dead/removed descriptor.
+- [x] Implement narrow presented-body dispatch shared with exact left/semantic activation, preserve canonical authority/current revision and no pointer asset IO.
+- [ ] Audit/unify selected Unit/City/None and active-order state against original before restoring full LEFT-mode right-click deselection/static/city/terrain behavior; expose authorized local mouse preference for RIGHT mode without sending unsupported server settings.
+- [ ] Replace remaining non-source native popup assumptions, while preserving explicit accessible exact-command workflows and all currently reachable operations. Tests must reflect original behavior, not delete coverage to bless an approximation.
+- [ ] Own/foreign/unknown/stationary/moving/stack/garrison/modal/viewport and stale receipt cases; full native/semantic keyboard regressions.
+- [x] Strict lint/full suite>=80% LLVM/dedicated build/<800 modules, source bug records/main evidence, lint-fix and normal hooks commit each coherent slice.
+
+Narrow checkpoint: native RED proved right-click selected underlying terrain/no unit and moving-body hover incorrectly showed Move; a negative control caught accidentally overriding an existing held movement gesture with Hand. GREEN no-selected-Unit body context activates exact received ID and original Unit tab, cancels potential drag, creates no invented popup/order and keeps canonical position; stale frames stop context dispatch. Hover uses Hand only without a held gesture, preserving legal drag movement feedback and modal/HUD/edge ordering. This does NOT restore all selected-unit/city/terrain/default-click-mode behavior or bless remaining ContextView popups.
+
+Strict lint/full tests/dedicated native build pass;618 library+636 binary+19 integration+1 example=1274 executions;85.53% LLVM lines>=80%. Script absent127/Windows cross sysroot block unchanged; all modules<800/runtime780; no source/assets/server edits. Lint-fix/normal hooks next. Broad behavior/test checklist above remains genuinely unchecked.
+
+All33 complete-reference acceptances remain unchecked. Narrow moving-body selection/hover changes are not full right-click workflow or game completion.

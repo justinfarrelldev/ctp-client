@@ -536,6 +536,16 @@ fn handle_right_click(
         return None;
     }
     movement.cancel_drag();
+    if movement.presentation_stale(state) {
+        return None;
+    }
+    if state.selected_unit().is_none()
+        && movement::begin_presented_unit_drag(state, movement, camera, x, y)
+    {
+        movement.cancel_drag();
+        ui.active_tab = crate::gameplay::ui_model::ControlPanelTab::Unit;
+        return None;
+    }
     if let Some(point) = camera.screen_to_tile(x, y) {
         let rows = crate::gameplay::ui_model::context::context_at(state, point);
         if rows.len() == 1

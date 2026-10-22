@@ -89,6 +89,18 @@ impl MovementInputState {
     ) {
         self.presented.replace(state, targets);
     }
+    /// Current exact owned body under the pointer, using cached alpha rather than grid.
+    pub(super) fn presented_unit_at(&self, state: &GameState, x: i32, y: i32) -> Option<UnitId> {
+        self.presented.at(state, x, y)
+    }
+    /// Held movement gestures remain movement, even over an otherwise selectable body.
+    pub(super) const fn has_drag(&self) -> bool {
+        self.drag.is_some()
+    }
+    /// A changed authoritative frame must not lend stale movement/context feedback.
+    pub(super) fn presentation_stale(&self, state: &GameState) -> bool {
+        self.presented.stale(state)
+    }
     /// Returns the currently active unit.
     #[must_use]
     pub(super) const fn active_unit(&self) -> Option<UnitId> {

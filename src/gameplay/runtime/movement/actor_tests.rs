@@ -206,6 +206,125 @@ fn explicit_context_and_semantic_activate_keep_second_member_identity_even_with_
     );
 }
 #[test]
+fn unselected_moving_body_right_click_activates_exact_source_unit_panel_without_an_invented_cell_action_popup()
+ {
+    let (mut state, mut movement, id) = scene();
+    let mut ui = InGameUiModel {
+        active_tab: crate::gameplay::ui_model::ControlPanelTab::Domestic,
+        ..InGameUiModel::default()
+    };
+    let mut camera = Camera::for_test_identity();
+    let result = handle_event(
+        &Event::MouseButtonDown {
+            timestamp: 0_u32,
+            window_id: 0_u32,
+            which: 0_u32,
+            mouse_btn: MouseButton::Right,
+            clicks: 1_u8,
+            x: 101_i32,
+            y: 101_i32,
+        },
+        &mut state,
+        &mut ui,
+        &mut camera,
+        &mut movement,
+        None,
+    );
+    assert!(result.is_none(), "in-game source context activation");
+    assert_eq!(
+        state.selected_unit,
+        Some(id),
+        "source ArmyContextClick selects actual body ID, not underlying grid cell"
+    );
+    assert_eq!(
+        movement.active_unit(),
+        Some(id),
+        "same exact selection/order identity"
+    );
+    assert_eq!(
+        ui.active_tab,
+        crate::gameplay::ui_model::ControlPanelTab::Unit,
+        "source ActivateSelectedInfo(LOCAL_ARMY)"
+    );
+    assert!(
+        ui.context.is_none() && ui.map_info.is_none(),
+        "no fabricated native action menu or info for unrelated terrain behind actor"
+    );
+    assert!(
+        movement.finish_drag().is_none(),
+        "right click activates information, not an order gesture"
+    );
+    assert_eq!(
+        state.units[0].position,
+        MapPoint::new(5_u16, 5_u16),
+        "no local canonical movement"
+    );
+}
+#[test]
+fn hovering_painted_owned_body_uses_hand_not_terrain_movement_feedback_behind_the_traveler() {
+    let (mut state, mut movement, _id) = scene();
+    state.authoritative = false;
+    for tile in &mut state.tiles {
+        tile.terrain = crate::gameplay::model::TerrainKind::Grassland;
+        tile.fog = crate::gameplay::model::FogState::Visible;
+    }
+    assert!(
+        begin_or_activate_unit_drag(&mut state, &mut movement, MapPoint::new(5_u16, 5_u16)),
+        "current activation"
+    );
+    movement.cancel_drag();
+    let point = Camera::for_test_identity()
+        .screen_to_tile(101_i32, 101_i32)
+        .expect("pointer tile");
+    movement.preview_path_to(&state, point);
+    assert!(
+        !movement.planned_path().is_empty(),
+        "legal terrain behind body gives misleading feedback without actor picking"
+    );
+    let ui = InGameUiModel {
+        pointer: Some((101_i32, 101_i32)),
+        hovered_tile: Some(point),
+        ..InGameUiModel::default()
+    };
+    assert_eq!(
+        crate::gameplay::runtime::cursor::cursor_for_frame(&state, &ui, &movement),
+        crate::gameplay::runtime::cursor::CursorKind::Hand,
+        "owned presented body is selection/information, not an implied destination behind its sprite"
+    );
+}
+#[test]
+fn an_existing_drag_over_a_painted_body_keeps_legal_movement_feedback_instead_of_becoming_a_selection_click()
+ {
+    let (mut state, mut movement, _id) = scene();
+    state.authoritative = false;
+    for tile in &mut state.tiles {
+        tile.terrain = crate::gameplay::model::TerrainKind::Grassland;
+        tile.fog = crate::gameplay::model::FogState::Visible;
+    }
+    assert!(
+        begin_or_activate_unit_drag(&mut state, &mut movement, MapPoint::new(5_u16, 5_u16)),
+        "held gesture"
+    );
+    let point = Camera::for_test_identity()
+        .screen_to_tile(101_i32, 101_i32)
+        .expect("pointer tile");
+    movement.extend_drag_to(&state, point);
+    assert!(
+        !movement.planned_path().is_empty(),
+        "legal held path established"
+    );
+    let ui = InGameUiModel {
+        pointer: Some((101_i32, 101_i32)),
+        hovered_tile: Some(point),
+        ..InGameUiModel::default()
+    };
+    assert_eq!(
+        crate::gameplay::runtime::cursor::cursor_for_frame(&state, &ui, &movement),
+        crate::gameplay::runtime::cursor::CursorKind::Move,
+        "body selection override applies to hover, not a held movement gesture"
+    );
+}
+#[test]
 fn pointer_does_not_select_phantom_destination_but_explicit_semantic_selection_and_stationary_member_still_work()
  {
     let (mut state, mut movement, id) = scene();

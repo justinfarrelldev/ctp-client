@@ -132,6 +132,11 @@ pub(super) fn cursor_for_frame(
     if click_in_non_map_ui(x, y) || input.active_unit().is_none() {
         return CursorKind::Hand;
     }
+    if input.presentation_stale(state)
+        || (!input.has_drag() && input.presented_unit_at(state, x, y).is_some())
+    {
+        return CursorKind::Hand;
+    }
     if !input.planned_bad_path().is_empty() {
         return CursorKind::NoMove;
     }

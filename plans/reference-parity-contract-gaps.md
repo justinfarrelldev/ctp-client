@@ -2,6 +2,10 @@
 
 Client-only findings while continuing `full-screen-reference-parity.md`. Server inspected read-only at `15ada0164180b8e6b8c280029ba55ef5cac88168`. These are specific display gaps, not permission to stop unblocked client work, change the server, or check off complete screenshots.
 
+## Client-only map input mismatch (not a server contract blocker)
+
+Local original `SelItemClick.cpp` LEFT/RIGHT tables, `ArmyContextClick`/`DeselectClick`/`TerrainContextClick` and installed `UseLeftClick=Yes` do **not** justify the current generic native context-action popup. No-selection own army context selects the exact actor and activates Unit information; selected local army in LEFT mode right-click deselects. Source masked moving-body/no-selection selection and non-drag hover now work (1274 executions/85.53% LLVM), but full Unit/City/None selection unification, static/city/terrain/default deselection/alternate preference and remaining popup replacement are unfinished **client work**. See `original-map-pointer-dispatch.md`; preserve accessible exact legal command workflows while restoring native behavior. No source-menu parity or server feature request is implied by existing ContextView component tests.
+
 ## Military advisor recommendation
 
 Original `ctp2_source/ctp2_code/ai/CityManagement/governor.cpp::GetUnitsAdvice` (2476 onward) uses AI build-list deficits and the player's global military rank, and `GetTacticalAdvice` (3242 onward) uses private scheduler goals and computed desired readiness. `unitmanager.cpp::UpdateAdviceText` displays the resulting localized advice with an evaluated SLIC context. The v2 projection does not expose these recommendation/context results; `foreign_statistics_history` is explicitly false. The client can render the exact installed `UnitManagerAdviceWindow`, own-unit counts and local advice visibility, but must not manufacture the reference's “strong military” statement or undisclosed cities/threats.
