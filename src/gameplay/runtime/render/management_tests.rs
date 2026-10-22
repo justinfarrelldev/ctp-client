@@ -17,6 +17,66 @@ use serde_json::json;
 use std::path::Path;
 
 #[test]
+fn original_diplomacy_window_is_an_opaque_surface_not_a_hud_leaking_through_missing_side_art() {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let state = GameState::from_server_projection(
+            &ServerProjection {
+                revision: 1_i64,
+                turn: 1_u32,
+                ..ServerProjection::default()
+            },
+            1,
+            1,
+        );
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        ui.management.open(ManagerKind::Diplomacy, &state, None);
+        let bounds = ui
+            .management
+            .widgets(&state)
+            .into_iter()
+            .find(|widget| widget.id.is_empty())
+            .ok_or_else(|| "source main window".to_owned())?
+            .rect;
+        canvas.set_draw_color(Color::RGB(253_u8, 1_u8, 252_u8));
+        canvas.clear();
+        draw_management(canvas, &mut textures, &state, &ui, None)
+            .map_err(|error| error.to_string())?;
+        let surface = canvas.read_pixels(
+            Some(Rect::new(bounds.x, bounds.y, bounds.width, bounds.height)),
+            PixelFormatEnum::RGBA32,
+        )?;
+        if surface
+            .chunks_exact(4_usize)
+            .any(|pixel| pixel[..3_usize] == [253_u8, 1_u8, 252_u8])
+        {
+            return Err(
+                "opaque original window surface exposes underlying HUD/map through chromakey gaps"
+                    .to_owned(),
+            );
+        }
+        let outside = canvas.read_pixels(
+            Some(Rect::new(0_i32, 0_i32, 1_u32, 1_u32)),
+            PixelFormatEnum::RGBA32,
+        )?;
+        if outside[..3_usize] != [253_u8, 1_u8, 252_u8] {
+            return Err("window clear escaped original bounds".to_owned());
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(), "original opaque window surface: {result:?}");
+}
+
+#[test]
 fn national_reference_revision_keeps_rendering_when_optional_newer_icons_are_not_installed() {
     let result = with_canvas((800_u32, 600_u32), |canvas| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");

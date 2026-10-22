@@ -103,6 +103,14 @@ fn paint_widget(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     let bounds = rect(widget);
+    // Original ctp2_Window owns an opaque, initially black surface even when
+    // its pattern is absent. Chromakey child art must not expose lower HUD/map.
+    if widget.node.field("objecttype") == Some("ctp2_Window")
+        && !widget.node.field("transparent").is_some_and(truth)
+    {
+        canvas.set_draw_color(Color::BLACK);
+        canvas.fill_rect(bounds).map_err(runtime_error)?;
+    }
     if widget.node.field("c3-slider-track") == Some("true") {
         if let Some(texture) = textures.policy_slider_track(
             widget.node.field("pattern").unwrap_or("uptg20e.tga"),

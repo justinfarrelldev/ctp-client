@@ -11,8 +11,6 @@ use crate::gameplay::{
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
-use std::{fs::File, io::BufReader};
-use unciv::ZfsFile;
 /// Missing/available reference artwork is tested without changing installed files.
 #[cfg(test)]
 mod art_tests {
@@ -108,7 +106,7 @@ pub(super) fn configure(root: &mut LayoutNode, book: &LayoutBook) -> Result<(), 
         &format!("{RESOURCE}.header.switch1"),
         &[("text", "Pop.")],
     );
-    optional_header_art(root, installed_images(book)?.as_ref());
+    optional_header_art(root, super::reference_art::pictures(book)?.as_ref());
     specialist_headers(root)?;
     for (path, height) in [(RESOURCE, "238"), (STATUS, "210"), (SPECIALISTS, "238")] {
         set(
@@ -199,38 +197,6 @@ fn resource_headers(root: &mut LayoutNode) -> Result<(), GameplayError> {
         );
     }
     Ok(())
-}
-/// Read-only archive indexes are inspected once during manager construction.
-/// Missing revision-specific images are distinct from corrupt/unreadable archives.
-fn installed_images(book: &LayoutBook) -> Result<Option<BTreeSet<String>>, GameplayError> {
-    let Some(root) = book.installation_root() else {
-        return Ok(None);
-    };
-    let mut names = BTreeSet::new();
-    for archive in [
-        crate::gameplay::assets::PICTURE_ARCHIVE,
-        "ctp2_data/default/graphics/pictures/pic555.zfs",
-    ] {
-        let path = root.join(archive);
-        if !path
-            .try_exists()
-            .map_err(|error| asset_error(error.to_string()))?
-        {
-            continue;
-        }
-        let file = File::open(&path)
-            .map_err(|error| asset_error(format!("{}: {error}", path.display())))?;
-        let mut reader = BufReader::new(file);
-        let index = ZfsFile::from_stream(&mut reader)
-            .map_err(|error| asset_error(format!("{}: {error}", path.display())))?;
-        names.extend(
-            index
-                .files
-                .into_iter()
-                .map(|entry| entry.name.to_ascii_lowercase()),
-        );
-    }
-    Ok(Some(names))
 }
 /// Never copy missing newer icons, substitute misleading art, or crash startup.
 /// Text preserves the column's meaning; its missing-art marker blocks parity claims.

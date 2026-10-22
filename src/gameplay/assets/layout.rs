@@ -150,6 +150,7 @@ impl LayoutBook {
             "armymanager.ldl",
             "trademanager.ldl",
             "diplomacywindow.ldl",
+            "intelligence.ldl",
             "DiplomacyDetails.ldl",
             "science.ldl",
             "greatlibrary.ldl",

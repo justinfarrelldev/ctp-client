@@ -35,6 +35,8 @@ mod chart_tests;
 mod command;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
+/// Original tall intelligence table and privacy-safe contact columns.
+mod diplomacy;
 /// Exact selected-contact proposal/response choices and labels.
 #[cfg(test)]
 mod diplomacy_tests;
@@ -83,6 +85,8 @@ mod queue_tests;
 mod reconcile;
 #[cfg(test)]
 mod reconcile_tests;
+/// Startup-only read-only optional picture availability shared by source revisions.
+mod reference_art;
 /// Source row shapes, numeric values and research-list visibility regressions.
 #[cfg(test)]
 mod row_tests;

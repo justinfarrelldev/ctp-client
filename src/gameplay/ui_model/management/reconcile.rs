@@ -18,6 +18,7 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
     if view.kind == ManagerKind::Trade {
         super::trade::reconcile(view, state);
     }
+    super::diplomacy::reconcile(view, state);
     let owned = data::owned_city_ids(state);
     if view.city_id.as_ref().is_some_and(|id| !owned.contains(id)) {
         view.city_id = None;

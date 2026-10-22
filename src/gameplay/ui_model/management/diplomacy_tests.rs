@@ -16,6 +16,98 @@ fn fixture() -> (ManagementUi, GameState) {
     (ui, state)
 }
 #[test]
+fn diplomacy_reference_uses_the_tall_original_window_source_list_and_aligned_lower_controls() {
+    let (ui, state) = fixture();
+    let widgets = ui.widgets(&state);
+    let root = widgets
+        .iter()
+        .find(|widget| widget.id.is_empty())
+        .expect("source root");
+    assert_eq!(
+        (root.rect.width, root.rect.height, root.rect.y),
+        (601_u32, 558_u32, 28_i32),
+        "public reference revision, not old short centered dialog"
+    );
+    let list = widgets
+        .iter()
+        .find(|widget| widget.id == "DiplomacyTabs.Intelligence.TabPanel.List")
+        .expect("intelligence list");
+    assert_eq!(
+        (
+            list.node.integer("list-content-width"),
+            list.node.integer("list-content-height")
+        ),
+        (Some(470_i32), Some(396_i32)),
+        "all declared source content pixels, excluding frame expansion"
+    );
+    let close = widgets
+        .iter()
+        .find(|widget| widget.id == "CloseButton")
+        .expect("source close");
+    for name in [
+        "DetailsButton",
+        "MessageButton",
+        "WarButton",
+        "EmbargoButton",
+    ] {
+        let button = widgets
+            .iter()
+            .find(|widget| widget.id == format!("DiplomacyTabs.Intelligence.TabPanel.{name}"))
+            .expect("all source controls retained");
+        assert_eq!(
+            button.rect.y, close.rect.y,
+            "source lower action row aligns across parent coordinate systems"
+        );
+    }
+}
+#[test]
+fn intelligence_uses_source_columns_and_received_relation_facts_without_inventing_nations_strength_or_embassies()
+ {
+    let (ui, mut state) = fixture();
+    state
+        .viewer
+        .as_mut()
+        .expect("viewer")
+        .diplomacy
+        .as_mut()
+        .expect("relations")
+        .facts["relations"][0]["trade"] = json!(true);
+    let widgets = ui.widgets(&state);
+    let prefix = "DiplomacyTabs.Intelligence.TabPanel.List/other-1/cell/";
+    for (name, text) in [
+        ("Nation", "ID other-1"),
+        ("Regard", "Neutral"),
+        ("Treaties", "Peace, Trade"),
+        ("Flag", "—"),
+        ("Strength", "—"),
+        ("Embassy", "—"),
+    ] {
+        assert!(
+            widgets
+                .iter()
+                .any(|widget| widget.id == format!("{prefix}{name}") && widget.label == text),
+            "known current source column {name}; unknown is not zero or guessed artwork"
+        );
+    }
+    let nation = widgets
+        .iter()
+        .find(|widget| widget.id == format!("{prefix}Nation"))
+        .expect("nation identity");
+    let regard = widgets
+        .iter()
+        .find(|widget| widget.id == format!("{prefix}Regard"))
+        .expect("regard");
+    assert!(
+        regard.rect.x > nation.rect.x,
+        "sequential original header-width columns cannot overprint"
+    );
+    assert_eq!(
+        nation.rect.height, 25_u32,
+        "actual runtime-created IntelligenceListItem height"
+    );
+}
+
+#[test]
 fn source_proposal_button_requires_explicit_contact_and_groups_only_that_contacts_current_proposals_and_replies()
  {
     let (mut ui, mut state) = fixture();
@@ -67,6 +159,33 @@ fn source_proposal_button_requires_explicit_contact_and_groups_only_that_contact
         "disappeared contact does not retarget the old workspace to another nation"
     );
 }
+#[test]
+fn disappeared_contact_is_deselected_on_receipt_without_selecting_the_other_visible_nation() {
+    let (mut ui, mut state) = fixture();
+    ui.apply_local(ManagerIntent::Select(
+        "contact".to_owned(),
+        "other-1".to_owned(),
+    ));
+    let viewer = state.viewer.as_mut().expect("viewer");
+    viewer.revision = 7_i64;
+    viewer.diplomacy.as_mut().expect("relations").facts["relations"] =
+        json!([{"target_player_id":"other-2","treaty":"peace","regard":"neutral"}]);
+    ui.reconcile(&state);
+    assert!(
+        !ui.view
+            .as_ref()
+            .expect("open source manager")
+            .selections
+            .contains_key("contact"),
+        "deleted/stale contact cannot alias the next known nation"
+    );
+    assert!(
+        ui.activate_id("DiplomacyTabs.Intelligence.TabPanel.MessageButton", &state)
+            .is_none(),
+        "require a new explicit contact selection even with legal other-target offers"
+    );
+}
+
 #[test]
 fn source_proposal_workspace_labels_distinguish_trade_and_union_without_guessing_foreign_identity()
 {

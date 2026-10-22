@@ -34,6 +34,8 @@ Resolved **client** bug, not a server change: the response action's sample is ac
 
 ## Missing reference-revision artwork
 
+Diplomacy's current 601x558 source Background overrides image03/image05 to dw_lb/dw_rb. Neither rim is installed in either555/565 picture archive. Cached startup availability uses exact actual reference images when present; missing pieces retain installed old original stone columns tiled to the taller span and mark reference-art-unavailable. This is a usability fallback, **not exact art/parity acceptance**; no assets copied. Native opaque ctp2_Window composition independently prevents HUD/map leaking through chromakey/missing-art gaps. An exact acceptance needs legitimate installed reference assets.
+
 Both installed `pic565.zfs` and `pic555.zfs` lack `upic26.rim` and `upic27.rim`, the public/reference National conversion/franchise symbols. `upc039`/`upc040` specialist art is present. Attempting the new source headers initially failed real native rendering. The client now checks read-only archive indexes at manager construction and uses explicit Conv/Fran textual headers with a `reference-art-unavailable` marker when those optional revision-specific images are absent. It uses unchanged original art if present, preserves the columns/meaning and does not crash or substitute unrelated art. No assets were copied, edited, downloaded into the client or fabricated to claim exact parity. Exact matching needs the appropriate licensed installed artwork, separately from the missing original Times faces.
 
 ## Trade ranking, import bonus, native nation color and cancellation

@@ -26,6 +26,7 @@ pub(super) fn templates(
         "TradeSummaryItem",
         "NationalResourceListItem",
         "NationalStatusListItem",
+        "IntelligenceListItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -63,7 +64,7 @@ impl Row<'_> {
         };
         if matches!(
             self.view.kind,
-            ManagerKind::Unit | ManagerKind::Trade | ManagerKind::National
+            ManagerKind::Unit | ManagerKind::Trade | ManagerKind::National | ManagerKind::Diplomacy
         ) {
             self.columns(template, widgets);
         } else if self.view.kind == ManagerKind::Science {
@@ -100,6 +101,9 @@ impl Row<'_> {
     fn value(&self, name: &str) -> String {
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
+        if self.view.kind == ManagerKind::Diplomacy {
+            return super::diplomacy::value(self.state, self.id, name);
         }
         if self.view.kind == ManagerKind::National {
             return super::national::value(self.ui, self.state, self.path, self.id, name);
@@ -325,6 +329,7 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Unit if path == "Advisor.List" => Some("UnitManagerAdviceItem"),
         ManagerKind::Unit if path.contains("Tactical") => Some("UnitTacticalItem"),
         ManagerKind::Unit => Some("UnitStatsItem"),
+        ManagerKind::Diplomacy if path == super::diplomacy::LIST => Some("IntelligenceListItem"),
         ManagerKind::National if path == super::national::RESOURCE => {
             Some("NationalResourceListItem")
         }

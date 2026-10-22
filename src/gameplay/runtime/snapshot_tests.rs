@@ -49,8 +49,12 @@ fn unit_reference_diagnostic_is_two_owned_settlers_not_the_unrelated_city_previe
 }
 
 #[test]
-fn trade_and_national_reference_fixtures_are_explicit_no_city_starts_not_builds_queue() {
-    for kind in [ManagerKind::Trade, ManagerKind::National] {
+fn empty_manager_reference_fixtures_are_explicit_no_city_starts_not_builds_queue() {
+    for kind in [
+        ManagerKind::Trade,
+        ManagerKind::National,
+        ManagerKind::Diplomacy,
+    ] {
         let state =
             snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
                 kind,

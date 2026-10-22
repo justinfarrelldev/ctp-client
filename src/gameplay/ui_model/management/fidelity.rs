@@ -21,6 +21,7 @@ pub(super) fn configure(
         ManagerKind::Unit => unit(root),
         ManagerKind::Trade => super::trade_layout::main(root, book)?,
         ManagerKind::National => super::national::configure(root, book)?,
+        ManagerKind::Diplomacy => super::diplomacy::configure(root, book)?,
         _ => {}
     }
     Ok(())
