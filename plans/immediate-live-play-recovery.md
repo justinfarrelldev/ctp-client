@@ -15,6 +15,9 @@ Parent: PLAN.md and [full-screen-reference-parity.md](full-screen-reference-pari
 - [x] Fix root cause while preserving immutable command retries, exact current receipt acknowledgement, monotonic full-snapshot recovery and bounded nonblocking workers.
 - [x] UI-thread recovery/receipt tests plus real isolated-worker idle/self-event test prove full receipts remain acknowledgements and already-covered events do not issue redundant current reads or induce HTTP429/Resynchronizing. Stale current snapshots retry rather than leaving UI permanently blocked.
 
+- [x] Separate P0 follow-up: historical order.rejected notices in an already verified snapshot no longer force Resynchronizing, overwrite a newer Pending or roll back unrelated presentation. Display ingestion is immutable/no transport access; UI current-read callback removed. Actual network disagreement/recovery and immutable retry ownership remain intact. Failure-message wording no longer permanently claims recovery. Three REDs, inert-channel status/receipt/current/real-recovery and text regressions pass;1282 executions/85.59% LLVM/lint/full suite/native build. See historical-notice-sync-ownership.md.
+- [ ] User confirms sustained healthy Ready behavior in live play; isolated fixtures/checks are not live acceptance.
+
 ## Delivery
 - [x] Strict lint/full tests >=80% LLVM line gate, dedicated native build, honest Windows/fast-script outcomes, source/privacy/performance review.
 - [x] Update FIXES/main/parent evidence, lint-fix before normal commit, unchanged hooks; server/original trees untouched.

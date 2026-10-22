@@ -1,0 +1,18 @@
+# P0 historical rejection notices must not own live synchronization
+
+Parent: immediate-live-play-recovery.md / PLAN.md / all remaining full-screen work. User reported continual Resynchronizing. Shared SSE limiter/revision-coalescing fixes are committed; this is a separate discovered client ownership bug.
+
+Finding: message_input::refresh reads notifications only from an already-received canonical viewer snapshot. A fresh-to-the-UI historical order.rejected notice currently sets state.network=Resynchronizing, rolls back unrelated actor presentation/cancels input and calls io.resync, even when transport already applied a verified complete receipt/current snapshot. It can overwrite a NEWER Pending command. Message text also permanently says Resynchronizing even after recovery. Notices are display facts, not current command receipts/event invalidations/acknowledgements.
+
+- [x] Trace receipt/current-snapshot/event recovery and message ingestion callers; confirm actual disagreement rollback stays in sync/network ownership and full snapshots are verified before display.
+- [x] RED accurate channel/isolated worker tests with historical rejection in Ready/Pending/Resynchronizing, repeated revisions/stable IDs; no live server or file writes. Verify no extra read/recovery, no Pending acknowledgement/replacement, no rollback of unrelated clocks/gesture.
+- [x] RED historical message text is true after Ready and does not claim ongoing recovery or successful order execution.
+- [x] Remove display-induced synchronization side effect; preserve actual transport/rejection invalidation recovery, explicit error outcome rollback and current receipt checks. Prefer immutable state for display ingestion.
+- [x] Regression actual rejected receipt/current recovery still rolls back/recovers correctly; messages/read state/date/ruin modal unchanged; no fabricated awards/results or hidden details.
+- [x] Strict lint/full tests>=80% LLVM/dedicated native build, module bounds/Windows/environment outcomes, docs/main/FIXES, lint-fix and normal unchanged hooks commit.
+
+Evidence: three REDs reproduced Ready->Resynchronizing and Pending->Resynchronizing after verified old notice, plus permanent recovery wording. GREEN message ingestion now has immutable GameState and no RuntimeAuthority/transport parameter; UI full-read callback/channel ownership removed from Network. Watcher/command workers still own coalesced mandatory/revision requests, limiter/cancellation and real transport disagreement/current recovery. In-memory production-shaped channels (no threads/socket/file writes) verify all three statuses, stable notice ID/repeated ingestion, no generated command or newer presentation rollback; full background snapshot cannot acknowledge Pending, exact receipt becomes Ready and true Recovering still rolls provisional presentation back before verified current Snapshot becomes Ready despite the old notice. Text records failure neutrally, never implies execution/success/ongoing recovery. Ruin modal/read/date/privacy behavior retained.
+
+Strict lint/full tests/dedicated native build pass;622 library+640 binary+19 integration+1 example=1282 executions;85.59% LLVM lines>=80%. Fast script absent127; latest Windows sysroot/pkg-config blocker unchanged. All modules<800/runtime780; server/assets/original untouched. Lint-fix/normal hooks next; live retail/long-running user confirmation remain separate.
+
+Then finish original-map-pointer-dispatch.md and every remaining main/parent task/all33 complete-reference acceptances. Live retail mode still requires user restart/new game confirmation; this does not certify whole application behavior or screenshot parity.

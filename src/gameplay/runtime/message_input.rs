@@ -1,13 +1,13 @@
 //! Source message selection, Close and permitted eye navigation.
-use super::{Camera, MovementInputState, RuntimeAuthority};
-use crate::gameplay::model::{GameState, NetworkStatus};
+use super::{Camera, MovementInputState};
+use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::{ControlPanelTab, InGameUiModel, MenuRect, messages::MessageLog};
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton};
 
-/// Receives immutable results exactly once; never applies rewards to game state.
+/// Displays received snapshot facts; immutable state and no transport access
+/// prevent historical results from acknowledging or reopening live recovery.
 pub(super) fn refresh(
-    authority: Option<&RuntimeAuthority>,
-    state: &mut GameState,
+    state: &GameState,
     ui: &mut InGameUiModel,
     movement: &mut MovementInputState,
 ) {
@@ -33,14 +33,6 @@ pub(super) fn refresh(
     if let Some(notice) = fresh.iter().find(|notice| notice.kind == "ruin.explored") {
         ui.messages.open(&notice.id);
         movement.cancel_drag();
-    }
-    if fresh.iter().any(|notice| notice.kind == "order.rejected") {
-        if let Some(io) = authority.and_then(|active| active.io.as_ref()) {
-            state.network = NetworkStatus::Resynchronizing;
-            movement.actors.rollback();
-            movement.cancel_drag();
-            io.resync();
-        }
     }
 }
 /// Exact source Close/eye rectangles shared with accessible activation and painting.

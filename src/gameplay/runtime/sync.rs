@@ -39,13 +39,13 @@ pub(super) fn submit(
 
 /// Updates network results and semantic notices without ever applying local rewards.
 pub(super) fn frame(
-    mut authority: Option<&mut RuntimeAuthority>,
+    authority: Option<&mut RuntimeAuthority>,
     state: &mut GameState,
     ui: &mut InGameUiModel,
     movement: &mut MovementInputState,
 ) {
-    poll(authority.as_deref_mut(), state, ui, movement);
-    super::message_input::refresh(authority.as_deref(), state, ui, movement);
+    poll(authority, state, ui, movement);
+    super::message_input::refresh(state, ui, movement);
 }
 
 /// Applies at most one complete outcome each frame, retaining explicit recovery.

@@ -178,7 +178,8 @@ pub fn text(notice: &Notification, state: &GameState, book: &LayoutBook) -> Stri
             _ => "The ruins have been explored; reward details are unavailable.".to_owned(),
         },
         "order.rejected" => {
-            "An order could not be completed. Resynchronizing with the server.".to_owned()
+            "An order could not be completed. Review the current game state before trying again."
+                .to_owned()
         }
         "movement_order.completed" => "The army has reached its destination.".to_owned(),
         "movement_order.stopped" => {

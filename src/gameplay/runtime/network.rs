@@ -9,6 +9,9 @@ use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
 
+/// Historical display results must not become transport recovery/acknowledgements.
+#[cfg(test)]
+mod notice_tests;
 /// Shared admission and revision-aware recovery, independent of SDL state.
 mod recovery;
 /// Fake-time recovery/coalescing regressions perform no IO.
@@ -123,10 +126,6 @@ pub(super) struct Network {
     jobs: SyncSender<PreparedCommand>,
     /// Complete results/recovery states consumed by the UI thread.
     results: Receiver<Outcome>,
-    /// Coalesced current-read requests, also used by semantic rejection recovery.
-    invalidations: SyncSender<()>,
-    /// Revision hints/mandatory requests cannot disappear behind a full wake queue.
-    refresh: Arc<RefreshRequests>,
     /// Cooperative cancellation; read timeouts bound stream shutdown latency.
     stop: Arc<AtomicBool>,
 }
@@ -148,7 +147,6 @@ impl Network {
         let watcher_gate = Arc::clone(&gate);
         let watcher_refresh = Arc::clone(&refresh_requests);
         let command_refresh = Arc::clone(&refresh_requests);
-        let refresh_sink = invalid_sink.clone();
         let watcher_stop = Arc::clone(&stop);
         let watcher_client = client.clone();
         let watcher_session = session.clone();
@@ -222,8 +220,6 @@ impl Network {
         Ok(Self {
             jobs,
             results,
-            invalidations: refresh_sink,
-            refresh: refresh_requests,
             stop,
         })
     }
@@ -233,12 +229,6 @@ impl Network {
         self.jobs
             .try_send(command)
             .map_err(|error| error.to_string())
-    }
-
-    /// Coalesces an explicit full-state recovery with any pending stream wakeup.
-    pub(super) fn resync(&self) {
-        self.refresh.observe(None);
-        let _coalesced = self.invalidations.try_send(());
     }
 
     /// One result per frame leaves recovery presentation visible before replacement.

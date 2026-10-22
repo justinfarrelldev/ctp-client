@@ -91,14 +91,14 @@ fn use_message_controls() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
     let notices=(0_u32..8_u32).map(|index| json!({"id":format!("n{index}"),"kind":"ruin.explored","reward_kind":"gold","amount":250_i64,"turn":1_u32,"tile_id":if index == 7 {"absent"} else {"a"}})).collect::<Vec<_>>();
     let projection:ServerProjection=serde_json::from_value(json!({"revision":1_i64,"turn":1_u32,"world":{"width":20_u16,"height":12_u16},"tiles":[{"id":"a","x":1_u16,"y":1_u16,"terrain":"plains"}],"calendar":{"version":"ctp2-timescale-v1","turn":1_u32,"year":-4000_i64},"notifications":notices})).expect("in-memory notification fixture");
-    let mut state = GameState::from_server_projection(&projection, 1, 1);
+    let state = GameState::from_server_projection(&projection, 1, 1);
     let mut ui = InGameUiModel {
         management: ManagementUi::new(LayoutBook::load(&root).expect("source layouts read-only"))
             .expect("source panel cache"),
         ..InGameUiModel::default()
     };
     let mut movement = MovementInputState::default();
-    message_input::refresh(None, &mut state, &mut ui, &mut movement);
+    message_input::refresh(&state, &mut ui, &mut movement);
     assert_eq!(
         ui.messages.unread(),
         7,

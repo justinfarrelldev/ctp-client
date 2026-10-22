@@ -3,6 +3,28 @@ use super::messages::MessageLog;
 use crate::gameplay::server::v2::Notification;
 
 #[test]
+fn historical_rejection_text_never_claims_ongoing_recovery_or_success_after_the_snapshot_was_received()
+ {
+    let mut state = crate::gameplay::model::GameState::new(8_u16, 8_u16, 1_u8, 1_u64);
+    let book = crate::gameplay::assets::layout::LayoutBook::default();
+    let notice = Notification {
+        kind: "order.rejected".to_owned(),
+        ..Notification::default()
+    };
+    for status in [
+        crate::gameplay::model::NetworkStatus::Ready,
+        crate::gameplay::model::NetworkStatus::Pending,
+        crate::gameplay::model::NetworkStatus::Resynchronizing,
+    ] {
+        state.network = status;
+        assert_eq!(
+            super::messages::text(&notice, &state, &book),
+            "An order could not be completed. Review the current game state before trying again.",
+            "message is a historical failure, not the live network-status label"
+        );
+    }
+}
+#[test]
 fn unknown_ruin_rewards_are_unavailable_not_fabricated_empty_results() {
     let state = crate::gameplay::model::GameState::new(8, 8, 1, 1);
     let book = crate::gameplay::assets::layout::LayoutBook::default();
