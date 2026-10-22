@@ -4,9 +4,19 @@ use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, Ordering};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::mpsc::SyncSender;
 use std::time::Duration;
 
+/// Small revision hints stay separate from large viewer snapshot payloads.
+mod lines;
+use lines::EventLines;
+/// Invalidation hints, never snapshots/patches or command acknowledgements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::gameplay) struct Change {
+    /// Durable sequence only; the resync event's revision ID is not a cursor.
+    pub cursor: Option<u64>,
+    /// Optional observed revision can avoid a read already covered by a receipt.
+    pub revision: Option<i64>,
+}
 /// Explicit transfer phases avoid buffering an entire large resync HTTP chunk.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum Transfer {
@@ -25,50 +35,6 @@ enum Transfer {
     Ended,
 }
 
-/// Only small SSE metadata lines are retained. Snapshot/data lines are skipped.
-#[derive(Debug, Default)]
-struct EventLines {
-    /// Incomplete UTF-8 metadata line.
-    line: Vec<u8>,
-    /// An irrelevant potentially huge data/comment line is being discarded.
-    dropping: bool,
-    /// Cursor belongs to this event, published only after its blank terminator.
-    cursor: Option<u64>,
-}
-impl EventLines {
-    /// Incrementally consumes even multi-megabyte data lines without retaining them.
-    fn consume(&mut self, bytes: &[u8], output: &mut Vec<u64>) -> Result<(), String> {
-        for byte in bytes {
-            if *byte == b'\n' {
-                if self.dropping {
-                    self.dropping = false;
-                } else {
-                    let text = core::str::from_utf8(&self.line)
-                        .map_err(|error| error.to_string())?
-                        .trim_end_matches('\r');
-                    if text.is_empty() {
-                        if let Some(cursor) = self.cursor.take() {
-                            output.push(cursor);
-                        }
-                    } else if let Some(id) = text.strip_prefix("id:") {
-                        self.cursor = id.trim().parse().ok();
-                    }
-                }
-                self.line.clear();
-            } else if !self.dropping {
-                self.line.push(*byte);
-                if self.line.starts_with(b"data:") || self.line.starts_with(b":") {
-                    self.line.clear();
-                    self.dropping = true;
-                } else if self.line.len() > 4096 {
-                    return Err("event metadata line exceeded its bound".to_owned());
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 /// HTTP framing plus streaming invalidation metadata, never canonical payloads.
 #[derive(Debug, Default)]
 pub(in crate::gameplay) struct Invalidations {
@@ -81,7 +47,7 @@ pub(in crate::gameplay) struct Invalidations {
 }
 impl Invalidations {
     /// Accepts arbitrary network fragments and emits complete event cursors only.
-    pub(in crate::gameplay) fn push(&mut self, bytes: &[u8]) -> Result<Vec<u64>, String> {
+    pub(in crate::gameplay) fn push(&mut self, bytes: &[u8]) -> Result<Vec<Change>, String> {
         if self.transfer == Transfer::Ended {
             return Ok(Vec::new());
         }
@@ -146,12 +112,14 @@ impl Invalidations {
             return Ok(false);
         };
         let header = core::str::from_utf8(&self.wire[..end]).map_err(|error| error.to_string())?;
-        if header
+        let status = header
             .lines()
             .next()
-            .is_none_or(|line| line.split_whitespace().nth(1) != Some("200"))
-        {
-            return Err("event stream was not authorized/successful".to_owned());
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|code| code.parse::<u16>().ok())
+            .ok_or_else(|| "event stream status is invalid".to_owned())?;
+        if status != 200_u16 {
+            return Err(format!("event stream returned HTTP {status}"));
         }
         self.transfer = if header
             .to_ascii_lowercase()
@@ -196,7 +164,7 @@ pub(in crate::gameplay) fn watch(
     session: &ServerGameplaySession,
     cursor: &mut u64,
     stop: &Arc<AtomicBool>,
-    sink: &SyncSender<u64>,
+    notify: &mut impl FnMut(Option<i64>),
 ) -> Result<(), String> {
     let address = client.endpoint.socket_address();
     let resolved = address
@@ -229,9 +197,11 @@ pub(in crate::gameplay) fn watch(
         match stream.read(&mut buffer) {
             Ok(0) => return Ok(()),
             Ok(count) => {
-                for id in parser.push(&buffer[..count])? {
-                    *cursor = id;
-                    let _delivery = sink.try_send(id);
+                for change in parser.push(&buffer[..count])? {
+                    if let Some(sequence) = change.cursor {
+                        *cursor = (*cursor).max(sequence);
+                    }
+                    notify(change.revision);
                 }
             }
             Err(error)

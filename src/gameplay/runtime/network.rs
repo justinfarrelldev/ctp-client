@@ -4,9 +4,16 @@ use crate::gameplay::server::{
 };
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicBool, Ordering};
+use recovery::{ReadGate, RefreshRequests};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
+
+/// Shared admission and revision-aware recovery, independent of SDL state.
+mod recovery;
+/// Fake-time recovery/coalescing regressions perform no IO.
+#[cfg(test)]
+mod recovery_tests;
 
 /// Worker messages contain complete viewer state, never canonical patches.
 #[derive(Debug)]
@@ -34,6 +41,10 @@ struct HttpTransport {
     client: ServerClient,
     /// Game membership and session IDs.
     session: ServerGameplaySession,
+    /// All event endpoint connections share admission, including recovery reads.
+    gate: Arc<ReadGate>,
+    /// UI departure cancels a budget wait without blocking SDL shutdown.
+    stop: Arc<AtomicBool>,
 }
 impl Transport for HttpTransport {
     fn submit(&mut self, command: &PreparedCommand) -> Result<ServerProjection, String> {
@@ -44,6 +55,9 @@ impl Transport for HttpTransport {
             .ok_or_else(|| "receipt has no viewer projection".to_owned())
     }
     fn resync(&mut self) -> Result<ServerProjection, String> {
+        if !self.gate.wait(&self.stop) {
+            return Err("gameplay session closed".to_owned());
+        }
         self.client
             .fetch_resync_projection(self.session.game_id, self.session.session_id)
             .map_err(|error| error.to_string())
@@ -74,6 +88,26 @@ pub(super) fn execute(
     }
 }
 
+/// A stale current read cannot finish recovery: UI correctly rejects it, so
+/// retain retry state. A cached own receipt still acknowledges without regression.
+fn complete(outcome: Outcome, known: &mut i64) -> Outcome {
+    match outcome {
+        Outcome::Snapshot(snapshot) if snapshot.revision < *known => Outcome::Failure(format!(
+            "Current snapshot revision {} is older than received revision {}",
+            snapshot.revision, *known
+        )),
+        Outcome::Snapshot(snapshot) => {
+            *known = (*known).max(snapshot.revision);
+            Outcome::Snapshot(snapshot)
+        }
+        Outcome::Receipt(snapshot) => {
+            *known = (*known).max(snapshot.revision);
+            Outcome::Receipt(snapshot)
+        }
+        Outcome::Recovering(error) => Outcome::Recovering(error),
+        Outcome::Failure(error) => Outcome::Failure(error),
+    }
+}
 /// Full current-model recovery, never a local fallback or partial event patch.
 fn refresh(transport: &mut impl Transport, emit: &mut impl FnMut(Outcome)) {
     match transport.resync() {
@@ -90,7 +124,9 @@ pub(super) struct Network {
     /// Complete results/recovery states consumed by the UI thread.
     results: Receiver<Outcome>,
     /// Coalesced current-read requests, also used by semantic rejection recovery.
-    invalidations: SyncSender<u64>,
+    invalidations: SyncSender<()>,
+    /// Revision hints/mandatory requests cannot disappear behind a full wake queue.
+    refresh: Arc<RefreshRequests>,
     /// Cooperative cancellation; read timeouts bound stream shutdown latency.
     stop: Arc<AtomicBool>,
 }
@@ -105,8 +141,13 @@ impl Network {
     ) -> Result<Self, String> {
         let (jobs, requests) = mpsc::sync_channel::<PreparedCommand>(1);
         let (result_sink, results) = mpsc::sync_channel::<Outcome>(8);
-        let (invalid_sink, invalidations) = mpsc::sync_channel::<u64>(1);
+        let (invalid_sink, invalidations) = mpsc::sync_channel::<()>(1);
         let stop = Arc::new(AtomicBool::new(false));
+        let gate = Arc::new(ReadGate::new());
+        let refresh_requests = Arc::new(RefreshRequests::default());
+        let watcher_gate = Arc::clone(&gate);
+        let watcher_refresh = Arc::clone(&refresh_requests);
+        let command_refresh = Arc::clone(&refresh_requests);
         let refresh_sink = invalid_sink.clone();
         let watcher_stop = Arc::clone(&stop);
         let watcher_client = client.clone();
@@ -115,36 +156,46 @@ impl Network {
             .name("ctp-events".to_owned())
             .spawn(move || {
                 let mut cursor = 0_u64;
-                while !watcher_stop.load(Ordering::Relaxed) {
+                while watcher_gate.wait(&watcher_stop) {
+                    let mut notify = |revision| {
+                        watcher_refresh.observe(revision);
+                        let _delivery = invalid_sink.try_send(());
+                    };
                     if let Err(error) = crate::gameplay::server::stream::watch(
                         &watcher_client,
                         &watcher_session,
                         &mut cursor,
                         &watcher_stop,
-                        &invalid_sink,
+                        &mut notify,
                     ) {
                         log::warn!("Gameplay stream reconnect: {error}");
                     }
-                    // Also refresh after disconnect; this recovers missed/expired events.
-                    let _invalidation = invalid_sink.try_send(cursor);
-                    for _ in 0_u8..4_u8 {
-                        if watcher_stop.load(Ordering::Relaxed) {
-                            break;
-                        }
-                        thread::sleep(Duration::from_millis(100));
+                    // A disconnect requires one current read, but never a400ms
+                    // reconnect/current-read storm on the shared limited route.
+                    if !watcher_stop.load(Ordering::Relaxed) {
+                        notify(None);
                     }
                 }
             })
             .map_err(|error| error.to_string())?;
         let command_stop = Arc::clone(&stop);
+        let known_initial = session.revision();
         let commands = thread::Builder::new()
             .name("ctp-commands".to_owned())
             .spawn(move || {
-                let mut transport = HttpTransport { client, session };
+                let mut transport = HttpTransport {
+                    client,
+                    session,
+                    gate,
+                    stop: Arc::clone(&command_stop),
+                };
                 let mut needs_recovery = false;
+                let mut known_revision = known_initial;
                 while !command_stop.load(Ordering::Relaxed) {
                     let recovering = needs_recovery;
+                    let known_before = known_revision;
                     let mut emit = |outcome| {
+                        let outcome = complete(outcome, &mut known_revision);
                         needs_recovery = matches!(outcome, Outcome::Failure(_));
                         // UI departure disconnects the receiver, so a worker cannot
                         // retain/mutate a later SDL session or block shutdown forever.
@@ -154,9 +205,10 @@ impl Network {
                         Ok(command) => execute(&mut transport, &command, &mut emit),
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                         Err(mpsc::RecvTimeoutError::Timeout) => {
-                            if invalidations.try_recv().is_ok() || recovering {
-                                // Coalesce wakeups; current read covers every newer event.
-                                while invalidations.try_recv().is_ok() {}
+                            // Wakeups are only hints; already-covered own events
+                            // must not force another limited current read.
+                            while invalidations.try_recv().is_ok() {}
+                            if command_refresh.take_needed(known_before) || recovering {
                                 refresh(&mut transport, &mut emit);
                             }
                         }
@@ -171,6 +223,7 @@ impl Network {
             jobs,
             results,
             invalidations: refresh_sink,
+            refresh: refresh_requests,
             stop,
         })
     }
@@ -184,7 +237,8 @@ impl Network {
 
     /// Coalesces an explicit full-state recovery with any pending stream wakeup.
     pub(super) fn resync(&self) {
-        let _coalesced = self.invalidations.try_send(0);
+        self.refresh.observe(None);
+        let _coalesced = self.invalidations.try_send(());
     }
 
     /// One result per frame leaves recovery presentation visible before replacement.

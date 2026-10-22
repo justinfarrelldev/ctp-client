@@ -191,8 +191,8 @@ See [the comprehensive child checklist and verification ledger](plans/client-con
 ## Immediate live-play concerns (user-confirmed after launch recovery)
 
 - [ ] P0: Cities only offer "Synthetic" production. Audit current server bootstrap/rules profile and viewer legal actions/catalog; expose and select actual supported retail units/buildings/wonders through authority. Never rename a synthetic server record to pretend real gameplay or invent buildable items.
-- [ ] P0: Gameplay continuously shows Resynchronizing. Reproduce current worker/SSE/current-read/receipt lifecycle with accurate isolated stubs, identify churn versus real disconnect, and stabilize authoritative recovery without masking errors, using background snapshots as acknowledgements or submitting stale commands.
-- [ ] Add native/semantic/HTTP regressions, run all quality checks, document any exact server-maintainer-only blocker and commit fixes normally. Continue all remaining main-plan work afterward.
+- [x] P0 client synchronization churn: coalesce actual observed revisions rather than refetching own receipt-covered events; keep snapshot revision separate from durable SSE sequence; share monotonic3100ms admission across stream/current-read threads under server20/min limiter instead of400ms/100ms retry storms. Mandatory recovery survives wake coalescing and stale current reads keep retrying. Actual isolated-worker tests hold idle stream, preserve immutable retry/receipt identity and prove no redundant GET/429/Recovery. Live confirmation remains separate from tested client fix.
+- [x] Add production-category/label and sync/HTTP regressions; strict lint/full tests/native build pass;1218 executions and85.34% LLVM lines. Document exact retail restart/new-game requirement and shared SSE limiter/cursor constraints; commit normally then continue all remaining main-plan work. See [immediate-live-play-recovery.md](plans/immediate-live-play-recovery.md).
 
 ## Reported Strings.txt launch failure (priority continuation)
 

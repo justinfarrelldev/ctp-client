@@ -273,6 +273,14 @@ pub(super) fn label(ui: &ManagementUi, id: &str) -> String {
     if localized != id {
         return localized.to_owned();
     }
+    // These exact server-owned fixture IDs are not retail content. Explain the
+    // test category; never disguise a synthetic starter as a real Settler.
+    match id {
+        "UNIT_SYNTHETIC" => return "Synthetic test unit".to_owned(),
+        "IMPROVE_SYNTHETIC" => return "Synthetic test building".to_owned(),
+        "WONDER_SYNTHETIC" => return "Synthetic test wonder".to_owned(),
+        _ => {}
+    }
     let name = [
         "UNIT_",
         "ADVANCE_",
