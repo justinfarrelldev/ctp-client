@@ -12,4 +12,13 @@ Parent/priority owner: [PLAN.md](../PLAN.md#execution-order), with full-screen-r
 - [ ] Production SDL frame/source regions in memory and read-only full-reference comparator; justify crop only from unchanged decoration/menu, compare every pixel/dense cells, inspect native/reference-size output. Do not call a component pass or data/font/art mismatch complete-frame acceptance.
 - [ ] Record precise remaining authority/variant/art/geometry gaps, update main/parent evidence, strict lint/full suite>=80% LLVM/dedicated native build/<800 modules; lint-fix and normal hooks commit. Tests never write files or contact a live server.
 
+## Verified first UI-control slice (not screen acceptance)
+
+- [x] Four REDs reproduce wrong unavailable/radial turn text, stale no-target/already-known fields/icon, known-list selection leaving the current description unchanged, and a stray Advice control absent from the reference.
+- [x] Restore original UpdateScience/ClearScience values: both turn controls share '-' for an active unknown estimate and only current received finite turns; no extra engine +1. Known inactive target clears fields/art, while unprojected state is unavailable, not zero. Progress/cost are received facts only.
+- [x] Original AdvanceListCallback now updates the selected known description/links without changing current target/title/portrait or submitting research. Available-only/injected selection cannot replace it.
+- [x] Original constructor's absolute Move(-X,-Y), verified in aui_Region::Move, moves AdvisorButton to100,-354; exclude that off-window subtree from paint/focus rather than exposing the stray Advice control.
+
+Verification:628 library+646 binary+19 integration+1 example=1294 executions;85.65% LLVM lines>=80%, strict lint/full suite/dedicated native build pass. Fast script absent127; Windows cross environment unchanged; all modules<800/management760. No tests write files/contact live services. Read-only every-pixel comparison at origin5,23 still fails:112457/307200 over delta8, raw12109902 (before slice113489/raw12411818). Fixture/capture/font/layout/data differences and GOG mixed-case loose-picture lookup remain unresolved. No frame accepted; normal lint-fix/hooks feature commit next.
+
 Then continue Build/City/Empire/Library and remaining UI screens/mouse behavior/all33 references per UI-first plan; include original-ruin-exploration-text.md reference23 in the popup wave. No permission to stop at one screen or guess private data.

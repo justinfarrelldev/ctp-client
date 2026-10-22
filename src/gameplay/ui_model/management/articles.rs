@@ -225,14 +225,7 @@ fn document<'catalog>(
             (id, LibrarySection::Summary)
         }
         ManagerKind::Science if path == "CurrentResearch.Description" => (
-            state
-                .viewer
-                .as_ref()?
-                .interface
-                .research
-                .as_ref()?
-                .target_id
-                .clone(),
+            super::science::description_target(view, state)?.to_owned(),
             LibrarySection::Statistics,
         ),
         ManagerKind::Research if path == "Background.GlStats" => (
@@ -245,8 +238,12 @@ fn document<'catalog>(
 }
 
 /// Last interacted list controls the description without discarding either selection.
-pub(super) fn selected_description<'view>(view: &'view ManagerView, state: &'view GameState) -> Option<&'view str> {
-    let selected = view.selections
+pub(super) fn selected_description<'view>(
+    view: &'view ManagerView,
+    state: &'view GameState,
+) -> Option<&'view str> {
+    let selected = view
+        .selections
         .get("description")
         .or_else(|| view.selections.get("buildable"))
         .or_else(|| view.selections.get("queue"))
@@ -348,17 +345,7 @@ pub(super) fn image(
     let (id, still) = match view.kind {
         ManagerKind::Library if path == "TechStillShot" => (ui.library.current.as_deref()?, true),
         ManagerKind::Science if path == "CurrentResearch.AdvanceProgress.IconBorder.IconButton" => {
-            (
-                state
-                    .viewer
-                    .as_ref()?
-                    .interface
-                    .research
-                    .as_ref()?
-                    .target_id
-                    .as_str(),
-                false,
-            )
+            (super::science::current_target(state)?, false)
         }
         ManagerKind::Build if path == "ItemImage.IconBorder.IconButton" => {
             (selected_description(view, state)?, true)

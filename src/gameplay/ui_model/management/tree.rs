@@ -590,6 +590,9 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
 
 /// Hides mutually exclusive source modes rather than painting all lists at once.
 fn hidden(view: &ManagerView, path: &str) -> bool {
+    if view.kind == ManagerKind::Science && super::science::hidden(path) {
+        return true;
+    }
     if super::diplomacy::review::hidden(view, path) {
         return true;
     }

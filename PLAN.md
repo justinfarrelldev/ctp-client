@@ -22,7 +22,7 @@
 Detailed source/TDD checklist: [Science Manager reference24](plans/science-manager-reference-parity.md).
 
 - [x] Inspect reference24 and original ScienceManagementDialog/layout/inherited progress controls; trace ClearScience, description/list/link and research entry callbacks.
-- [ ] Finish/verify/commit the current four UI fixes: source radial/numeric turn text agreement; clear known no-target/already-known target controls/icon without turning unprojected data into zero; selected known discovery updates description/links without changing active research; constructor removes the stray off-window Advice control from painting/focus.
+- [x] Implement/verify the current four UI fixes: source radial/numeric turn text agreement; clear known no-target/already-known target controls/icon without turning unprojected data into zero; selected known discovery updates description/links without changing active research; constructor removes stray off-window Advice from painting/focus. Four REDs and1294 executions/85.65% LLVM/lint/native build pass; normal feature commit follows. Science24 itself remains unaccepted.
 - [ ] Complete original Research chooser/Cancel/Close/ESC/parent return, explicit available-ID selection, current request/queued receipt/stale and removed selections, header sorting and source row geometry.
 - [ ] Resolve the demonstrated selected-installation picture lookup dependency: GOG `CM2_Upap012l.tga` exists loose, but Science diagnostic currently falls through to a missing lowercase archive `.rim`. Follow original file/archive precedence and safe case handling, not a wrong-art fallback or a false missing-asset diagnosis.
 - [ ] Freeze a source-backed authorized reference scenario, compare every viewport pixel at justified native/reference sizes and inspect; current bundled diagnostic is **not identical** (112457/307200 pixels above delta8, raw RGB error12109902, origin5,23). No reference acceptance claimed.
@@ -125,7 +125,7 @@ Every remaining file under `plans/` must be linked directly here. Work below inh
 
 ## Completed implementation ledger
 
-Latest **committed** checkpoint: `fbeb093`,1286 executions (624 library+642 binary+19 integration+1 example),85.62% LLVM lines; strict lint/full suite/native build/normal hooks pass. Current Science UI changes are in progress and do not inherit screen acceptance.
+Pre-Science committed checkpoint: `fbeb093`,1286 executions/85.62% LLVM. Current Science source-control slice:1294 executions (628 library+646 binary+19 integration+1 example),85.65% LLVM; strict lint/full suite/native build pass, normal feature commit follows. This is four UI behavior fixes, not whole Science or33-screen acceptance. Tracking consolidation is committed in `cac02df` with unchanged hooks.
 
 - [x] Launch/intro skip, menu/shell/setup/options/audio/input/viewport foundations, extraction/dialog fixes and related source-art regressions. Historical shell option state/persistence is not proof of all in-game effects.
 - [x] Original terrain/SPR/RIM/resource/city decoding, fog/edge/seam fixes, actual viewer starter/projection decoding and menu-owned window handoff. No screenshot-completion claim.
@@ -202,5 +202,5 @@ Files below had completed local checklists/commit evidence; implementation evide
 
 - [x] Audit all69 client plan files, completed versus active versus redundant; preserve implementation evidence and all unresolved work, including stale commit-only closures. Do not remove server plans.
 - [x] Retire51 implemented/completed component files, consolidate six redundant trackers into this main checklist, keep/index12 remaining detailed checklists/reports, migrate links and validate all33 unaccepted entries/no lost scope. Read-only validation reports12/12 indexed, zero broken Markdown links and33 unique unchecked references; historical evidence remains retrievable through the table above.
-- [ ] Run doc/link validation, strict lint/tests/coverage/native build as required, lint-fix and normal commit; keep the requested server documentation separate from server implementation.
-- [ ] **Then resume the current Science Manager UI changes immediately**, its next source-backed RED test, the rest of the UI wave and every unchecked main/detail item. Plan cleanup is not a new implementation detour or completion claim.
+- [x] Run doc/link validation (12/12 indexed, no broken links, all33 unchecked), strict lint/full tests/LLVM80% gate/native build and pre-commit lint-fix; normal `cac02df` hooks passed. Keep requested server documentation separate from server implementation.
+- [x] **Resume current Science Manager UI changes immediately** after cleanup; first four source-control fixes are verified and next unresolved work remains listed above. Continue its next source-backed RED test, UI wave and every unchecked detail; this checkbox is return-to-work, not screen/game completion.

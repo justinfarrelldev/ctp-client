@@ -45,6 +45,10 @@ National's verified component is in the [main completed ledger](../PLAN.md#compl
 
 The **single authoritative 33-checkbox ledger** now lives in [PLAN.md: Reference-screen acceptance](../PLAN.md#reference-screen-acceptance). All33 remain unchecked. This detail file retains methodology/source/comparison evidence without a second divergent acceptance list.
 
+## Current Science UI slice
+
+Four original callback/constructor mismatches are fixed: paired radial/numeric turn text, ClearScience inactive fields/icon versus unknown state, selected known-advance description/links without changing active target, and stray Advice control's absolute off-window move.1294 executions/85.65% LLVM, strict lint/full suite/native build pass; normal feature commit follows. Read-only complete Science frame at origin5,23 remains failed:112457/307200 above delta8/raw12109902; no masks or acceptance. See Science detail and PLAN.md for next chooser/art/geometry/fixture work. GOG mixed-case loose picture exists despite archive-only lookup failure; do not misreport it as absent asset. All user follow-ups remain indexed under the main plan.
+
 ## Evidence ledger
 
 Baseline: 514 library + 532 binary + 19 integration = 1065 executions; 84.27% LLVM lines. Native build/lints/hooks pass. Missing fast coverage script; Windows GNU target and GTK/GLib cross sysroot unavailable at the preceding checkpoint. No complete-reference acceptance is inherited from that checkpoint.

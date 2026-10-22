@@ -97,6 +97,11 @@ mod research_goal_tests;
 mod row_tests;
 /// Native item-template columns populated only from current public projections.
 mod rows;
+/// Original Science Manager current-state/radial/description callbacks.
+mod science;
+/// Original Science Manager current/selection workflow regressions.
+#[cfg(test)]
+mod science_tests;
 /// Source list/hypertext rangers with shared range/geometry accounting.
 mod scrollbar;
 /// Empty/populated source ranger regressions.

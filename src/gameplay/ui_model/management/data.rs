@@ -331,6 +331,9 @@ pub(super) fn text(
     {
         return Some(text);
     }
+    if view.kind == ManagerKind::Science {
+        return super::science::text(ui, state, path);
+    }
     let viewer = state.viewer.as_ref()?;
     match view.kind {
         ManagerKind::Unit => super::units::text(ui, state, path),
@@ -350,32 +353,6 @@ pub(super) fn text(
             if path.ends_with("Rank.Value") || path.ends_with("Difficulty.Value") =>
         {
             Some("—".to_owned())
-        }
-        ManagerKind::Science => {
-            let research = viewer.interface.research.as_ref()?;
-            match path {
-                "CurrentResearch.AdvanceProgress.Title" => Some(label(ui, &research.target_id)),
-                "CurrentResearch.Spent.Value" => Some(research.progress.to_string()),
-                "CurrentResearch.TotalCost.Value" => Some(
-                    viewer
-                        .interface
-                        .rules
-                        .as_ref()
-                        .and_then(|rules| rules["advances"].as_array())
-                        .and_then(|advances| {
-                            advances
-                                .iter()
-                                .find(|advance| advance["id"].as_str() == Some(&research.target_id))
-                        })
-                        .and_then(|advance| advance["cost"].as_i64())
-                        .map_or_else(|| "—".to_owned(), |cost| cost.to_string()),
-                ),
-                "CurrentResearch.Turn.Value" => Some(research.forecast.as_ref().map_or_else(
-                    || "—".to_owned(),
-                    |forecast| forecast.label(viewer.revision),
-                )),
-                _ => None,
-            }
         }
         ManagerKind::Build if path == "ItemDescription" => {
             let id = articles::selected_description(view, state)?;
