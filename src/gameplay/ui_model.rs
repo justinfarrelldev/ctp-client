@@ -45,6 +45,11 @@ mod operation_tests;
 pub mod operations;
 /// Stable source-aligned expanded unit/army grid.
 pub mod stack;
+/// Local source tooltip ownership and native/semantic footer agreement.
+mod status;
+/// Source footer descriptions use semantic identities and preserve authority status.
+#[cfg(test)]
+mod status_tests;
 
 /// Source tile-palette category, independent of any authoritative improvement order.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -320,6 +325,8 @@ pub struct InGameUiModel {
     pub great_library: Option<GreatLibraryView>,
     /// Status bar text.
     pub status_text: String,
+    /// Keyboard focus, rather than pointer hover, currently owns source descriptions.
+    pub keyboard_status: bool,
     /// Measured original menu labels/shortcuts, shared by rendering and hit tests.
     /// Empty in font-independent tests, which use the documented fallback metric.
     pub menu_text_widths: Vec<(&'static str, u32)>,
@@ -354,6 +361,7 @@ impl Default for InGameUiModel {
             open_menu: None,
             great_library: None,
             status_text: String::new(),
+            keyboard_status: false,
             menu_text_widths: Vec::new(),
             hovered_tile: None,
             pointer: None,
@@ -370,6 +378,16 @@ impl Default for InGameUiModel {
 }
 
 impl InGameUiModel {
+    /// Exact source description/disabled reason, shared with accessible automation.
+    #[must_use]
+    pub fn source_status_for_id(&self, id: &str, state: &GameState) -> Option<String> {
+        status::source_id(self, id, state)
+    }
+    /// Ephemeral pointer/focus descriptions preserve authoritative result/recovery text.
+    #[must_use]
+    pub fn footer_status(&self, state: &GameState) -> alloc::borrow::Cow<'_, str> {
+        status::footer(self, state)
+    }
     /// Updates menu geometry from the same font that paints its labels.
     pub fn measure_menu_text(&mut self, measure: impl Fn(&str) -> u32) {
         self.menu_text_widths = self

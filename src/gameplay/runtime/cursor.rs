@@ -66,12 +66,16 @@ pub(super) fn track_pointer(
     match *event {
         Event::MouseMotion { x, y, .. }
         | Event::MouseButtonDown { x, y, .. }
-        | Event::MouseButtonUp { x, y, .. } => ui.pointer = Some((x, y)),
+        | Event::MouseButtonUp { x, y, .. } => {
+            ui.pointer = Some((x, y));
+            ui.keyboard_status = false;
+        }
         Event::Window {
             win_event: WindowEvent::Leave | WindowEvent::FocusLost,
             ..
         } => {
             ui.pointer = None;
+            ui.keyboard_status = false;
             ui.hovered_tile = None;
             movement.cancel_drag();
         }

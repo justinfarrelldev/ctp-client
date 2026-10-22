@@ -88,19 +88,16 @@ pub(super) fn draw_panel<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         LABEL,
         true,
     )?;
-    let status = if ui.status_text.is_empty() {
-        "Unexplored"
-    } else {
-        &ui.status_text
+    let status = ui.footer_status(state);
+    let bounds = panel_rect(126, 167, 468, 17);
+    let previous = canvas.clip_rect();
+    let Some(clip) = previous.map_or(Some(bounds), |parent| parent.intersection(bounds)) else {
+        return Ok(());
     };
-    draw_centered_text(
-        canvas,
-        font,
-        status,
-        panel_rect(126, 167, 468, 17),
-        LABEL,
-        false,
-    )
+    canvas.set_clip_rect(clip);
+    let result = draw_centered_text(canvas, font, &status, bounds, LABEL, false);
+    canvas.set_clip_rect(previous);
+    result
 }
 
 /// Copies one panel-relative image layer without resizing its native art.

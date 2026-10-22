@@ -26,6 +26,9 @@ mod selector_input;
 /// Fileless source city-selection journeys and stale-receipt validation.
 #[cfg(test)]
 mod selector_tests;
+/// Native source status ownership follows keyboard/pointer modality.
+#[cfg(test)]
+mod status_tests;
 #[cfg(test)]
 mod tests;
 /// Exact new-contract operation envelopes through isolated HTTP stubs.
@@ -226,7 +229,12 @@ pub(super) fn apply(
         }
         ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
         ManagerIntent::ForCity(kind, id) => {
-            if state.viewer.as_ref().is_some_and(|viewer| viewer.cities.iter().any(|city| city.id == id && !city.stale)) {
+            if state.viewer.as_ref().is_some_and(|viewer| {
+                viewer
+                    .cities
+                    .iter()
+                    .any(|city| city.id == id && !city.stale)
+            }) {
                 ui.management.open(kind, state, Some(&id));
             }
         }
@@ -313,6 +321,7 @@ pub(super) fn open_pending_build(state: &mut GameState, ui: &mut InGameUiModel) 
 
 /// Cycles only currently enabled controls; Enter cannot trigger a hidden choice.
 fn focus(ui: &mut InGameUiModel, state: &GameState, delta: i32) {
+    ui.keyboard_status = true;
     let widgets: Vec<_> = ui
         .management
         .widgets(state)
