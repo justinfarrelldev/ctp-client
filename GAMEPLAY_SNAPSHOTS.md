@@ -126,6 +126,12 @@ Current contract integration is tracked in [client-contract-v2.md](plans/client-
 
 Native inspection exposed real shared rendering/loading bugs: HyperTextBox is intrinsically left-wrapped, implicit total-value width cannot inherit an entire window, and `Strings.txt` imports the addon/tooltip databases omitted by the old loader. Advisor and Library title strings do exist in the installation. Canonical first-definition precedence and bounded read-only imports now replace the earlier incorrect missing-title assumption. This is not full 33-scenario screenshot acceptance; follow [the active continuation](plans/full-screen-reference-parity.md).
 
+### Read-only full-frame comparison
+
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy cargo run --example gameplay-reference -- ctp2 images/ctp2_references/unit-manager-opened.png unit-populated 2 21 scan`
+
+This example does not save images or talk to a server. It compares every 640x480 viewport pixel against an explicit original-image crop and reports dense 32x32 spatial cells (including partial edges), all raw RGB error and pixels exceeding declared capture quantization. Optional `scan` calibrates decoration only from the unchanged menu row, never a failing manager/map/panel; the final report still includes those regions. Alpha is not a visible screenshot color. There are no masks or automatic acceptance budgets. Current Unit output is explicitly not identical (137571 of 307200 pixels exceed channel delta 8); normalization, actual fixture content and incomplete original behaviors remain work, not evidence that the reference is accepted.
+
 ## Validation
 
 ```bash

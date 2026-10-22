@@ -17,12 +17,17 @@ use sdl2::video::Window;
 use std::io::Seek;
 use std::path::{Path, PathBuf};
 
+/// Dense full-frame comparison reports; no internal gameplay region is masked.
+pub mod comparison;
 /// Explicit populated offline data for diagnostic managers, never live gameplay.
 mod manager_fixture;
 /// Explicit deterministic fixture selection, not live-game simulation.
 pub mod scene;
 use scene::{PreviewScene, preview_state};
 
+/// Complete-frame (not masked-corner) comparison and malformed-buffer regressions.
+#[cfg(test)]
+mod comparison_tests;
 #[cfg(test)]
 mod png_tests;
 
