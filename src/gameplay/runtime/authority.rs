@@ -34,6 +34,43 @@ pub(super) fn state_from_authority_projection(
     state
 }
 
+/// Replaces render state monotonically while preserving current owned selection,
+/// display filters and new-city navigation; revision facts stay server-owned.
+pub(super) fn replace_state_from_projection(
+    authority: &RuntimeAuthority,
+    state: &mut GameState,
+    projection: &ServerProjection,
+) {
+    if state
+        .viewer
+        .as_ref()
+        .is_some_and(|current| current.revision > projection.revision)
+    {
+        return;
+    }
+    let filters = state.filters;
+    let selected = state.selected_unit;
+    let mut next = state_from_authority_projection(authority, projection);
+    if selected.is_some_and(|id| {
+        next.units
+            .iter()
+            .any(|unit| unit.id == id && unit.alive && unit.owner == PlayerId::Human)
+    }) {
+        next.selected_unit = selected;
+    }
+    next.city_build_menu = next
+        .cities
+        .iter()
+        .find(|city| {
+            city.owner == PlayerId::Human
+                && !state.cities.iter().any(|previous| previous.id == city.id)
+        })
+        .map(|city| city.id);
+    next.filters = filters;
+    next.popups.clear();
+    *state = next;
+}
+
 /// Returns the exact server identity, including for units sharing one tile.
 pub(super) fn server_unit_id_for_unit(authority: &RuntimeAuthority, unit_id: UnitId) -> String {
     let Some(projection) = authority.session.projection.as_ref() else {
@@ -194,9 +231,13 @@ mod tests {
             ..ServerProjection::default()
         };
 
-        assert!(server_tile_ids_for_path(
-            Some(&projection),
-            &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
-        ).is_none(), "frontier exploration uses coordinate intents, never fabricated tile IDs");
+        assert!(
+            server_tile_ids_for_path(
+                Some(&projection),
+                &[MapPoint::new(5, 4), MapPoint::new(6, 5)],
+            )
+            .is_none(),
+            "frontier exploration uses coordinate intents, never fabricated tile IDs"
+        );
     }
 }

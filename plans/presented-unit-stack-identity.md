@@ -14,4 +14,6 @@ Evidence: RED native owned-only versus hidden/stale co-location (unselected/sele
 
 Strict lint/full tests/dedicated build pass;606 library +624 binary +19 integration +1 example =1250 executions;85.42% LLVM lines >=80%. Fast script absent127; latest Windows check remains blocked before client compilation by GLib/GObject cross sysroot. All modules<800 (textures749/runtime799); source/assets/server unchanged. Lint-fix/normal hooks next. This is a rendering/identity fix, not completed moving hit testing, death/attack animations or screenshot acceptance.
 
+Left-pointer/semantic follow-up: see [presented-actor-hit-testing.md](presented-actor-hit-testing.md). Current own SPR pixels/pose/flip/hotspot/delta masks now drive left selection at actually presented positions; phantom destinations excluded, held revision/origin gestures canceled instead of rebased, and explicit selected second-member context/activation no longer preserves a different active neighbor.1268 executions/85.51% LLVM/native source1x2x pixel tests pass. Right-click/hover/remaining broad actor interactions still unchecked.
+
 Then every remaining unchecked main/parent workstream and all33 unaccepted complete-reference cases. Unknown enemy disappearance does not prove death; no hidden strength/history/army membership inference.

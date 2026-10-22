@@ -250,7 +250,7 @@ pub(super) fn run_sdl_game_on_canvas(
             save_capture(canvas);
         }
         cursor_guard.refresh();
-        canvas.present();
+        present_frame(canvas, &mut textures, &state, &camera, &mut movement)?;
         rendered_frames = rendered_frames.saturating_add(1);
         if frame_limit.is_some_and(|limit| rendered_frames >= limit) {
             outcome = Some(GameplayOutcome::Closed);
@@ -258,4 +258,18 @@ pub(super) fn run_sdl_game_on_canvas(
         thread::sleep(FRAME_DELAY);
     }
     Ok(outcome.unwrap_or(GameplayOutcome::Closed))
+}
+
+/// Keeps pointer descriptors bound to the exact sampled scene submitted to SDL.
+fn present_frame(
+    canvas: &mut Canvas<Window>,
+    textures: &mut GameplayTextures<'_>,
+    state: &GameState,
+    camera: &Camera,
+    movement: &mut MovementInputState,
+) -> Result<(), GameplayError> {
+    let targets = super::render::actor_hit_targets(textures, state, camera, movement)?;
+    movement.record_presented(state, targets);
+    canvas.present();
+    Ok(())
 }

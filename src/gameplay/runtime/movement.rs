@@ -8,6 +8,12 @@ use core::cmp::Reverse;
 
 use super::super::model::{GameState, MapPoint, PlayerId, UnitId};
 
+/// Frame-exact actor selection and non-reversing traveling-glyph gestures.
+#[cfg(test)]
+mod actor_tests;
+/// Source-pose pointer selection, distinct from explicit semantic unit activation.
+mod pointer;
+
 /// Neighbor offsets used by original-style eight-direction land pathing.
 const NEIGHBOR_DELTAS: [(i16, i16); 8] = [
     (1_i16, 1_i16),
@@ -29,6 +35,8 @@ pub(super) struct MovementInputState {
     preview: Option<MovementPathPreview>,
     /// In-progress click-drag state from `StartMoveClick`/`MoveDrag`.
     drag: Option<MovementDrag>,
+    /// Last drawn source glyphs; stale receipts block map retargeting.
+    presented: super::actor_hits::ActorHits,
     /// Presentation clocks and accepted paths; never used for command validation.
     pub(super) actors: super::animation::ActorAnimations,
 }
@@ -53,7 +61,11 @@ struct MovementDrag {
     unit_id: UnitId,
     /// Tile where the drag started.
     origin: MapPoint,
-    /// Whether the cursor has left the origin tile, matching `m_isDragging`.
+    /// Exact authoritative revision at gesture start; later receipts cannot rebase it.
+    revision: Option<i64>,
+    /// Tile under the pointer at gesture start; may differ from canonical origin.
+    gesture_origin: MapPoint,
+    /// Whether the cursor has left the gesture tile, matching `m_isDragging`.
     has_left_origin: bool,
 }
 
@@ -69,6 +81,14 @@ struct NeighborCandidate {
 }
 
 impl MovementInputState {
+    /// Records actually drawn source descriptors, without applying gameplay facts.
+    pub(super) fn record_presented(
+        &mut self,
+        state: &GameState,
+        targets: Vec<super::actor_hits::ActorHit>,
+    ) {
+        self.presented.replace(state, targets);
+    }
     /// Returns the currently active unit.
     #[must_use]
     pub(super) const fn active_unit(&self) -> Option<UnitId> {
@@ -105,7 +125,7 @@ impl MovementInputState {
     }
 
     /// Starts a potential drag for the active unit.
-    fn begin_drag(&mut self, unit_id: UnitId, origin: MapPoint) {
+    fn begin_drag(&mut self, state: &GameState, unit_id: UnitId, origin: MapPoint) {
         self.active_unit = Some(unit_id);
         self.preview = Some(MovementPathPreview {
             unit_id,
@@ -116,6 +136,8 @@ impl MovementInputState {
         self.drag = Some(MovementDrag {
             unit_id,
             origin,
+            revision: state.viewer.as_ref().map(|viewer| viewer.revision),
+            gesture_origin: origin,
             has_left_origin: false,
         });
     }
@@ -178,6 +200,17 @@ impl MovementInputState {
 
     /// Clears activation if the unit no longer exists as a selectable human unit.
     pub(super) fn retain_selectable(&mut self, state: &GameState) {
+        if self.drag.is_some_and(|drag| {
+            drag.revision != state.viewer.as_ref().map(|viewer| viewer.revision)
+                || !state.units.iter().any(|unit| {
+                    unit.id == drag.unit_id
+                        && unit.alive
+                        && unit.owner == PlayerId::Human
+                        && unit.position == drag.origin
+                })
+        }) {
+            self.cancel_drag();
+        }
         if self.active_unit.is_some_and(|unit_id| {
             !state
                 .units
@@ -192,6 +225,7 @@ impl MovementInputState {
 
     /// Recomputes drawable pathing from the active unit to a cursor tile.
     fn update_path_to(&mut self, state: &GameState, target: MapPoint, mark_dragging: bool) {
+        self.retain_selectable(state);
         let Some(active_unit_id) = self.active_unit else {
             return;
         };
@@ -211,13 +245,37 @@ impl MovementInputState {
             .map_or(unit.position, |drag| drag.origin);
         if mark_dragging {
             if let Some(drag) = self.drag.as_mut() {
-                if drag.unit_id == active_unit_id && target != drag.origin {
-                    drag.has_left_origin = true;
+                if drag.unit_id == active_unit_id {
+                    if !drag.has_left_origin && target == drag.gesture_origin {
+                        return;
+                    }
+                    if target != drag.gesture_origin {
+                        drag.has_left_origin = true;
+                    }
                 }
             }
         }
         self.preview = Some(path_preview_between(state, active_unit_id, origin, target));
     }
+}
+
+/// Uses the actual opaque glyph ID, consuming stale-frame clicks safely.
+pub(super) fn begin_presented_unit_drag(
+    state: &mut GameState,
+    movement: &mut MovementInputState,
+    camera: &super::Camera,
+    x: i32,
+    y: i32,
+) -> bool {
+    pointer::begin_presented(state, movement, camera, x, y)
+}
+/// Resting map-cell interaction excludes traveling actors at phantom destinations.
+pub(super) fn begin_map_unit_drag(
+    state: &mut GameState,
+    movement: &mut MovementInputState,
+    point: MapPoint,
+) -> bool {
+    pointer::begin_map(state, movement, point)
 }
 
 /// Activates an owned unit and starts the same potential drag, matching CTP2 `SelectArmyStartMoveClick`.
@@ -226,6 +284,14 @@ pub(super) fn begin_or_activate_unit_drag(
     movement: &mut MovementInputState,
     point: MapPoint,
 ) -> bool {
+    if let Some(selected) = state
+        .selected_unit()
+        .filter(|unit| unit.owner == PlayerId::Human && unit.position == point)
+        .map(|unit| unit.id)
+    {
+        movement.begin_drag(state, selected, point);
+        return true;
+    }
     if let Some(active_id) = movement.active_unit() {
         if state.units.iter().any(|unit| {
             unit.id == active_id
@@ -233,13 +299,13 @@ pub(super) fn begin_or_activate_unit_drag(
                 && unit.owner == PlayerId::Human
                 && unit.position == point
         }) {
-            movement.begin_drag(active_id, point);
+            movement.begin_drag(state, active_id, point);
             return true;
         }
     }
     if let Some(unit_id) = human_unit_at(state, point) {
         if state.select_unit(unit_id) {
-            movement.begin_drag(unit_id, point);
+            movement.begin_drag(state, unit_id, point);
             return true;
         }
     }
@@ -295,7 +361,12 @@ fn computed_path_between(
     start: MapPoint,
     target: MapPoint,
 ) -> Option<Vec<MapPoint>> {
-    if state.viewer.as_ref().is_some_and(|viewer| viewer.interface.supports("retained_movement_orders")) && state.in_bounds(target) {
+    if state
+        .viewer
+        .as_ref()
+        .is_some_and(|viewer| viewer.interface.supports("retained_movement_orders"))
+        && state.in_bounds(target)
+    {
         return Some(super::journeys::line(start, target));
     }
     if start == target {

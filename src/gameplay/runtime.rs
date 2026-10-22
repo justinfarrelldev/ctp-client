@@ -15,7 +15,6 @@ use sdl2::video::Window;
 use serde_json::Value;
 
 use super::model::{GameState, GameplayPopup, MapPoint, PopupKind, UnitId};
-use super::server::ServerProjection;
 use super::ui_model::{InGameAction, InGameUiModel};
 use super::{GameplayError, GameplayOutcome, SinglePlayerLaunchConfig, runtime_error};
 
@@ -28,6 +27,8 @@ pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 600;
 /// Session font discovery, independent of event dispatch.
 mod font_loader;
 use font_loader::load_gameplay_font;
+/// Frame-exact presented actor masks and revision-bound pointer identities.
+mod actor_hits;
 /// Directional actor presentation with an injectable monotonic clock.
 mod animation;
 /// Authoritative server state alignment helpers.
@@ -81,7 +82,9 @@ mod view;
 /// Exact shared drawable/window pointer transform for scaled gameplay.
 mod viewport;
 
-use authority::{RuntimeAuthority, server_unit_id_for_unit, state_from_authority_projection};
+#[cfg(test)]
+use authority::state_from_authority_projection;
+use authority::{RuntimeAuthority, replace_state_from_projection, server_unit_id_for_unit};
 use layout::{click_in_non_map_ui, end_turn_button_rect};
 use movement::{MovementInputState, begin_or_activate_unit_drag};
 use session::run_sdl_game_on_canvas;
@@ -388,12 +391,15 @@ fn handle_left_click(
         movement.cancel_drag();
         return None;
     }
+    if movement::begin_presented_unit_drag(state, movement, camera, x, y) {
+        return None;
+    }
     if let Some(point) = camera.screen_to_tile(x, y) {
         if let Some((unit_id, path)) = movement.finish_preview_order_to(state, point) {
             apply_finalized_move_path(state, movement, authority, unit_id, &path);
             return None;
         }
-        if begin_or_activate_unit_drag(state, movement, point) {
+        if movement::begin_map_unit_drag(state, movement, point) {
             return None;
         }
     }
@@ -453,6 +459,7 @@ fn handle_left_release(
         movement.cancel_drag();
         return None;
     }
+    movement.retain_selectable(state);
     if let Some(point) = camera.screen_to_tile(x, y) {
         movement.extend_drag_to(state, point);
     }
@@ -720,42 +727,6 @@ fn submit_authoritative_command(
             kind: PopupKind::GameStart,
         }),
     }
-}
-
-/// Replaces local render state with a fresh authoritative projection.
-fn replace_state_from_projection(
-    authority: &RuntimeAuthority,
-    state: &mut GameState,
-    projection: &ServerProjection,
-) {
-    if state
-        .viewer
-        .as_ref()
-        .is_some_and(|current| current.revision > projection.revision)
-    {
-        return;
-    }
-    let filters = state.filters;
-    let selected = state.selected_unit;
-    let mut next = state_from_authority_projection(authority, projection);
-    if selected.is_some_and(|id| {
-        next.units
-            .iter()
-            .any(|unit| unit.id == id && unit.alive && unit.owner == super::model::PlayerId::Human)
-    }) {
-        next.selected_unit = selected;
-    }
-    next.city_build_menu = next
-        .cities
-        .iter()
-        .find(|city| {
-            city.owner == super::model::PlayerId::Human
-                && !state.cities.iter().any(|previous| previous.id == city.id)
-        })
-        .map(|city| city.id);
-    next.filters = filters;
-    next.popups.clear();
-    *state = next;
 }
 
 /// Returns whether a point hits the end-turn button.

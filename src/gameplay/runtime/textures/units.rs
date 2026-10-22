@@ -111,6 +111,13 @@ impl<'texture> UnitTextures<'texture> {
         if let Entry::Vacant(entry) = self.frames.entry(key) {
             entry.insert(UnitTexture {
                 sprite: texture_from_frame(creator, frame)?,
+                mask: alloc::sync::Arc::new(
+                    crate::gameplay::runtime::actor_hits::HitMask::from_rgba(
+                        u32::from(frame.width),
+                        u32::from(frame.height),
+                        &frame.rgba,
+                    )?,
+                ),
                 shield: group
                     .shield_points
                     .get(action.action_index)

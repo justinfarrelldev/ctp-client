@@ -11,11 +11,23 @@ use crate::gameplay::runtime::textures::GameplayTextures;
 use crate::gameplay::runtime::{Camera, MovementInputState};
 use crate::gameplay::{GameplayError, runtime_error};
 
+/// Same SPR bounds/alpha and presented identities for pointer input.
+mod hits;
 /// Pure presented-group and authoritative membership regressions.
 #[cfg(test)]
 mod stack_tests;
 /// Prepared viewer-permitted poses keep motion and hidden members out of false stacks.
 mod stacks;
+
+/// Current sampled source masks and exact group IDs, never canonical-cell guesses.
+pub(super) fn hit_targets(
+    textures: &mut GameplayTextures<'_>,
+    state: &GameState,
+    camera: &Camera,
+    input: &MovementInputState,
+) -> Result<Vec<crate::gameplay::runtime::actor_hits::ActorHit>, GameplayError> {
+    hits::collect(textures, state, camera, input)
+}
 
 /// Draws original resource actors only when the viewer explicitly knows them.
 pub(super) fn draw_goods(
@@ -117,15 +129,14 @@ pub(super) fn draw_units(
         };
         let shield = if let Some(actor) = sampled {
             let size = actor.frame.sprite.texture.query();
-            let hotpoint = pose.facing.hotpoint(
+            let target = hits::sprite_bounds(
+                size.width,
+                size.height,
                 actor.frame.sprite.hotpoint,
-                u16::try_from(size.width).map_or(u16::MAX, |width| width),
+                actor.delta,
+                pose,
+                camera,
             );
-            let position = (
-                x.saturating_add(actor.delta.0.saturating_mul(zoom)),
-                y.saturating_add(actor.delta.1.saturating_mul(zoom)),
-            );
-            let target = unit_target_rect(size.width, size.height, hotpoint, position, zoom);
             canvas
                 .copy_ex(
                     &actor.frame.sprite.texture,
@@ -141,12 +152,7 @@ pub(super) fn draw_units(
         } else {
             canvas.set_draw_color(owner_color(unit.owner));
             canvas
-                .fill_rect(Rect::new(
-                    x.saturating_add(40_i32),
-                    y.saturating_add(20_i32),
-                    12,
-                    18,
-                ))
+                .fill_rect(hits::fallback_bounds(pose))
                 .map_err(runtime_error)?;
             (70_i32, 10_i32)
         };

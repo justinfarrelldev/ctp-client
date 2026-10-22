@@ -105,6 +105,16 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     draw_cursor(canvas, textures, state, ui, input)
 }
 
+/// Captures last-presented own actor identities with the identical source geometry.
+pub(super) fn actor_hit_targets(
+    textures: &mut GameplayTextures<'_>,
+    state: &GameState,
+    camera: &Camera,
+    input: &MovementInputState,
+) -> Result<Vec<super::actor_hits::ActorHit>, GameplayError> {
+    actors::hit_targets(textures, state, camera, input)
+}
+
 /// Draws the retail pointer last, so captures include the same visible cursor.
 fn draw_cursor(
     canvas: &mut Canvas<Window>,
@@ -205,6 +215,9 @@ const fn tile_color(terrain: TerrainKind) -> Color {
     Color::RGB(red, green, blue)
 }
 
+/// Source pixel masks and native moving-frame pointer identities.
+#[cfg(test)]
+mod actor_hit_tests;
 #[cfg(test)]
 mod animation_tests;
 #[cfg(test)]

@@ -57,6 +57,8 @@ pub(super) struct SpriteTexture<'texture> {
 pub(super) struct UnitTexture<'texture> {
     /// Original unit frame and hotspot.
     pub(super) sprite: SpriteTexture<'texture>,
+    /// Immutable source alpha mask, shared by all instances of this cached frame.
+    pub(super) mask: alloc::sync::Arc<super::actor_hits::HitMask>,
     /// Tile-relative stacking/health shield origin.
     pub(super) shield: (i32, i32),
 }
