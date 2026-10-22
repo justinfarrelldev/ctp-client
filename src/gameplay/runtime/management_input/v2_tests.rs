@@ -1,9 +1,14 @@
 //! Isolated gateway receipts for new parameterized and retained operations.
 use super::super::authority::state_from_authority_projection;
 use super::tests::{authority, payload_after_validating_envelope, respond};
+use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::{
     InGameUiModel,
-    management::{ManagerCommand, ManagerIntent},
+    management::{ManagerCommand, ManagerIntent, ManagerKind},
+};
+use sdl2::{
+    event::Event,
+    keyboard::{Keycode, Mod},
 };
 use serde_json::json;
 use std::{net::TcpListener, thread};
@@ -40,16 +45,7 @@ fn explicit_diplomacy_rejection_posts_false_for_the_same_offer_and_waits_for_aut
         .activate_id("DiplomacyTabs.Intelligence.TabPanel.MessageButton", &state)
         .expect("reachable original proposal button");
     super::apply(open, &mut state, &mut model, Some(&mut active));
-    let form = model
-        .operation
-        .take()
-        .expect("explicit source workspace choices");
-    let reject = form
-        .choices
-        .into_iter()
-        .find(|choice| choice.command.payload["accept"].as_bool() == Some(false))
-        .expect("reject, not implicit acceptance")
-        .command;
+    let reject = source_rejection(&mut model, &mut state);
     super::apply(
         ManagerIntent::Submit(reject),
         &mut state,
@@ -87,6 +83,51 @@ fn explicit_diplomacy_rejection_posts_false_for_the_same_offer_and_waits_for_aut
         json!("peace"),
         "no speculative acceptance/trade treaty"
     );
+}
+
+/// Actual chooser Return opens original source review without an HTTP command;
+/// only the source Reject callback returns the exact confirmed false payload.
+fn source_rejection(model: &mut InGameUiModel, state: &mut GameState) -> ManagerCommand {
+    let index = model
+        .operation
+        .as_ref()
+        .expect("current choice dialog")
+        .choices
+        .iter()
+        .position(|choice| choice.command.payload["accept"].as_bool() == Some(false))
+        .expect("explicit rejected disposition");
+    model.operation.as_mut().expect("choice").focused = index;
+    let before = state.viewer.clone();
+    let event = Event::KeyDown {
+        timestamp: 0_u32,
+        window_id: 0_u32,
+        keycode: Some(Keycode::RETURN),
+        scancode: None,
+        keymod: Mod::NOMOD,
+        repeat: false,
+    };
+    assert!(
+        super::super::operation_input::consume(&event, state, model, None),
+        "native Return consumes choice without transport"
+    );
+    assert!(
+        model.operation.is_none(),
+        "chooser closes into original review"
+    );
+    assert_eq!(
+        model.management.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::DiplomacyReview),
+        "production event handler opens original DipWizard"
+    );
+    assert_eq!(
+        state.viewer, before,
+        "opening original review is not execution"
+    );
+    model
+        .management
+        .activate_id("ViewButtons.RejectButton", state)
+        .and_then(ManagerIntent::into_command)
+        .expect("source Reject, same captured proposal/revision")
 }
 
 #[test]

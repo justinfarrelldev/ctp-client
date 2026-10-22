@@ -176,6 +176,7 @@ pub(super) fn rows(
         | ManagerKind::Build
         | ManagerKind::Library
         | ManagerKind::DiplomacyDetails => Vec::new(),
+        ManagerKind::DiplomacyReview => super::diplomacy::review::rows(ui, view, path),
     }
 }
 
@@ -315,6 +316,9 @@ pub(super) fn text(
     view: &ManagerView,
     path: &str,
 ) -> Option<String> {
+    if let Some(text) = super::diplomacy::review::text(ui, state, view, path) {
+        return Some(text);
+    }
     if let Some(text) = super::diplomacy::details::text(ui, state, view, path) {
         return Some(text);
     }

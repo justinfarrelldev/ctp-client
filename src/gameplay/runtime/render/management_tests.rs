@@ -17,6 +17,64 @@ use serde_json::json;
 use std::path::Path;
 
 #[test]
+fn original_diplomatic_review_renders_incoming_and_outgoing_source_stages_without_copying_assets_or_writing_frames()
+ {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let viewer:ServerProjection=serde_json::from_value(serde_json::json!({"revision":1_i64,"turn":1_u32,"diplomacy":{"relations":[{"target_player_id":"known-other","treaty":"peace","regard":"neutral"}],"proposals":[{"id":"offer","from_player_id":"known-other","to_player_id":"human","kind":"trade"}]},"legal_actions":[{"route":"respond-agreement","entity_id":"offer","target_id":"known-other","fields":["proposal_id","accept"],"payload":{"proposal_id":"offer","accept":true}},{"route":"propose-agreement","entity_id":"human","target_id":"known-other","payload":{"proposal_id":"canonical-union","target_player_id":"known-other","kind":"union"}}]})).map_err(|error|error.to_string())?;
+        let state = GameState::from_server_projection(&viewer, 1_u8, 1_u64);
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        for action in viewer.interface.legal_actions {
+            let incoming = action.route == "respond-agreement";
+            let command = crate::gameplay::ui_model::management::ManagerCommand {
+                revision: 1_i64,
+                route: action.route,
+                payload: action.payload,
+            };
+            if !ui.management.open_diplomatic_review(&state, command) {
+                return Err("current exact review rejected".to_owned());
+            }
+            for stage in if incoming {
+                vec!["3"]
+            } else {
+                vec!["0", "1", "2"]
+            } {
+                ui.management.apply_local(ManagerIntent::Select(
+                    "review-stage".to_owned(),
+                    stage.to_owned(),
+                ));
+                canvas.set_draw_color(Color::BLACK);
+                canvas.clear();
+                draw_management(canvas, &mut textures, &state, &ui, None)
+                    .map_err(|error| error.to_string())?;
+                let pixels = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+                if !pixels
+                    .chunks_exact(4_usize)
+                    .any(|pixel| pixel[..3_usize] != [0_u8; 3_usize])
+                {
+                    return Err("source DipWizard art did not render".to_owned());
+                }
+            }
+            ui.management.apply_local(ManagerIntent::Close);
+        }
+        Ok(())
+    });
+    assert!(
+        result.is_ok(),
+        "original source review native composition: {result:?}"
+    );
+}
+
+#[test]
 fn original_contact_details_all_three_tabs_render_with_unavailable_intelligence_without_private_world_or_writes()
  {
     let result = with_canvas((800_u32, 600_u32), |canvas| {

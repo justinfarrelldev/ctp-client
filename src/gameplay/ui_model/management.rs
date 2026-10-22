@@ -155,6 +155,8 @@ pub enum ManagerKind {
     Diplomacy,
     /// Original selected-contact intelligence details, not foreign global data.
     DiplomacyDetails,
+    /// Exact current proposal/response review in the original diplomatic wizard.
+    DiplomacyReview,
     /// Current research and available advances.
     Science,
     /// Explicit available-research selection/confirmation dialog.
@@ -330,6 +332,8 @@ pub struct ManagementUi {
     pub line_height: u32,
     /// Related windows to restore on Close; duplicate kinds are not stacked.
     pub parents: Vec<ManagerView>,
+    /// One bounded captured diplomatic intent; opening a review never submits it.
+    pub diplomatic_review: Option<ManagerCommand>,
 }
 
 impl ManagementUi {
@@ -378,6 +382,7 @@ impl ManagementUi {
             font_metrics: BTreeMap::new(),
             line_height: 16_u32,
             parents: Vec::new(),
+            diplomatic_review: None,
         })
     }
 
@@ -442,6 +447,13 @@ impl ManagementUi {
     #[must_use]
     pub fn open_contact_details(&mut self, state: &GameState, id: &str) -> bool {
         diplomacy::details::open(self, state, id)
+    }
+
+    /// Reviews one current authorized diplomatic intent in the original source UI.
+    /// No command is executed and its captured revision is never silently rebased.
+    #[must_use]
+    pub fn open_diplomatic_review(&mut self, state: &GameState, command: ManagerCommand) -> bool {
+        diplomacy::review::open(self, state, command)
     }
 
     /// Collects installed article metrics once from the same native font used to draw.
@@ -628,6 +640,13 @@ impl ManagementUi {
 
     /// Restores a parent while cancelling native capture, composition and deferred I/O.
     fn close(&mut self) {
+        if self
+            .view
+            .as_ref()
+            .is_some_and(|view| view.kind == ManagerKind::DiplomacyReview)
+        {
+            self.diplomatic_review = None;
+        }
         self.search_dragging = false;
         self.scroll_drag = None;
         self.value_drag = None;

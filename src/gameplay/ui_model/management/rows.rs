@@ -31,6 +31,7 @@ pub(super) fn templates(
         "ForAdvancesItem",
         "YourAdvancesItem",
         "DipDetWondersItem",
+        "DipWizProposalItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -105,6 +106,9 @@ impl Row<'_> {
     fn value(&self, name: &str) -> String {
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
+        if self.view.kind == ManagerKind::DiplomacyReview {
+            return super::diplomacy::review::row_label(self.ui);
         }
         if self.view.kind == ManagerKind::Diplomacy {
             return super::diplomacy::value(self.state, self.id, name);
@@ -334,6 +338,7 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Unit if path.contains("Tactical") => Some("UnitTacticalItem"),
         ManagerKind::Unit => Some("UnitStatsItem"),
         ManagerKind::Diplomacy if path == super::diplomacy::LIST => Some("IntelligenceListItem"),
+        ManagerKind::DiplomacyReview => Some("DipWizProposalItem"),
         ManagerKind::National if path == super::national::RESOURCE => {
             Some("NationalResourceListItem")
         }

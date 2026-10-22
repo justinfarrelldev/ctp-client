@@ -4,7 +4,7 @@ use crate::gameplay::ui_model::InGameAction;
 use super::ManagerKind;
 impl ManagerKind {
     /// All implemented source-layout roots, including nested research selection.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Build,
         Self::Empire,
         Self::National,
@@ -14,6 +14,7 @@ impl ManagerKind {
         Self::Trade,
         Self::Diplomacy,
         Self::DiplomacyDetails,
+        Self::DiplomacyReview,
         Self::Science,
         Self::Research,
         Self::Library,
@@ -34,6 +35,7 @@ impl ManagerKind {
             Self::Trade => "trade",
             Self::Diplomacy => "diplomacy",
             Self::DiplomacyDetails => "diplomacy-details",
+            Self::DiplomacyReview => "diplomacy-review",
             Self::Science => "science",
             Self::Research => "research",
             Self::Library => "library",
@@ -62,6 +64,7 @@ impl ManagerKind {
             Self::Trade => "TradeManager",
             Self::Diplomacy => "DiplomacyWindow",
             Self::DiplomacyDetails => "DiplomacyDetails",
+            Self::DiplomacyReview => "DipWizard",
             Self::Science => "ScienceManagementDialog",
             Self::Research => "SciAdvanceScreen",
             Self::Library => "GreatLibrary",

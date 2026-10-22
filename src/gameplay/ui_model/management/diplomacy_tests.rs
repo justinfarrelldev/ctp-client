@@ -262,6 +262,271 @@ fn exact_selected_contact_opens_source_details_tabs_without_private_or_unexpande
 }
 
 #[test]
+fn explicit_received_proposal_uses_original_review_accept_reject_and_intelligence_with_no_opening_execution()
+ {
+    let (mut ui, mut state) = fixture();
+    ui.apply_local(ManagerIntent::Select(
+        "contact".to_owned(),
+        "other-1".to_owned(),
+    ));
+    let parent = ui.view.clone();
+    let form = ui
+        .activate_id("DiplomacyTabs.Intelligence.TabPanel.MessageButton", &state)
+        .and_then(|intent| match intent {
+            ManagerIntent::Dialog(dialog) => Some(dialog),
+            _ => None,
+        })
+        .expect("explicit current choices");
+    let selected = form
+        .choices
+        .into_iter()
+        .find(|choice| {
+            choice.command.route == "respond-agreement"
+                && choice.command.payload["accept"].as_bool() == Some(false)
+        })
+        .expect("explicit rejection")
+        .command;
+    let before = state.viewer.clone();
+    assert!(
+        ui.open_diplomatic_review(&state, selected.clone()),
+        "current exact received proposal opens source review"
+    );
+    assert_eq!(
+        ui.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::DiplomacyReview),
+        "original DipWizard, not a synthetic form"
+    );
+    assert_eq!(
+        state.viewer, before,
+        "opening/review never executes the response"
+    );
+    let widgets = ui.widgets(&state);
+    assert!(
+        widgets.iter().any(|widget| widget.id == "Stage3.Text"),
+        "original incoming review stage"
+    );
+    assert!(
+        !widgets
+            .iter()
+            .any(|widget| widget.id.starts_with("Stage0.")
+                || widget.id.starts_with("CreateButtons.")),
+        "mutually exclusive source stages/button groups"
+    );
+    for (button, accept) in [
+        ("ViewButtons.AcceptButton", true),
+        ("ViewButtons.RejectButton", false),
+    ] {
+        let command = ui
+            .activate_id(button, &state)
+            .and_then(ManagerIntent::into_command)
+            .expect("current exact source response");
+        assert_eq!(
+            command.payload,
+            json!({"proposal_id":"offer-1","accept":accept}),
+            "only disposition varies, never entity/shape"
+        );
+        assert_eq!(command.revision, selected.revision, "review never rebases");
+    }
+    assert_eq!(
+        ui.activate_id("CheckIntelligenceButton", &state),
+        Some(ManagerIntent::ContactDetails("other-1".to_owned())),
+        "same explicit player namespace"
+    );
+    assert!(
+        ui.open_contact_details(&state, "other-1"),
+        "source related details"
+    );
+    ui.apply_local(ManagerIntent::Close);
+    assert_eq!(
+        ui.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::DiplomacyReview),
+        "exact captured review survives related details"
+    );
+    state.viewer.as_mut().expect("viewer").revision = 7_i64;
+    assert!(
+        ui.activate_id("ViewButtons.RejectButton", &state).is_none(),
+        "stale review cannot submit a newly rebound proposal"
+    );
+    ui.apply_local(ManagerIntent::Close);
+    assert_eq!(
+        ui.view, parent,
+        "cancel restores exact original parent contact"
+    );
+    assert!(
+        ui.diplomatic_review.is_none(),
+        "closed review releases its bounded captured command"
+    );
+}
+#[test]
+fn original_review_respects_fixed_legacy_disposition_and_removed_contact_closes_related_pages_without_retargeting()
+ {
+    let (mut ui, mut state) = fixture();
+    state
+        .viewer
+        .as_mut()
+        .expect("viewer")
+        .interface
+        .legal_actions
+        .iter_mut()
+        .find(|action| action.route == "respond-agreement")
+        .expect("received offer")
+        .fields
+        .clear();
+    let command = super::ManagerCommand {
+        revision: 6_i64,
+        route: "respond-agreement".to_owned(),
+        payload: json!({"proposal_id":"offer-1","accept":true}),
+    };
+    ui.apply_local(ManagerIntent::Select(
+        "contact".to_owned(),
+        "other-1".to_owned(),
+    ));
+    assert!(
+        ui.open_diplomatic_review(&state, command),
+        "fixed advertised acceptance can be reviewed"
+    );
+    assert!(
+        ui.activate_id("ViewButtons.AcceptButton", &state).is_some(),
+        "exact fixed acceptance remains legal"
+    );
+    assert!(
+        ui.activate_id("ViewButtons.RejectButton", &state).is_none(),
+        "review cannot create mutable accept permission for fixed legacy action"
+    );
+    assert!(
+        ui.open_contact_details(&state, "other-1"),
+        "nested source intelligence"
+    );
+    let viewer = state.viewer.as_mut().expect("snapshot");
+    viewer.revision = 7_i64;
+    viewer.diplomacy.as_mut().expect("contacts").facts["relations"] =
+        json!([{"target_player_id":"other-2","treaty":"peace","regard":"neutral"}]);
+    ui.reconcile(&state);
+    assert_eq!(
+        ui.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::Diplomacy),
+        "both removed-target related pages close to main"
+    );
+    assert!(
+        ui.diplomatic_review.is_none() && ui.parents.is_empty(),
+        "captured stale command/stack released, no next contact chosen"
+    );
+    assert!(
+        ui.view
+            .as_ref()
+            .is_some_and(|view| !view.selections.contains_key("contact")),
+        "other-2 never silently substitutes"
+    );
+}
+
+#[test]
+fn missing_review_capture_fails_closed_instead_of_turning_original_accept_into_generic_close_or_exposing_slic()
+ {
+    let (mut ui, mut state) = fixture();
+    let mut duplicate = state
+        .viewer
+        .as_ref()
+        .expect("viewer")
+        .interface
+        .legal_actions
+        .iter()
+        .find(|action| action.route == "respond-agreement")
+        .expect("response")
+        .clone();
+    "other-2".clone_into(&mut duplicate.target_id);
+    state
+        .viewer
+        .as_mut()
+        .expect("viewer")
+        .interface
+        .legal_actions
+        .push(duplicate);
+    let command = super::ManagerCommand {
+        revision: 6_i64,
+        route: "respond-agreement".to_owned(),
+        payload: json!({"proposal_id":"offer-1","accept":true}),
+    };
+    assert!(
+        !ui.open_diplomatic_review(&state, command),
+        "contradictory counterpart identities must not silently choose the first matching action"
+    );
+    ui.open(ManagerKind::DiplomacyReview, &state, None);
+    let widgets = ui.widgets(&state);
+    assert!(
+        ui.activate_id("CreateButtons.SendButton", &state).is_none(),
+        "no captured current command means no Send"
+    );
+    assert!(
+        widgets.iter().all(|widget| !widget.label.contains('{')),
+        "direct diagnostic/open API cannot expose raw private placeholders without a captured subject"
+    );
+    ui.apply_local(ManagerIntent::Select(
+        "review-mode".to_owned(),
+        "incoming".to_owned(),
+    ));
+    assert!(
+        ui.activate_id("ViewButtons.AcceptButton", &state).is_none(),
+        "missing capture must not fall through to generic Accept-as-Close binding"
+    );
+}
+#[test]
+fn outgoing_original_review_send_preserves_canonical_payload_and_does_not_invent_tone_exchange_or_foreign_identity()
+ {
+    let (mut ui, state) = fixture();
+    ui.apply_local(ManagerIntent::Select(
+        "contact".to_owned(),
+        "other-2".to_owned(),
+    ));
+    let form = ui
+        .activate_id("DiplomacyTabs.Intelligence.TabPanel.MessageButton", &state)
+        .and_then(|intent| match intent {
+            ManagerIntent::Dialog(dialog) => Some(dialog),
+            _ => None,
+        })
+        .expect("canonical current choices");
+    let selected = form
+        .choices
+        .into_iter()
+        .find(|choice| choice.command.payload["kind"].as_str() == Some("union"))
+        .expect("explicit union not first trade")
+        .command;
+    assert!(
+        ui.open_diplomatic_review(&state, selected.clone()),
+        "selected canonical union proposal"
+    );
+    assert_eq!(
+        ui.activate_id("CreateButtons.SendButton", &state)
+            .and_then(ManagerIntent::into_command),
+        Some(selected),
+        "exact canonical proposal id/target/kind and no tone/cost/exchange extras"
+    );
+    let widgets = ui.widgets(&state);
+    assert!(
+        widgets
+            .iter()
+            .any(|widget| widget.id == "Details.Recipient" && widget.label.contains("ID other-2")),
+        "no invented civilization name"
+    );
+    assert!(
+        widgets
+            .iter()
+            .all(|widget| !widget.label.contains('{') && !widget.id.starts_with("ViewButtons.")),
+        "no raw SLIC or incoming buttons in outgoing stage"
+    );
+    let back = ui
+        .activate_id("CreateButtons.BackButton", &state)
+        .expect("source Back");
+    ui.apply_local(back);
+    let tones = ui.widgets(&state);
+    assert!(
+        tones.iter().any(|widget| widget.id == "Stage0.Tones.Tone0"
+            && widget.intent.is_none()
+            && widget.unavailable.is_some()),
+        "all original tone controls are present but not executable without protocol"
+    );
+}
+
+#[test]
 fn disappeared_contact_is_deselected_on_receipt_without_selecting_the_other_visible_nation() {
     let (mut ui, mut state) = fixture();
     ui.apply_local(ManagerIntent::Select(

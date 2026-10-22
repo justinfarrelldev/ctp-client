@@ -17,6 +17,9 @@ pub(super) fn binding(
     path: &str,
     node: &LayoutNode,
 ) -> (Option<ManagerIntent>, Option<String>) {
+    if let Some(binding) = super::diplomacy::review::binding(ui, state, view, path) {
+        return binding;
+    }
     if let Some(intent) = super::advisors::binding(view, path) {
         return enabled(intent);
     }
@@ -88,12 +91,7 @@ pub(super) fn binding(
             enabled(ManagerIntent::Open(ManagerKind::Build))
         }
         ManagerKind::Unit if name == "DisbandButton" => dialog(super::units::disband(state, view)),
-        ManagerKind::Diplomacy if path == "DiplomacyTabs.Intelligence.TabPanel.DetailsButton" => {
-            diplomatic_details(state, view)
-        }
-        ManagerKind::Diplomacy if path == "DiplomacyTabs.Intelligence.TabPanel.MessageButton" => {
-            diplomatic_workspace(state, view)
-        }
+        ManagerKind::Diplomacy => diplomacy_entry(state, view, path),
         ManagerKind::Empire if name == "DetailsButton" => enabled(ManagerIntent::Select(
             "empire-details".to_owned(),
             view.selections
@@ -118,6 +116,25 @@ pub(super) fn binding(
     }
 }
 
+/// Original main entries retain separate view/proposal identities and explain
+/// missing current legal actions instead of treating route presence as permission.
+fn diplomacy_entry(
+    state: &GameState,
+    view: &ManagerView,
+    path: &str,
+) -> (Option<ManagerIntent>, Option<String>) {
+    match path {
+        "DiplomacyTabs.Intelligence.TabPanel.DetailsButton" => diplomatic_details(state, view),
+        "DiplomacyTabs.Intelligence.TabPanel.MessageButton" => diplomatic_workspace(state, view),
+        "DiplomacyTabs.Intelligence.TabPanel.WarButton" => {
+            disabled("The current viewer does not advertise an authorized Declare War action")
+        }
+        "DiplomacyTabs.Intelligence.TabPanel.EmbargoButton" => disabled(
+            "The current server contract does not register or authorize an embargo command",
+        ),
+        _ => (None, None),
+    }
+}
 /// Details is view-only, but still requires the exact current selected contact.
 fn diplomatic_details(
     state: &GameState,

@@ -414,6 +414,7 @@ impl Walker<'_> {
     fn list(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
         self.list_header(node, path, rect);
         super::diplomacy::details::unavailable(self.ui, self.view, path, rect, &mut self.widgets);
+        super::diplomacy::review::unavailable(self.ui, self.view, path, rect, &mut self.widgets);
         let rows = data::rows(self.ui, self.state, self.view, path);
         let height = row_height(self.ui, self.view.kind, path);
         let visible = visible_rows(self.ui, self.view.kind, path, rect);
@@ -577,6 +578,7 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
         ManagerKind::Trade => "trade-route",
         ManagerKind::Diplomacy => "contact",
         ManagerKind::DiplomacyDetails => "foreign-intelligence",
+        ManagerKind::DiplomacyReview => "proposal",
         ManagerKind::Library => "article",
         ManagerKind::City
         | ManagerKind::Empire
@@ -588,6 +590,9 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
 
 /// Hides mutually exclusive source modes rather than painting all lists at once.
 fn hidden(view: &ManagerView, path: &str) -> bool {
+    if super::diplomacy::review::hidden(view, path) {
+        return true;
+    }
     if view.kind == ManagerKind::Library && path == "SearchLabel" {
         return true;
     }

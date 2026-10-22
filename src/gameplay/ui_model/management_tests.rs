@@ -62,7 +62,7 @@ fn every_manager_opens_original_layout_and_has_semantic_close() {
                 .any(|widget| widget.intent == Some(ManagerIntent::Close)),
             "{kind:?} has a working Close"
         );
-        let label = if kind == ManagerKind::Research {
+        let label = if matches!(kind, ManagerKind::Research | ManagerKind::DiplomacyReview) {
             "Cancel"
         } else {
             "Close"

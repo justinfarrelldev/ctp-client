@@ -227,6 +227,14 @@ pub(super) fn apply(
             if let Some(authority) =
                 authority.filter(|authority| authority.session.revision() == command.revision)
             {
+                if ui
+                    .management
+                    .view
+                    .as_ref()
+                    .is_some_and(|view| view.kind == ManagerKind::DiplomacyReview)
+                {
+                    ui.management.apply_local(ManagerIntent::Close);
+                }
                 submit_authoritative_command(authority, state, &command.route, command.payload);
             } else {
                 "No matching authoritative session; no game state was changed"

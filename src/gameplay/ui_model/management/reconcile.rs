@@ -10,8 +10,11 @@ pub(super) fn apply(ui: &mut ManagementUi, state: &GameState) {
     for view in &mut ui.parents {
         view_state(view, state);
     }
-    if ui.view.as_ref().is_some_and(|view| {
-        view.kind == ManagerKind::DiplomacyDetails && !view.selections.contains_key("contact")
+    while ui.view.as_ref().is_some_and(|view| {
+        matches!(
+            view.kind,
+            ManagerKind::DiplomacyDetails | ManagerKind::DiplomacyReview
+        ) && !view.selections.contains_key("contact")
     }) {
         ui.close();
     }

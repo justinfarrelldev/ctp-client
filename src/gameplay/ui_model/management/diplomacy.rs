@@ -9,6 +9,8 @@ use alloc::collections::BTreeSet;
 use serde_json::Value;
 /// Original contact details and explicit unavailable foreign intelligence.
 pub(super) mod details;
+/// Source DipWizard review, never a local diplomatic command engine.
+pub(super) mod review;
 /// Source shared intelligence list; canonical contact ID is its row identity.
 pub(super) const LIST: &str = "DiplomacyTabs.Intelligence.TabPanel.List";
 /// Current public diplomacywindow.ldl reference revision, not an invented scale.
@@ -134,7 +136,7 @@ pub(super) fn value(state: &GameState, id: &str, name: &str) -> String {
 pub(super) fn reconcile(view: &mut ManagerView, state: &GameState) {
     if matches!(
         view.kind,
-        ManagerKind::Diplomacy | ManagerKind::DiplomacyDetails
+        ManagerKind::Diplomacy | ManagerKind::DiplomacyDetails | ManagerKind::DiplomacyReview
     ) && view
         .selections
         .get("contact")
