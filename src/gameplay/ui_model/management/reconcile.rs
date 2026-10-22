@@ -57,12 +57,20 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
         {
             view.selections.remove("advance");
         }
+        let units = data::owned_units(state);
         if view
             .selections
             .get("unit")
-            .is_some_and(|id| !viewer.units.iter().any(|unit| unit.id == *id))
+            .is_some_and(|id| !units.iter().any(|unit| unit.id == *id))
         {
             view.selections.remove("unit");
+        }
+        if view
+            .selections
+            .get("unit-type")
+            .is_some_and(|id| !units.iter().any(|unit| unit.type_id == *id))
+        {
+            view.selections.remove("unit-type");
         }
     }
 }

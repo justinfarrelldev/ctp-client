@@ -120,6 +120,12 @@ Path lines now cross ground centres rather than the bottom of the headroom-inclu
 
 Current contract integration is tracked in [client-contract-v2.md](plans/client-contract-v2.md). Names/age/capital, river/good/owner/yields, phase-aware End Turn and asynchronous viewer synchronization are now integrated. Bounded semantic results drive Msgs/read state, gold-frame ruin/production messages and known-location eye navigation; the exact confirmed gold text is `Exploration reward: 250 gold.` for a 250-gold result. Previously received calendar dates are cached, never extrapolated for older notices. Statistics graphs use actual own completed-turn samples, never fabricated foreign ranks. No client-side ruin roll, governor simulation or local retained-route replay occurs. Native art/component/interaction tests are not acceptance of all 33 complete reference scenarios.
 
+## Full-screen continuation diagnostics
+
+`unit-populated` now uses a separate explicit two-settler, no-city, War-readiness snapshot, not Build's unrelated Hoplite/city fixture. Its known actors remain in the projection while the diagnostic camera examines an opaque part of the public map bounds; this is not hidden terrain generation or a live game. Both native/reference-sized `images/parity-unit-{native,reference}.png` were inspected during the continuation. Source item columns/small icons, three-position readiness, own counts and attached advisor now render; missing strategic advice/applied nonzero support is explicitly unavailable, not forged reference text.
+
+Native inspection exposed real shared rendering/loading bugs: HyperTextBox is intrinsically left-wrapped, implicit total-value width cannot inherit an entire window, and `Strings.txt` imports the addon/tooltip databases omitted by the old loader. Advisor and Library title strings do exist in the installation. Canonical first-definition precedence and bounded read-only imports now replace the earlier incorrect missing-title assumption. This is not full 33-scenario screenshot acceptance; follow [the active continuation](plans/full-screen-reference-parity.md).
+
 ## Validation
 
 ```bash

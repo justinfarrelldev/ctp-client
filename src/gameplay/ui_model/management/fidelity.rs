@@ -18,9 +18,48 @@ pub(super) fn configure(
     match kind {
         ManagerKind::Empire => empire(root, book)?,
         ManagerKind::Graphics => graphics(root, book)?,
+        ManagerKind::Unit => unit(root),
         _ => {}
     }
     Ok(())
+}
+
+/// Public unitmanager.ldl reference revision narrows its lists/header columns.
+/// The captured runtime value box is 30 pixels, not an inherited whole window.
+fn unit(root: &mut LayoutNode) {
+    set(root, "TotalUnits", &[("widthpix", "30")]);
+    set(root, "TotalUnitsLabel", &[("ypix", "313")]);
+    for (tab, widths) in [
+        (
+            "Stats",
+            vec![
+                27_i32, 107_i32, 20_i32, 130_i32, 70_i32, 25_i32, 25_i32, 25_i32, 25_i32,
+            ],
+        ),
+        (
+            "Tactical",
+            vec![27_i32, 102_i32, 70_i32, 90_i32, 95_i32, 70_i32],
+        ),
+    ] {
+        let path = format!("Tabs.{tab}.TabPanel.List");
+        set(
+            root,
+            &path,
+            &[
+                ("xpix", "18"),
+                ("ypix", "35"),
+                ("widthpix", "454"),
+                ("heightpix", "200"),
+            ],
+        );
+        for (index, width) in widths.into_iter().enumerate() {
+            set(
+                root,
+                &format!("{path}.header.switch{index}"),
+                &[("widthpix", &width.to_string())],
+            );
+        }
+    }
 }
 
 /// Exact scoped lookup; absent optional source controls are not guessed.

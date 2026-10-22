@@ -99,6 +99,11 @@ pub mod typography;
 /// Native-font choice and style-metric regressions.
 #[cfg(test)]
 mod typography_tests;
+/// Source unit statistics/tactical columns, readiness and exact disband regressions.
+#[cfg(test)]
+mod unit_tests;
+/// Original unit statistics/tactical content and private-safe source callbacks.
+mod units;
 /// Source-expression/authority boundary regressions.
 #[cfg(test)]
 mod variable_tests;
@@ -582,9 +587,10 @@ impl ManagementUi {
         value: i32,
         state: &GameState,
     ) -> Option<ManagerCommand> {
-        self.view
-            .as_ref()
-            .filter(|view| view.kind == ManagerKind::Empire)?;
+        self.view.as_ref().filter(|view| {
+            (view.kind == ManagerKind::Empire && path != "Slider")
+                || (view.kind == ManagerKind::Unit && path == "Slider")
+        })?;
         policy::command(state, path, value)
     }
 

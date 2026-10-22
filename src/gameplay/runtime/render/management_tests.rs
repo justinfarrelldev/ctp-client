@@ -99,6 +99,62 @@ fn docked_advisor_roof_is_the_actual_original_full_width_art_and_hides_with_its_
 }
 
 #[test]
+fn tactical_health_uses_original_insets_and_partial_yellow_with_black_unfilled_pixels() {
+    let result = with_canvas((800, 600), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let viewer:ServerProjection=serde_json::from_value(json!({"revision":4_i64,"turn":1_u32,"tiles":[{"id":"a","x":1_u16,"y":1_u16,"terrain":"plains"}],"units":[{"id":"u","owner_id":"human","type_id":"UNIT_SETTLER","tile_id":"a","health":5_i16,"max_health":10_i16}]})).map_err(|error|error.to_string())?;
+        let state = GameState::from_server_projection(&viewer, 1, 1);
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        ui.management.open(ManagerKind::Unit, &state, None);
+        ui.management.apply_local(ManagerIntent::Select(
+            "tab:Tabs".to_owned(),
+            "Tactical".to_owned(),
+        ));
+        let widgets = ui.management.widgets(&state);
+        let health = widgets
+            .iter()
+            .find(|widget| widget.id == "Tabs.Tactical.TabPanel.List/u/cell/Health")
+            .ok_or_else(|| "source health column missing".to_owned())?;
+        canvas.set_draw_color(Color::RGB(255, 0, 255));
+        canvas.clear();
+        draw_management(canvas, &mut textures, &state, &ui, None)
+            .map_err(|error| error.to_string())?;
+        for (dx, color) in [
+            (2_i32, [0_u8, 0, 0]),
+            (3_i32, [255_u8, 255, 0]),
+            (35_i32, [0_u8, 0, 0]),
+        ] {
+            let pixel = canvas.read_pixels(
+                Some(Rect::new(
+                    health.rect.x.saturating_add(dx),
+                    health.rect.y.saturating_add(3),
+                    1,
+                    1,
+                )),
+                PixelFormatEnum::RGBA32,
+            )?;
+            if pixel[..3] != color {
+                return Err(format!("source half-health pixel at {dx} is {pixel:?}"));
+            }
+        }
+        Ok(())
+    });
+    assert!(
+        result.is_ok(),
+        "original tactical health readback: {result:?}"
+    );
+}
+
+#[test]
 fn manager_article_pictures_match_active_catalog_and_original_geometry() {
     let result = with_canvas((800_u32, 600_u32), |canvas| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");

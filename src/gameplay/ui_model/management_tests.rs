@@ -201,10 +201,9 @@ fn library_uses_a_real_edit_field_and_never_draws_obsolete_search_or_missing_tit
         "obsolete negative-position search caption is not part of the reference UI"
     );
     assert!(
-        widgets
-            .iter()
-            .any(|widget| widget.id == "Title" && widget.label == "G R E A T   L I B R A R Y"),
-        "missing retail uppercase key falls back to the installed localized title"
+        widgets.iter().any(|widget| widget.id == "Title"
+            && widget.label == management.book.label("str_ldl_CAPS_GREAT_LIBRARY")),
+        "canonical addon title, including its exact source spacing, is no longer falsely treated as missing"
     );
     assert!(
         widgets

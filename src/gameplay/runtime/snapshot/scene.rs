@@ -61,6 +61,15 @@ pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameSt
     ) {
         return super::manager_fixture::policy_state();
     }
+    if matches!(
+        scene,
+        PreviewScene::PopulatedManager {
+            kind: ManagerKind::Unit,
+            ..
+        }
+    ) {
+        return super::manager_fixture::unit_state();
+    }
     if matches!(scene, PreviewScene::PopulatedManager { .. }) {
         return super::manager_fixture::state();
     }
@@ -118,7 +127,7 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
     textures: &super::super::textures::GameplayTextures<'_>,
     ui: &mut crate::gameplay::ui_model::InGameUiModel,
 ) -> (super::super::Camera, super::super::MovementInputState) {
-    let camera = super::super::Camera::centered_on_selected(state);
+    let mut camera = super::super::Camera::centered_on_selected(state);
     let mut input = super::super::MovementInputState::default();
     match scene {
         PreviewScene::Panel { tab, .. } => ui.active_tab = tab,
@@ -132,6 +141,12 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
         }
         PreviewScene::PopulatedManager { kind, chart } => {
             ui.management.open(kind, state, None);
+            if kind == ManagerKind::Unit {
+                ui.active_tab = crate::gameplay::ui_model::ControlPanelTab::TileImprovements;
+                // The reference inspects a black viewport; observed units still
+                // exist elsewhere, rather than hiding their authorized facts.
+                camera.center_on(MapPoint::new(63, 47));
+            }
             let control = if kind == ManagerKind::Build {
                 Some("ItemsBox.UnitsList/UNIT_SETTLER")
             } else if kind == ManagerKind::Library && chart {

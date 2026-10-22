@@ -161,7 +161,7 @@ impl Walker<'_> {
             self.widgets[index].label.clear();
             return true;
         }
-        if self.view.kind == ManagerKind::Empire
+        if matches!(self.view.kind, ManagerKind::Empire | ManagerKind::Unit)
             && policy::append(self.ui, self.state, node, path, rect, &mut self.widgets)
         {
             self.widgets[index].label.clear();
@@ -277,6 +277,18 @@ impl Walker<'_> {
             fields: node.fields.clone(),
             children: Vec::new(),
         };
+        if node
+            .field("objecttype")
+            .is_some_and(|kind| kind.eq_ignore_ascii_case("ctp2_hypertextbox"))
+        {
+            for (key, value) in [
+                ("wordwrap", "true"),
+                ("just", "left"),
+                ("vertcenter", "false"),
+            ] {
+                flat.fields.insert(key.to_owned(), value.to_owned());
+            }
+        }
         if let Some(image) = articles::image(self.ui, self.state, self.view, path) {
             flat.fields.insert(
                 if self.view.kind == ManagerKind::Library {
@@ -552,6 +564,7 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
         ManagerKind::Build => "buildable",
         ManagerKind::Science | ManagerKind::Research => "advance",
         ManagerKind::National => "city",
+        ManagerKind::Unit if path.contains("Stats") => "unit-type",
         ManagerKind::Unit | ManagerKind::Army => "unit",
         ManagerKind::Trade => "trade",
         ManagerKind::Diplomacy => "contact",

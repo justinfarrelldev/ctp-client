@@ -39,6 +39,8 @@ pub(super) enum Control {
     PublicWorks,
     /// Whole science percentage, bounded by current government when disclosed.
     Science,
+    /// Original Unit Manager peace/alert/war quantized source index.
+    Readiness,
 }
 
 /// Source range and receipt-owned current value; no game state is simulated.
@@ -61,6 +63,7 @@ pub(super) struct Spec {
 /// Only actual source control paths acquire a mutable policy meaning.
 fn control(path: &str) -> Option<Control> {
     match path {
+        "Slider" => Some(Control::Readiness),
         "TabGroup.Tab1.TabPanel.Food.Modify.Primary.Slider" => Some(Control::Rations),
         "TabGroup.Tab1.TabPanel.Production.Modify.Primary.Slider" => Some(Control::Workday),
         "TabGroup.Tab1.TabPanel.Commerce.Modify.Primary.Slider" => Some(Control::Wages),
@@ -82,6 +85,16 @@ pub(super) fn spec(state: &GameState, path: &str) -> Option<Spec> {
     let viewer = state.viewer.as_ref()?;
     let facts = &viewer.diplomacy.as_ref()?.facts;
     let (value, maximum, step) = match kind {
+        Control::Readiness => (
+            match facts["readiness"].as_str()? {
+                "peace" => 0_i64,
+                "alert" => 1_i64,
+                "war" => 2_i64,
+                _ => return None,
+            },
+            2_i64,
+            1_i32,
+        ),
         Control::Rations => (
             number(facts, "rations", 0_i64)?.checked_add(2_i64)?,
             4_i64,
@@ -152,6 +165,10 @@ pub(super) fn command(state: &GameState, path: &str, value: i32) -> Option<Manag
     let viewer = state.viewer.as_ref()?;
     let facts = &viewer.diplomacy.as_ref()?.facts;
     let (route, payload) = match spec.control {
+        Control::Readiness => (
+            "set-readiness",
+            json!({"readiness":match value {0_i32=>"peace",1_i32=>"alert",2_i32=>"war",_=>return None}}),
+        ),
         Control::Science => ("set-science-rate", json!({"science_percent":value})),
         Control::PublicWorks => (
             "set-public-works-rate",
@@ -165,7 +182,7 @@ pub(super) fn command(state: &GameState, path: &str, value: i32) -> Option<Manag
                 Control::Rations => rations = i64::from(value).checked_sub(2_i64)?,
                 Control::Workday => workday = 2_i64.checked_sub(i64::from(value))?,
                 Control::Wages => wages = i64::from(value).checked_sub(2_i64)?,
-                Control::Science | Control::PublicWorks => return None,
+                Control::Science | Control::PublicWorks | Control::Readiness => return None,
             }
             (
                 "set-social-policy",

@@ -157,8 +157,8 @@ fn slider(
         return;
     }
     let thumb = thumb_style(source, path, value, settings);
-    let enabled = command(state, path, settings.minimum).is_some()
-        || command(state, path, settings.maximum).is_some();
+    let enabled = (settings.minimum..=settings.maximum)
+        .any(|candidate| command(state, path, candidate).is_some());
     widgets.push(widget(
         format!("{path}/thumb"),
         String::new(),

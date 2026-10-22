@@ -81,9 +81,7 @@ pub(super) fn binding(
         ManagerKind::City if name == "BuildQueueButton" => {
             enabled(ManagerIntent::Open(ManagerKind::Build))
         }
-        ManagerKind::Unit if name == "DisbandButton" => {
-            selected_action(state, view, "disband", "unit")
-        }
+        ManagerKind::Unit if name == "DisbandButton" => dialog(super::units::disband(state, view)),
         ManagerKind::Trade if name == "CreateRouteButton" => {
             selected_action(state, view, "create-trade-route", "trade")
         }

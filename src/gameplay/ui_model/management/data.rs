@@ -378,6 +378,7 @@ pub(super) fn text(
     }
     let viewer = state.viewer.as_ref()?;
     match view.kind {
+        ManagerKind::Unit => super::units::text(ui, state, path),
         ManagerKind::City if path == "GovernorBox.Pulldown" => Some(
             city(state, view)
                 .and_then(|city| city.governor.as_ref())

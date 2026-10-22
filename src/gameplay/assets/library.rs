@@ -142,6 +142,8 @@ pub struct LibraryArt {
     pub first_frame: Option<String>,
     /// Original science/management icon.
     pub icon: Option<String>,
+    /// Original native management-list icon, with explicit medium-icon fallback.
+    pub small_icon: Option<String>,
     /// Compact source `StatText` article tag used by the Build Manager.
     pub summary: Option<String>,
     /// Source Vari article tag used by research descriptions.
@@ -186,6 +188,7 @@ impl LibraryCatalog {
                     LibraryArt {
                         first_frame: image("FirstFrame"),
                         icon: image("Icon"),
+                        small_icon: image("SmallIcon"),
                         summary: article("StatText"),
                         statistics: article("Vari"),
                     },

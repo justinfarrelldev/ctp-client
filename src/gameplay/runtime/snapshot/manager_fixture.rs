@@ -94,6 +94,63 @@ pub(super) fn state() -> GameState {
     from_projection(&projection())
 }
 
+/// Separate original Unit reference setup; no unrelated city or fabricated ranking.
+pub(super) fn unit_state() -> GameState {
+    let mut projection = projection();
+    projection.turn = 1;
+    projection.cities.clear();
+    let prototype = projection.units[0].clone();
+    projection.units=(0_u8..2_u8).map(|index| {
+        let mut unit=prototype.clone();unit.id=format!("fixture-settler-{index}");"UNIT_SETTLER".clone_into(&mut unit.type_id);
+        unit.facts=json!({"health":10_i64,"max_health":10_i64,"shield_hunger":0_i64,"fortified":false});unit
+    }).collect();
+    projection.interface.world = Some(crate::gameplay::server::v2::World {
+        width: 64,
+        height: 48,
+        ..crate::gameplay::server::v2::World::default()
+    });
+    projection.interface.calendar = Some(crate::gameplay::server::v2::Calendar {
+        version: "ctp2-timescale-v1".to_owned(),
+        turn: 1,
+        year: -4000,
+    });
+    projection.interface.contract = Some(crate::gameplay::server::v2::Contract {
+        version: 2,
+        ..crate::gameplay::server::v2::Contract::default()
+    });
+    if let Some(diplomacy) = projection.diplomacy.as_mut() {
+        diplomacy.gold = 100_i32;
+        diplomacy.public_works = 0_i32;
+        diplomacy.facts = json!({"readiness":"war"});
+    }
+    if let Some(units) = projection
+        .interface
+        .rules
+        .as_mut()
+        .and_then(|rules| rules["units"].as_array_mut())
+    {
+        for unit in units {
+            unit["movement"] = json!(100_i64);
+            unit["shield_hunger"] = json!(0_i64);
+            if unit["id"] == "UNIT_SETTLER" {
+                unit["role"] = json!("settler");
+            }
+        }
+    }
+    projection.interface.legal_actions = [("peace", 0_u8), ("alert", 1_u8)]
+        .into_iter()
+        .map(|(readiness, _index)| LegalAction {
+            route: "set-readiness".to_owned(),
+            entity_id: "human".to_owned(),
+            target_id: readiness.to_owned(),
+            fields: vec!["readiness".to_owned()],
+            payload: json!({"readiness":readiness}),
+            ..LegalAction::default()
+        })
+        .collect();
+    from_projection(&projection)
+}
+
 /// Separate current-policy diagnostic; ordinary populated scenes stay unchanged.
 pub(super) fn policy_state() -> GameState {
     let mut projection = projection();

@@ -20,6 +20,8 @@ pub(super) fn templates(
         "cw_CityItem",
         "GovernmentListItem",
         "UnitManagerAdviceItem",
+        "UnitStatsItem",
+        "UnitTacticalItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -53,7 +55,7 @@ impl Row<'_> {
         let Some(template) = self.ui.row_templates.get(name) else {
             return false;
         };
-        if self.path == "Advisor.List" {
+        if self.view.kind == ManagerKind::Unit {
             self.columns(template, widgets);
         } else if self.view.kind == ManagerKind::Science {
             self.science(template, widgets);
@@ -89,6 +91,9 @@ impl Row<'_> {
     fn value(&self, name: &str) -> String {
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
+        if self.view.kind == ManagerKind::Unit {
+            return super::units::value(self.ui, self.state, self.path, self.id, name);
         }
         if super::selectors::city_list(self.view.kind, self.path) {
             return self
@@ -149,7 +154,30 @@ impl Row<'_> {
                 width,
                 height: self.bounds.height,
             };
-            widgets.push(self.widget(column, &column.name, rect, self.value(&column.name)));
+            let mut widget = self.widget(column, &column.name, rect, self.value(&column.name));
+            if self.view.kind == ManagerKind::Unit && column.name == "UnitIcon" {
+                widget.rect.x = widget.rect.x.saturating_add(2);
+                widget.rect.y = widget.rect.y.saturating_add(1);
+                widget.rect.width = widget.rect.width.saturating_sub(2);
+                widget.rect.height = widget.rect.height.saturating_sub(1);
+                if let Some((name, stretch)) =
+                    super::units::icon(self.ui, self.state, self.path, self.id)
+                {
+                    widget.node.fields.insert("image00".to_owned(), name);
+                    widget.node.fields.insert(
+                        "imageblttype".to_owned(),
+                        if stretch { "stretch" } else { "copy" }.to_owned(),
+                    );
+                }
+            }
+            widgets.push(widget);
+            if self.view.kind == ManagerKind::Unit && column.name == "Health" {
+                let start = widgets.len();
+                super::units::health(self.state, self.id, self.path, rect, widgets);
+                for part in &mut widgets[start..] {
+                    clip(&mut part.node, self.bounds);
+                }
+            }
             x = x.saturating_add(i32::try_from(width).unwrap_or(i32::MAX));
         }
     }
@@ -264,6 +292,8 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Science => Some("ScienceAdvanceListItem"),
         ManagerKind::Research => Some("SciListItem"),
         ManagerKind::Unit if path == "Advisor.List" => Some("UnitManagerAdviceItem"),
+        ManagerKind::Unit if path.contains("Tactical") => Some("UnitTacticalItem"),
+        ManagerKind::Unit => Some("UnitStatsItem"),
         _ => None,
     }
 }

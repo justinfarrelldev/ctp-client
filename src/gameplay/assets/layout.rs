@@ -10,6 +10,11 @@ use std::path::{Path, PathBuf};
 
 /// Native AUI image extents absent from explicit LDL fields.
 mod geometry;
+/// Canonical string-import ordering and bounded fileless reader regressions.
+#[cfg(test)]
+mod string_tests;
+/// Original ordered localization imports, including addon and tooltip databases.
+mod strings;
 
 use crate::gameplay::{GameplayError, asset_error};
 
@@ -167,24 +172,7 @@ impl LayoutBook {
                 .map_err(|error| asset_error(format!("{}: {error}", path.display())))?;
             book.nodes.extend(parsed.nodes);
         }
-        for filename in ["gl_str.txt", "ldl_str.txt"] {
-            let strings = std::fs::read(root.join("ctp2_data/english/gamedata").join(filename))
-                .map_err(|error| asset_error(error.to_string()))?;
-            let tokens = tokenize(&super::text::decode(&strings))?;
-            // Entries are key/value pairs. Sliding windows would register an
-            // uppercase/numeric translation as a key pointing at the next ID.
-            for pair in tokens.chunks_exact(2) {
-                if pair[0].starts_with("str_")
-                    || pair[0].chars().all(|character| {
-                        character.is_ascii_uppercase()
-                            || character.is_ascii_digit()
-                            || character == '_'
-                    })
-                {
-                    book.labels.insert(pair[0].clone(), pair[1].clone());
-                }
-            }
-        }
+        book.labels = strings::load(root)?;
         book.root = Some(root.to_path_buf());
         Ok(book)
     }

@@ -5,6 +5,50 @@ use crate::gameplay::ui_model::{MenuCategory, management::ManagerKind};
 use std::path::Path;
 
 #[test]
+fn unit_reference_diagnostic_is_two_owned_settlers_not_the_unrelated_city_preview() {
+    let scene = snapshot::scene::PreviewScene::PopulatedManager {
+        kind: ManagerKind::Unit,
+        chart: false,
+    };
+    let state = snapshot::scene::preview_state(scene);
+    assert_eq!(
+        state
+            .units
+            .iter()
+            .filter(|unit| unit.owner == crate::gameplay::model::PlayerId::Human)
+            .count(),
+        2,
+        "reference's actual own type count is explicit fixture data"
+    );
+    assert!(
+        state.cities.is_empty(),
+        "do not borrow the Build diagnostic's city/queue"
+    );
+    assert_eq!(
+        state
+            .viewer
+            .as_ref()
+            .expect("viewer")
+            .diplomacy
+            .as_ref()
+            .expect("nation")
+            .facts["readiness"],
+        serde_json::json!("war"),
+        "reference's known current readiness"
+    );
+    assert!(
+        state
+            .viewer
+            .as_ref()
+            .expect("viewer")
+            .units
+            .iter()
+            .all(|unit| unit.type_id == "UNIT_SETTLER"),
+        "reference scenario, not inferred local starters"
+    );
+}
+
+#[test]
 fn motion_probe_captures_real_window_at_an_injected_animation_phase() -> Result<(), String> {
     let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;
     let environment = HeadlessSdlEnvironment::apply();
