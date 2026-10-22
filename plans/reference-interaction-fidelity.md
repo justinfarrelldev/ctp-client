@@ -4,6 +4,10 @@
 
 Review every image in `images/ctp2_references` using its full filename as context. Work from original CTP2 source and installed art (read-only, never copied). Keep multiplayer/local games server-authoritative. New tests must not write files or contact the real server. Use red → green → refactor, native SDL pixel readback, strict lint, full tests, coverage and a dedicated build. Do not certify pixel parity for unimplemented screens.
 
+## Active full-screen continuation
+
+The user explicitly requested completion of every remaining checklist item after `ea98904`. Execute [full-screen-reference-parity.md](full-screen-reference-parity.md) alongside this parent, using TDD and atomic commits. No prior component/protocol milestone certifies full-frame parity. Do not stop at another partial implementation report or check off unverified/blocked acceptance.
+
 ## Current server contract integration
 
 The server has independently implemented contract v2, including retained destinations, ruin rewards and city production governors. Follow [client-contract-v2.md](client-contract-v2.md) for the requested client-only TDD integration. Earlier blocker notes below are historical, not the current server feature status. Do not modify the server.

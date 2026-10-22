@@ -187,3 +187,12 @@ See [the comprehensive child checklist and verification ledger](plans/client-con
 - [x] Full suite: **514 library + 532 binary + 19 integration = 1065 executions**; native build passes; LLVM line coverage **84.27%** with the 80% threshold enforced. The fast script is absent. Windows GNU checking was attempted but is blocked by its missing Rust target and GTK/GLib/GObject cross-pkg-config/sysroot before client compilation; no Windows success is claimed.
 - [x] Finish strict lint/lint-fix and source/privacy/concurrency review; stage the presentation slice for a normal verified commit. Record evidence in the child ledger; unchanged commit hooks must pass.
 - [ ] Continue the parent plan's remaining source/reference reconciliation. This integration does not certify complete-game deployment, exact missing culture/optimizer/foreign-history contracts, moving-stack/attack/death behavior or all 33 reference screenshots.
+
+## Full-screen reference continuation (active request)
+
+Execute [full-screen-reference-parity.md](plans/full-screen-reference-parity.md) and the existing parent until all unblocked implementation/acceptance work is complete. Do not treat another partial commit as completion or mark blocked/unverified references accepted.
+
+- [x] Reproduce missing Unit/Trade attached advisor panes and controls, trace original show/hide/docking/column behavior, and implement cached source windows/art/styles with own-only accounting.
+- [x] Reproduce collapsed item columns and gold-versus-production support confusion. Keep unavailable private AI recommendations/applied support honest; record exact source/server evidence in [the client-only gap report](plans/reference-parity-contract-gaps.md).
+- [x] Validate original full-width advisor roof pixels, local native/semantic visibility callbacks, outbound-only trade accounting and foreign-unit exclusion without files or live-server mutations.
+- [ ] Finish all remaining manager/panel/animation/options/interaction work and complete-frame acceptance for all 33 named references; continue TDD, strict lint/tests/coverage/build and verified atomic commits.

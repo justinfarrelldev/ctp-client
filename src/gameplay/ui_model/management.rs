@@ -16,8 +16,12 @@ use crate::gameplay::GameplayError;
 use crate::gameplay::assets::layout::{LayoutBook, LayoutNode};
 use crate::gameplay::assets::library::LibraryCatalog;
 use crate::gameplay::model::GameState;
-use crate::gameplay::server::interface::LegalAction;
 
+/// Source-attached advisor geometry/lifecycle and own-only accounting regressions.
+#[cfg(test)]
+mod advisor_tests;
+/// Original docked advice windows with own-only facts and local callbacks.
+mod advisors;
 /// Source articles, measured fragments and viewer-safe variable mappings.
 mod articles;
 /// Source-derived button and editable-control bindings.
@@ -27,6 +31,8 @@ mod chart;
 /// Fileless source-chart regressions.
 #[cfg(test)]
 mod chart_tests;
+/// Immutable command authorization, separate from manager presentation.
+mod command;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
 /// Source Empire Details/Summary lifecycle and government comparison regressions.
@@ -236,37 +242,6 @@ pub struct ManagerCommand {
     pub payload: Value,
 }
 
-impl ManagerCommand {
-    /// Rejects stale confirmations and commands with no current authority.
-    #[must_use]
-    pub fn valid_for(&self, state: &GameState) -> bool {
-        if state.network != crate::gameplay::model::NetworkStatus::Ready {
-            return false;
-        }
-        let Some(viewer) = state
-            .viewer
-            .as_ref()
-            .filter(|viewer| viewer.revision == self.revision)
-        else {
-            return false;
-        };
-        if let Some(valid) = policy::validate(viewer, &self.route, &self.payload) {
-            return valid;
-        }
-        crate::gameplay::server::commands::valid(viewer, &self.route, &self.payload)
-    }
-
-    /// Carries through an advertised action without reconstructing its metadata.
-    pub(super) fn advertised(state: &GameState, action: &LegalAction) -> Option<Self> {
-        let command = Self {
-            revision: state.viewer.as_ref().map_or(0, |viewer| viewer.revision),
-            route: action.route.clone(),
-            payload: action.payload.clone(),
-        };
-        (action.http_supported() && command.valid_for(state)).then_some(command)
-    }
-}
-
 /// Semantic interaction available to real SDL input and accessible automation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManagerIntent {
@@ -374,6 +349,8 @@ pub struct ManagementUi {
     pub book: LayoutBook,
     /// Resolved manager roots cached once, not reparsed every SDL frame.
     pub layouts: BTreeMap<ManagerKind, LayoutNode>,
+    /// Cached source docked advice windows, sharing the main manager lifecycle.
+    pub advisor_layouts: BTreeMap<ManagerKind, LayoutNode>,
     /// Original lower-panel body tree, resolved once without frame-time file I/O.
     pub panel: LayoutNode,
     /// Original runtime-created Chart viewport/button template, resolved once.
@@ -434,7 +411,9 @@ impl ManagementUi {
         let chart = book.resolve("TechTree")?;
         let panel = book.resolve("ControlPanelWindow")?;
         let row_templates = rows::templates(&book)?;
+        let advisor_layouts = advisors::templates(&book)?;
         Ok(Self {
+            advisor_layouts,
             book,
             layouts,
             chart,

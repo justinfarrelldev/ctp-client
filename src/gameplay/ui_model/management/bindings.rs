@@ -17,6 +17,9 @@ pub(super) fn binding(
     path: &str,
     node: &LayoutNode,
 ) -> (Option<ManagerIntent>, Option<String>) {
+    if let Some(intent) = super::advisors::binding(view, path) {
+        return enabled(intent);
+    }
     if let Some(binding) = super::selectors::binding(state, view, path) {
         return binding;
     }

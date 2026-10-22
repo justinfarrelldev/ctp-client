@@ -100,6 +100,7 @@ pub(super) fn keys(ui: &ManagementUi) -> BTreeSet<SourceFont> {
         .chain(core::iter::once(&ui.chart))
         .chain(core::iter::once(&ui.panel))
         .chain(ui.row_templates.values())
+        .chain(ui.advisor_layouts.values())
     {
         collect(root, &mut keys);
     }

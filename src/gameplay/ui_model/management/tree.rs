@@ -30,6 +30,17 @@ pub(super) fn widgets(ui: &ManagementUi, state: &GameState) -> Vec<ManagerWidget
         widgets: Vec::new(),
     };
     walker.walk(root, "", rect);
+    if let Some((advice, advice_rect)) = super::advisors::window(ui, view, rect) {
+        let mut advisor = Walker {
+            ui,
+            state,
+            view,
+            root_rect: advice_rect,
+            widgets: Vec::new(),
+        };
+        advisor.walk(advice, "Advisor", advice_rect);
+        walker.widgets.extend(advisor.widgets);
+    }
     if let Some((window, path, popup_rect)) = selectors::popup(ui, state, view, &walker.widgets) {
         walker.walk(&window, &path, popup_rect);
     }
@@ -526,6 +537,9 @@ fn source_label(ui: &ManagementUi, node: &LayoutNode) -> String {
 
 /// Separates source lists that must not steal one another's selection.
 fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
+    if path == "Advisor.List" {
+        return "advisor-category";
+    }
     if selectors::list_path(kind, path) {
         return if kind == ManagerKind::Empire {
             "government"

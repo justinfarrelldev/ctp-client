@@ -17,6 +17,88 @@ use serde_json::json;
 use std::path::Path;
 
 #[test]
+fn docked_advisor_roof_is_the_actual_original_full_width_art_and_hides_with_its_callback() {
+    let result = with_canvas((800, 600), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let state = GameState::from_server_projection(
+            &ServerProjection {
+                revision: 1,
+                turn: 1,
+                ..ServerProjection::default()
+            },
+            1,
+            1,
+        );
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        let source = load_rim_rgba_entry(&root, PICTURE_ARCHIVE, "upfg400.rim", None)
+            .map_err(|error| error.to_string())?;
+        for (kind, button) in [
+            (ManagerKind::Unit, "AdviceButton"),
+            (ManagerKind::Trade, "ShowAdviceButton"),
+        ] {
+            ui.management.open(kind, &state, None);
+            let widgets = ui.management.widgets(&state);
+            let advice = widgets
+                .iter()
+                .find(|widget| widget.id == "Advisor")
+                .ok_or_else(|| "missing attached advisor".to_owned())?;
+            let canopy = Rect::new(advice.rect.x, advice.rect.y, 224, 30);
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.clear();
+            draw_management(canvas, &mut textures, &state, &ui, None)
+                .map_err(|error| error.to_string())?;
+            let pixels = canvas.read_pixels(Some(canopy), PixelFormatEnum::RGBA32)?;
+            for y in 0_usize..30_usize {
+                for x in 0_usize..224_usize {
+                    let actual = y.saturating_mul(224).saturating_add(x).saturating_mul(4);
+                    let expected = y
+                        .saturating_mul(source.pitch)
+                        .saturating_add(x.saturating_mul(4));
+                    for channel in 0_usize..3_usize {
+                        let composite = u8::try_from(
+                            u32::from(source.data[expected.saturating_add(channel)])
+                                .saturating_mul(u32::from(source.data[expected.saturating_add(3)]))
+                                .div_euclid(255),
+                        )
+                        .map_err(|error| error.to_string())?;
+                        if pixels[actual.saturating_add(channel)].abs_diff(composite) > 1 {
+                            return Err(format!("{kind:?} source roof mismatch at {x},{y}"));
+                        }
+                    }
+                }
+            }
+            let hide = ui
+                .management
+                .activate_id(button, &state)
+                .ok_or_else(|| "missing advice callback".to_owned())?;
+            ui.management.apply_local(hide);
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.clear();
+            draw_management(canvas, &mut textures, &state, &ui, None)
+                .map_err(|error| error.to_string())?;
+            let hidden = canvas.read_pixels(Some(canopy), PixelFormatEnum::RGBA32)?;
+            if hidden
+                .chunks_exact(4)
+                .any(|pixel| pixel[..3] != [0_u8, 0, 0])
+            {
+                return Err("hidden advice still paints".to_owned());
+            }
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(), "source advisor native artwork: {result:?}");
+}
+
+#[test]
 fn manager_article_pictures_match_active_catalog_and_original_geometry() {
     let result = with_canvas((800_u32, 600_u32), |canvas| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");

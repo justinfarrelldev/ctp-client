@@ -1,6 +1,6 @@
 //! Viewer-safe manager lists and values; no invented economy, contacts or names.
 
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 
 use super::{ManagementUi, ManagerKind, ManagerView, articles};
 use crate::gameplay::model::{CityId, GameState, PlayerId, UnitId};
@@ -44,18 +44,18 @@ pub(super) fn city<'state>(
 }
 
 /// Exact living owned units, not every visible foreign actor.
-fn owned_units(state: &GameState) -> Vec<&ServerUnitProjection> {
+pub(super) fn owned_units(state: &GameState) -> Vec<&ServerUnitProjection> {
+    let own: BTreeSet<_> = state
+        .units
+        .iter()
+        .filter(|unit| unit.alive && unit.owner == PlayerId::Human)
+        .map(|unit| unit.id)
+        .collect();
     state.viewer.as_ref().map_or_else(Vec::new, |viewer| {
         viewer
             .units
             .iter()
-            .filter(|source| {
-                state.units.iter().any(|unit| {
-                    unit.alive
-                        && unit.owner == PlayerId::Human
-                        && unit.id == UnitId::from_server_id(&source.id)
-                })
-            })
+            .filter(|source| own.contains(&UnitId::from_server_id(&source.id)))
             .collect()
     })
 }
@@ -88,6 +88,9 @@ pub(super) fn rows(
     view: &ManagerView,
     path: &str,
 ) -> Vec<(String, String)> {
+    if path == "Advisor.List" {
+        return super::advisors::rows(ui, state);
+    }
     if super::selectors::list_path(view.kind, path) {
         let owner = path.strip_suffix(".window.listbox").unwrap_or(path);
         return super::selectors::options(ui, state, view, owner);
@@ -367,6 +370,9 @@ pub(super) fn text(
     view: &ManagerView,
     path: &str,
 ) -> Option<String> {
+    if let Some(text) = super::advisors::text(ui, state, view, path) {
+        return Some(text);
+    }
     if let Some(text) = articles::text(ui, view, path) {
         return Some(text);
     }

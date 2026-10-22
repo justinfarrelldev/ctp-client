@@ -19,6 +19,7 @@ pub(super) fn templates(
         "SciListItem",
         "cw_CityItem",
         "GovernmentListItem",
+        "UnitManagerAdviceItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -52,7 +53,9 @@ impl Row<'_> {
         let Some(template) = self.ui.row_templates.get(name) else {
             return false;
         };
-        if self.view.kind == ManagerKind::Science {
+        if self.path == "Advisor.List" {
+            self.columns(template, widgets);
+        } else if self.view.kind == ManagerKind::Science {
             self.science(template, widgets);
         } else {
             for child in template.children.iter().rev() {
@@ -84,6 +87,9 @@ impl Row<'_> {
 
     /// Numeric fields use verified runtime semantics; unknown scales/rates stay unknown.
     fn value(&self, name: &str) -> String {
+        if self.path == "Advisor.List" {
+            return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
         if super::selectors::city_list(self.view.kind, self.path) {
             return self
                 .state
@@ -93,7 +99,10 @@ impl Row<'_> {
                 .map_or_else(|| self.id.to_owned(), data::city_name);
         }
         if matches!(name, "Item" | "Label" | "Name") {
-            return data::label(self.ui, super::queue::content(self.state, self.view, self.id).unwrap_or(self.id));
+            return data::label(
+                self.ui,
+                super::queue::content(self.state, self.view, self.id).unwrap_or(self.id),
+            );
         }
         let field = match name {
             "Attack" => "attack",
@@ -120,6 +129,29 @@ impl Row<'_> {
             None => None,
         });
         value.map_or_else(|| "—".to_owned(), |number| number.to_string())
+    }
+
+    /// Original listbox item columns are arranged using corresponding header widths.
+    fn columns(&self, template: &LayoutNode, widgets: &mut Vec<ManagerWidget>) {
+        let mut x = self.bounds.x;
+        for (index, column) in template.children.iter().enumerate() {
+            let width = self
+                .list
+                .child("header")
+                .and_then(|header| header.children.get(index))
+                .and_then(|header| header.integer("widthpix"))
+                .or_else(|| column.integer("widthpix"))
+                .and_then(|width| u32::try_from(width).ok())
+                .unwrap_or(0);
+            let rect = MenuRect {
+                x,
+                y: self.bounds.y,
+                width,
+                height: self.bounds.height,
+            };
+            widgets.push(self.widget(column, &column.name, rect, self.value(&column.name)));
+            x = x.saturating_add(i32::try_from(width).unwrap_or(i32::MAX));
+        }
     }
 
     /// Preserves local discovery colors without inferring foreign advances from embassies.
@@ -231,6 +263,7 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Build => Some("eq_BuildingWonderItem"),
         ManagerKind::Science => Some("ScienceAdvanceListItem"),
         ManagerKind::Research => Some("SciListItem"),
+        ManagerKind::Unit if path == "Advisor.List" => Some("UnitManagerAdviceItem"),
         _ => None,
     }
 }
