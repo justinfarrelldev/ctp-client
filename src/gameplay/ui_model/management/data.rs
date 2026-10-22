@@ -118,8 +118,14 @@ pub(super) fn rows(
                     .collect()
             }),
         ManagerKind::Build if path.starts_with("ItemsBox.") => buildables(ui, state, view, path),
-        ManagerKind::Science => super::rows::advances(ui, state, true),
-        ManagerKind::Research => super::rows::advances(ui, state, false),
+        /* Source: ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp::
+         * UpdateAdvanceList/CompareAdvance vs sci_advancescreen.cpp::
+         * sci_advancescreen_loadList/ScienceSortCallback. Only discovery headers
+         * change local sort direction; opening a candidate picker cannot inherit
+         * that sort or turn a selected known article into an available target.
+         */
+        ManagerKind::Science => super::rows::advances(ui, state, true, view.selections.get("science-sort").is_some_and(|order| order == "desc")),
+        ManagerKind::Research => super::rows::advances(ui, state, false, false),
         ManagerKind::National => super::national::rows(ui, state, view, path),
         ManagerKind::Unit => unit_rows(ui, state, path),
         ManagerKind::Trade => super::trade::rows(state, view, path),

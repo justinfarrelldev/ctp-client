@@ -575,6 +575,24 @@ fn queue_label(ui: &ManagementUi, state: &GameState, city: &ServerCityProjection
         None => "—".to_owned(),
     }
 }
+/*
+ * Original released-source provenance for the mayor/governor selector:
+ * - ctp2_source/ctp2_code/ui/interface/NationalManagementDialog.cpp::
+ *   NationalManagementDialog constructs CityStatusWin's GovernorSelect.Toggle
+ *   and .Pulldown, wires ToggleGovernorButtonActionCallback and
+ *   SelectGovernorActionCallback, and populates NationalGovernorListItem rows.
+ * - The same file's UpdateGovernor controls current checked/selected/enabled
+ *   presentation; ToggleGovernorButtonActionCallback changes use-governor,
+ *   while SelectGovernorActionCallback changes the selected build-list priority.
+ * - ctp2/ctp2_data/english/uidata/layouts/citystatus.ldl::
+ *   NATIONAL_GOVERNOR_PULLDOWN_TOGGLE, NationalGovernorListItem and
+ *   CityStatusWin.TabGroup.Tab2.TabPanel.GovernorSelect establish the original
+ *   toggle/pulldown elements, inherited styles and relative positions.
+ * Client integration deliberately addresses one explicitly selected owned city
+ * through current advertised server commands/pinned priorities. Original bulk
+ * local CityData mutation is not replicated; enqueue cannot toggle the received
+ * mayor or apply a local governor simulation. Missing authority stays disabled.
+ */
 /// Current single-city National operations reuse the same legal dialogs as City.
 pub(super) fn binding(
     state: &GameState,

@@ -256,3 +256,70 @@ fn discovery_selection_changes_only_source_description_and_links_not_current_res
         "unavailable/foreign/injected selection cannot silently replace known-list description"
     );
 }
+
+/*
+ * Source-backed regression decisions:
+ * ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp::CompareAdvance
+ * sorts the name header by cost; ctp2_source/ctp2_code/ui/aui_common/aui_header.cpp::
+ * aui_HeaderSwitchAction::Execute provides ascending/descending ON states1/2.
+ * science.ldl::AdvanceList.header retains all eight civilization controls, but
+ * original UpdateAdvanceItem/ColorHeaderActionCallback require actual permitted
+ * player/embassy facts. Missing server knowledge cannot become a fake sort key.
+ * The malformed/zero fixture costs below exercise client input safety, not a
+ * copied rules database or a claim that negative costs exist in released CTP2.
+ */
+/// Cost values intentionally disagree with alphabetical names and include unavailable facts.
+fn sorted_fixture() -> (ManagementUi, GameState) {
+    let (mut ui, mut state) = fixture();
+    let viewer = state.viewer.as_mut().expect("viewer");
+    viewer.interface.research.as_mut().expect("research").advances = ["ADVANCE_RELIGION", "ADVANCE_AGRICULTURE", "ADVANCE_TOOLMAKING", "ADVANCE_MISSING", "ADVANCE_NULL", "ADVANCE_NEGATIVE", "ADVANCE_ZERO"].into_iter().map(str::to_owned).collect();
+    viewer.interface.rules = Some(json!({"advances":[{"id":"ADVANCE_TOOLMAKING","cost":196_i64},{"id":"ADVANCE_AGRICULTURE","cost":242_i64},{"id":"ADVANCE_RELIGION","cost":334_i64},{"id":"ADVANCE_NULL","cost":null},{"id":"ADVANCE_NEGATIVE","cost":-1_i64},{"id":"ADVANCE_ZERO","cost":0_i64},{"id":"ADVANCE_BALLISTICS","cost":570_i64}]}));
+    ui.open(ManagerKind::Science, &state, None);
+    (ui, state)
+}
+
+/// Read the exact visible row identities, not labels, cell children or array indices.
+fn discovery_ids(ui: &ManagementUi, state: &GameState) -> Vec<String> {
+    ui.widgets(state).into_iter().filter_map(|widget| widget.id.strip_prefix("AdvanceList/").filter(|id| !id.contains('/')).map(str::to_owned)).collect()
+}
+
+#[test]
+fn science_header_switch_uses_original_cost_comparator_and_preserves_exact_selected_discovery_on_return() {
+    let (mut ui, state) = sorted_fixture();
+    let before = state.clone();
+    let header = ui.activate_id("AdvanceList.header.switch0", &state).expect("original aui_HeaderSwitchAction is actionable");
+    assert!(ui.apply_local(header), "first ON/state1 sorts ascending by source cost, not name");
+    assert_eq!(discovery_ids(&ui, &state), ["ADVANCE_ZERO", "ADVANCE_TOOLMAKING", "ADVANCE_AGRICULTURE", "ADVANCE_RELIGION", "ADVANCE_MISSING", "ADVANCE_NEGATIVE", "ADVANCE_NULL"], "source name header actually compares costs; explicit0 valid, missing/null/negative unavailable last");
+    let selected = ui.activate_id("AdvanceList/ADVANCE_AGRICULTURE", &state).expect("exact discovery");
+    assert!(ui.apply_local(selected), "known-only local article selection");
+    ui.view.as_mut().expect("science").scroll.insert("CurrentResearch.Description".to_owned(), 2_usize);
+    let descending = ui.activate_id("AdvanceList.header.switch0", &state).expect("second ON/state2");
+    assert!(ui.apply_local(descending), "source descending callback");
+    assert_eq!(discovery_ids(&ui, &state), ["ADVANCE_RELIGION", "ADVANCE_AGRICULTURE", "ADVANCE_TOOLMAKING", "ADVANCE_ZERO", "ADVANCE_MISSING", "ADVANCE_NEGATIVE", "ADVANCE_NULL"], "descending never moves unknown costs ahead or reverses an unrelated chooser");
+    let selected_view = ui.view.clone();
+    ui.open_related(ManagerKind::Library, &state);
+    ui.close();
+    assert_eq!(ui.view, selected_view, "sort order, exact advance and its current description scroll survive return");
+    assert_eq!(ui.view.as_ref().expect("science").selections.get("advance").map(String::as_str), Some("ADVANCE_AGRICULTURE"), "selected identity stays stable as its row moves");
+    assert_eq!(state, before, "header never changes current target/goal/knowledge or submits");
+}
+
+#[test]
+fn science_header_default_cost_order_never_treats_missing_null_or_negative_as_cheaper_than_known_zero() {
+    let (ui, state) = sorted_fixture();
+    assert_eq!(discovery_ids(&ui, &state), ["ADVANCE_ZERO", "ADVANCE_TOOLMAKING", "ADVANCE_AGRICULTURE", "ADVANCE_RELIGION", "ADVANCE_MISSING", "ADVANCE_NEGATIVE", "ADVANCE_NULL"], "source initial ascending cost order with unavailable-last policy");
+    let research = state.viewer.as_ref().expect("viewer").interface.research.as_ref().expect("research");
+    assert_eq!(research.target_id, "ADVANCE_BALLISTICS", "current research isn't a discovery selection or sorting target");
+}
+
+#[test]
+fn science_header_cannot_sort_fabricated_nation_slot_or_foreign_knowledge_sets() {
+    let (ui, state) = sorted_fixture();
+    let fields = ui.widgets(&state);
+    for column in 1_u8..=8_u8 {
+        let id = format!("AdvanceList.header.switch{column}");
+        let header = fields.iter().find(|widget| widget.id == id).expect("every original civilization header remains present");
+        assert!(header.intent.is_none(), "unknown original nation slot/embassy sets aren't false/empty");
+        assert!(header.unavailable.as_ref().is_some_and(|reason| reason.contains("knowledge")), "unprojected knowledge sort must explain why unavailable instead of silent no-op");
+    }
+}

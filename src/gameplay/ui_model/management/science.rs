@@ -1,6 +1,26 @@
 //! Original Science current-state/description callbacks, using received own facts.
-use super::{ManagementUi, ManagerView, data};
+use super::{ManagementUi, ManagerIntent, ManagerKind, ManagerView, data};
 use crate::gameplay::model::GameState;
+
+/*
+ * Original released-source provenance for this Science control group:
+ * - ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp:
+ *   constructor wires ChangeResearch, IconButton and RadialButton to
+ *   EditResearchButtonActionCallback; UpdateScience/ClearScience own current
+ *   title/icon/spent/cost/turn values, while AdvanceListCallback changes only
+ *   the selected known advance's description. It must not replace active work.
+ * - ctp2_source/ctp2_code/ui/aui_common/aui_region.cpp::aui_Region::Move takes
+ *   absolute coordinates: the constructor's Move(-X,-Y) moves unused Advice
+ *   outside the window, not by a relative offset.
+ * - ctp2/ctp2_data/english/uidata/layouts/science.ldl:
+ *   ScienceManagementDialog.{AdvisorButton,ChangeResearch,CurrentResearch};
+ *   inherited CTP2_PROGRESS_DISPLAY/CURRENT_PROGRESS_INFORMATION establish
+ *   the actual picture, font/art, control paths and positions.
+ * Client integration: receive own values/forecasts; never copy engine's +1
+ * onto a server estimate or simulate missing/candidate research. Cached article
+ * selection is not proof the original dynamically assembled Gives text matches;
+ * that visible reference difference remains tracked. Scaling is unchanged.
+ */
 /// Original constructor uses absolute `Move(-X,-Y)` for the unused advisor,
 /// placing its whole control outside the clipped Science window.
 pub(super) fn configure(root: &mut crate::gameplay::assets::layout::LayoutNode) {
@@ -14,6 +34,38 @@ pub(super) fn configure(root: &mut crate::gameplay::assets::layout::LayoutNode) 
 /// Outside-parent source controls are absent from native/semantic focus trees.
 pub(super) fn hidden(path: &str) -> bool {
     path == "AdvisorButton" || path.starts_with("AdvisorButton.")
+}
+/*
+ * Original released-source provenance for Science entries and headers:
+ * - ScienceManagementDialog.cpp::{constructor,EditResearchButtonActionCallback}
+ *   (under ctp2_source/ctp2_code/ui/interface/) opens SciAdvanceScreen through
+ *   all three research controls; opening is presentation, not an order.
+ * - The same file's UpdateAdvanceList/CompareAdvance deliberately sort column0
+ *   by advance cost despite its Advance Name caption. Knowledge columns use
+ *   actual player/embassy facts; no such foreign sets/slots are projected here.
+ * - ctp2_source/ctp2_code/ui/aui_common/aui_header.cpp::
+ *   aui_HeaderSwitchAction::Execute maps ON states1/2 to ascending/descending.
+ * - ctp2/ctp2_data/english/uidata/layouts/science.ldl:
+ *   AdvanceList.header.switch0..switch8 and SCIENCE_ADVANCE_HEADER supply the
+ *   original controls, fonts/patterns, 16px header and 214/28px widths.
+ * Keep identities stable while sorting. Disabled knowledge headers explain a
+ * contract gap; they do not assert nonexistent nations/embassies/knowledge.
+ */
+/// Original `CompareAdvance` column0 compares costs, not alphabetical names;
+/// `aui_HeaderSwitchAction` states1/2 request ascending/descending respectively.
+pub(super) fn binding(view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
+    if view.kind != ManagerKind::Science {
+        return None;
+    }
+    if matches!(path, "ChangeResearch" | "CurrentResearch.AdvanceProgress.IconBorder.IconButton" | "CurrentResearch.AdvanceProgress.IconBorder.IconButton.RadialButton") {
+        return Some((Some(ManagerIntent::Open(ManagerKind::Research)), None));
+    }
+    if path == "AdvanceList.header.switch0" {
+        let order = if view.selections.get("science-sort").is_some_and(|order| order == "asc") { "desc" } else { "asc" };
+        return Some((Some(ManagerIntent::Select("science-sort".to_owned(), order.to_owned())), None));
+    }
+    let column = path.strip_prefix("AdvanceList.header.switch")?.parse::<u8>().ok()?;
+    (1_u8..=8_u8).contains(&column).then(|| (None, Some("Original nation-slot and embassy research knowledge is not projected for this header".to_owned())))
 }
 /// The original clears current controls for no target or an already known advance.
 /// This is a direct received-set membership check, not a research simulation.

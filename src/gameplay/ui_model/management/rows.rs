@@ -6,6 +6,7 @@ use crate::gameplay::assets::layout::{LayoutBook, LayoutNode};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::MenuRect;
 use alloc::collections::BTreeMap;
+use core::cmp::Ordering;
 
 /// Resolves source runtime-created items once; no frame-time asset reads.
 pub(super) fn templates(
@@ -284,7 +285,17 @@ impl Row<'_> {
     }
 }
 
-/// Source ColorBox/ColorHeader callbacks inset one pixel; self is the client's blue player.
+/*
+ * Original released-source style provenance:
+ * ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp::
+ * ColorBoxActionCallback and ColorHeaderActionCallback inset the actual control
+ * rectangle by one pixel and fill GetPlayerColor(cookie). Row bounds come from
+ * science.ldl::{ADVANCE_LIST_COLUMN,ScienceAdvanceListItem,AdvanceList.header}.
+ * The fixed blue/self-first-column below is an explicitly limited client
+ * fallback: the server supplies no original slot/color/embassy knowledge map.
+ * It is not source-exact nation identity, foreign knowledge, or frame acceptance.
+ */
+/// Source one-pixel insets with an explicit limited self-color fallback.
 pub(super) fn knowledge_marker(id: String, bounds: MenuRect) -> ManagerWidget {
     let mut node = LayoutNode::default();
     for (name, value) in [
@@ -369,8 +380,24 @@ pub(super) fn height(ui: &ManagementUi, kind: ManagerKind, path: &str) -> Option
         .filter(|height| *height > 0_i32)
 }
 
+/*
+ * Original released-source behavior/element provenance:
+ * - ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp::
+ *   UpdateAdvanceList/CreateAdvanceItem/UpdateAdvanceItem build discovered own
+ *   or embassy-permitted rows; CompareAdvance column0 compares source costs.
+ * - ctp2_source/ctp2_code/ui/interface/sci_advancescreen.cpp::
+ *   sci_advancescreen_loadList/ScienceSortCallback instead use CanResearch's
+ *   candidate IDs and their costs. These lists must never be conflated.
+ * - ctp2/ctp2_data/english/uidata/layouts/science.ldl::{ScienceAdvanceListItem,
+ *   SciListItem,AdvanceList.header} define their distinct columns/row geometry;
+ *   geometry is read from cached templates, not guessed by the sort operation.
+ * Client integration: only projected own discovery/available IDs and costs;
+ * no foreign knowledge is inferred. Missing/null/negative costs remain unknown
+ * last in either direction, while explicit zero remains a valid cost. Cache
+ * keys once rather than the original quadratic bubble sort/private engine.
+ */
 /// Discovery table stays distinct from the available-target picker; both sort by cost.
-pub(super) fn advances(ui: &ManagementUi, state: &GameState, known: bool) -> Vec<(String, String)> {
+pub(super) fn advances(ui: &ManagementUi, state: &GameState, known: bool, descending: bool) -> Vec<(String, String)> {
     let Some(viewer) = state.viewer.as_ref() else {
         return Vec::new();
     };
@@ -388,7 +415,8 @@ pub(super) fn advances(ui: &ManagementUi, state: &GameState, known: bool) -> Vec
         .collect();
     result.sort_unstable_by(|left, right| left.0.cmp(&right.0));
     result.dedup_by(|left, right| left.0 == right.0);
-    result.sort_by_cached_key(|row| {
+    // Cache projected costs and folded titles once, never in the comparison loop.
+    let mut keyed: Vec<_> = result.into_iter().map(|row| {
         let cost = viewer
             .interface
             .rules
@@ -399,12 +427,20 @@ pub(super) fn advances(ui: &ManagementUi, state: &GameState, known: bool) -> Vec
                     .iter()
                     .find(|advance| advance["id"].as_str() == Some(row.0.as_str()))
             })
-            .and_then(|advance| advance["cost"].as_i64());
-        (
-            cost.is_none(),
-            cost.unwrap_or(i64::MAX),
-            row.1.to_lowercase(),
-        )
+            .and_then(|advance| advance["cost"].as_i64())
+            .filter(|cost| *cost >= 0_i64);
+        let title = row.1.to_lowercase();
+        (row, cost, title)
+    }).collect();
+    keyed.sort_by(|left, right| {
+        match (left.1, right.1) {
+            (Some(left_cost), Some(right_cost)) => {
+                if descending { right_cost.cmp(&left_cost) } else { left_cost.cmp(&right_cost) }
+            }
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        }.then_with(|| left.2.cmp(&right.2)).then_with(|| left.0.0.cmp(&right.0.0))
     });
-    result
+    keyed.into_iter().map(|(row, _cost, _title)| row).collect()
 }

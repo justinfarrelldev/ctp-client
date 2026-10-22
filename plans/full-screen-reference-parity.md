@@ -61,6 +61,10 @@ Two source behavior REDs fixed: OK now returns only after accepted immutable enq
 
 Source/current screenshot facts now have a dedicated own-only Science diagnostic: turn1/no cities/two settlers,4000BC/100gold/0PW, Ballistics0/570 and known Toolmaking/Agriculture/Religion/BronzeWorking at source costs196/242/334/473. Existing Build/Library data unchanged.10 focused snapshot tests/2 REDs, collected LLVM85.82% with retained valid profiles and strict lint pass; no repeated manual full suite/build before unchanged hooks. One actual SDL manual capture was inspected and all307200 RGB pixels compared at5,23:110935 above delta8/raw10872725/false. This changes fixture accuracy, not renderer parity or acceptance. User defers scaling: no scaling changes; preserve logical source root, continue bounded header/description fixes then other source UI screens. All33 acceptance boxes remain open.
 
+## Source Science header / inline provenance checkpoint
+
+Three REDs fix inert name-header and negative-as-cheap metadata. Source CompareAdvance cost sorting + aui_HeaderSwitchAction states1/2 now preserve exact known selection/parent/scroll; missing/null/negative costs remain last both ways, explicit0 valid.7 focused Science tests and8 affected chooser-entry regressions after central-binding line-limit repair pass; collected LLVM85.53%/strict lint pass, no redundant manual full suite/build/visual capture. Adjacent multi-line original C++/LDL provenance now documents affected styles/positions/controls/features and a National mayor/governor example; AGENTS requires it as UI groups are touched. No scaling change, no frame accepted. Next screen is Build/City; Science's remaining description/pane/knowledge/art/raster and deferred-scaling acceptance work stays open.
+
 ## Evidence ledger
 
 Baseline: 514 library + 532 binary + 19 integration = 1065 executions; 84.27% LLVM lines. Native build/lints/hooks pass. Missing fast coverage script; Windows GNU target and GTK/GLib cross sysroot unavailable at the preceding checkpoint. No complete-reference acceptance is inherited from that checkpoint.

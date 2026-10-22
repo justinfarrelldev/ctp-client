@@ -33,6 +33,16 @@ pub(super) fn binding(
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
+    /* Original UI callback source: ctp2_source/ctp2_code/ui/interface/
+     * ScienceManagementDialog.cpp::{EditResearchButtonActionCallback,
+     * CompareAdvance}; ctp2_source/ctp2_code/ui/aui_common/aui_header.cpp::
+     * aui_HeaderSwitchAction::Execute.
+     * science::binding documents the exact LDL nodes and contract differences;
+     * native and accessible activation must share this same callback mapping.
+     */
+    if let Some(binding) = super::science::binding(view, path) {
+        return binding;
+    }
     if let Some(binding) = super::research::binding(state, view, path) {
         return binding;
     }
@@ -53,16 +63,6 @@ pub(super) fn binding(
             history_metric(view)
         }
         ManagerKind::Build => build(ui, state, view, path),
-        ManagerKind::Science
-            if matches!(
-                path,
-                "ChangeResearch"
-                    | "CurrentResearch.AdvanceProgress.IconBorder.IconButton"
-                    | "CurrentResearch.AdvanceProgress.IconBorder.IconButton.RadialButton"
-            ) =>
-        {
-            enabled(ManagerIntent::Open(ManagerKind::Research))
-        }
         ManagerKind::Library => library(ui, state, name),
         ManagerKind::National | ManagerKind::City if name == "DisbandButton" => {
             let city = view.selections.get("city").or(view.city_id.as_ref());
