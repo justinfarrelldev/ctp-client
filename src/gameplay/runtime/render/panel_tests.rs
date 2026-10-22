@@ -144,7 +144,7 @@ fn native_footer_paints_imported_advice_description_and_releases_it_on_pointer_l
             None,
         );
         let context = sdl2::ttf::init().map_err(|error| error.to_string())?;
-        let font = crate::gameplay::runtime::font_loader::load_gameplay_font(&context)
+        let font = crate::gameplay::runtime::font_loader::load_gameplay_font(&context, None)
             .ok_or_else(|| "native footer font unavailable".to_owned())?;
         ui.status_text = ui
             .management

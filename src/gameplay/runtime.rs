@@ -27,7 +27,7 @@ pub(super) const DEFAULT_WINDOW_WIDTH: u32 = 800;
 pub(super) const DEFAULT_WINDOW_HEIGHT: u32 = 600;
 /// Session font discovery, independent of event dispatch.
 mod font_loader;
-use font_loader::{find_existing_font, load_gameplay_font};
+use font_loader::load_gameplay_font;
 /// Directional actor presentation with an injectable monotonic clock.
 mod animation;
 /// Authoritative server state alignment helpers.

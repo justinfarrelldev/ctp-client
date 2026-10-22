@@ -4,12 +4,16 @@ use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::ui_model::management::{ManagementUi, typography::SourceFont};
 use crate::gameplay::{GameplayError, runtime_error};
 
+/// Original selected-installation font search order shared with gameplay body text.
+pub(super) mod discovery;
+/// Fileless installation-first/font-name path-boundary regressions.
+#[cfg(test)]
+mod discovery_tests;
 /// Source font/word-geometry agreement without filesystem writes.
 #[cfg(test)]
 mod tests;
 use alloc::collections::BTreeMap;
 use sdl2::ttf::{Font, FontStyle, Hinting, Sdl2TtfContext};
-use std::path::{Path, PathBuf};
 
 /// Loaded once per SDL session/capture; lifetimes enforce shutdown before TTF context.
 pub(super) struct ManagementFonts<'ttf> {
@@ -17,14 +21,14 @@ pub(super) struct ManagementFonts<'ttf> {
     faces: BTreeMap<SourceFont, Font<'ttf, 'static>>,
 }
 impl<'ttf> ManagementFonts<'ttf> {
-    /// Loads existing system fonts read-only, reporting explicit fallback choices.
+    /// Loads original installation fonts first, then explicit platform fallbacks.
     pub(super) fn load(
         context: &'ttf Sdl2TtfContext,
         ui: &ManagementUi,
     ) -> Result<Self, GameplayError> {
         let mut faces = BTreeMap::new();
         for key in ui.font_keys() {
-            let (path, exact) = find_font(&key)
+            let (path, exact) = discovery::find(ui.book.installation_root(), &key)
                 .ok_or_else(|| runtime_error(format!("No installed font for {}", key.name)))?;
             if !exact {
                 log::warn!(
@@ -116,45 +120,4 @@ impl<'draw, 'ttf, 'rwops> RenderFonts<'draw, 'ttf, 'rwops> {
             .and_then(|fonts| fonts.get(&SourceFont::from_node(node)))
             .or(self.body)
     }
-}
-
-/// Source family names may select only ordinary existing font locations.
-fn find_font(key: &SourceFont) -> Option<(PathBuf, bool)> {
-    let basename = Path::new(&key.name).file_name()?;
-    for directory in [
-        "C:/Windows/Fonts",
-        "/usr/share/fonts/truetype/msttcorefonts",
-    ] {
-        let path = Path::new(directory).join(basename);
-        if path.try_exists().unwrap_or(false) {
-            return Some((path, true));
-        }
-    }
-    let serif = key.name.contains("times") || key.name.contains("serif");
-    let bold = key.bold
-        || key.name.contains("bd")
-        || key.name.contains("bold")
-        || key.name.contains("bi.");
-    let italic = key.italic || key.name.contains("italic") || key.name.ends_with("i.ttf");
-    let family = if serif {
-        "LiberationSerif"
-    } else {
-        "LiberationSans"
-    };
-    let style = match (bold, italic) {
-        (true, true) => "BoldItalic",
-        (true, false) => "Bold",
-        (false, true) => "Italic",
-        (false, false) => "Regular",
-    };
-    for directory in [
-        "/usr/share/fonts/truetype/liberation2",
-        "/usr/share/fonts/truetype/liberation",
-    ] {
-        let path = Path::new(directory).join(format!("{family}-{style}.ttf"));
-        if path.try_exists().unwrap_or(false) {
-            return Some((path, false));
-        }
-    }
-    super::find_existing_font().map(|path| (path, false))
 }

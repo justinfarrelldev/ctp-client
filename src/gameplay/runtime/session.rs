@@ -112,6 +112,17 @@ fn interface(
     Ok(ui)
 }
 
+/// Session-owned source faces and measurements share optional TTF availability;
+/// discovery/measurement completes before event input or frame painting begins.
+fn load_management_fonts<'ttf>(
+    context: Option<&'ttf sdl2::ttf::Sdl2TtfContext>,
+    ui: &mut InGameUiModel,
+) -> Result<Option<ManagementFonts<'ttf>>, GameplayError> {
+    context
+        .map(|context| ManagementFonts::load_measured(context, &mut ui.management))
+        .transpose()
+}
+
 /// Capture is explicit and never consumes a game shortcut or command.
 const fn is_capture_event(event: &Event) -> bool {
     matches!(
@@ -159,13 +170,12 @@ pub(super) fn run_sdl_game_on_canvas(
         .create_texture_target(None, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         .map_err(|error| runtime_error(error.to_string()))?;
     let ttf_context = sdl2::ttf::init().ok();
-    let font = ttf_context.as_ref().and_then(load_gameplay_font);
+    let font = ttf_context
+        .as_ref()
+        .and_then(|context| load_gameplay_font(context, Some(&config.installation_root)));
     let (mut authority, mut state) = bootstrap(config)?;
     let mut ui = interface(config, font.as_ref())?;
-    let management_fonts = ttf_context
-        .as_ref()
-        .map(|context| ManagementFonts::load_measured(context, &mut ui.management))
-        .transpose()?;
+    let management_fonts = load_management_fonts(ttf_context.as_ref(), &mut ui)?;
     let mut movement = MovementInputState::default();
     movement.actors.speed = config.graphics.unit_speed;
     movement.actors.enabled = config.graphics.unit_animation.enabled();

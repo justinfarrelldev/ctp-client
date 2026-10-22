@@ -172,7 +172,7 @@ pub fn render_preview_scene(
     let creator = canvas.texture_creator();
     let mut textures = GameplayTextures::load(root, &creator, true)?;
     let ttf = sdl2::ttf::init().map_err(|error| runtime_error(error.to_string()))?;
-    let font = load_gameplay_font(&ttf);
+    let font = load_gameplay_font(&ttf, Some(root));
     let mut state = preview_state(scene);
     let mut ui = InGameUiModel {
         open_menu: menu,
