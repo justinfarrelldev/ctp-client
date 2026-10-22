@@ -22,9 +22,9 @@
 Detailed source/TDD checklist: [Science Manager reference24](plans/science-manager-reference-parity.md).
 
 - [x] Inspect reference24 and original ScienceManagementDialog/layout/inherited progress controls; trace ClearScience, description/list/link and research entry callbacks.
-- [x] Implement/verify the current four UI fixes: source radial/numeric turn text agreement; clear known no-target/already-known target controls/icon without turning unprojected data into zero; selected known discovery updates description/links without changing active research; constructor removes stray off-window Advice from painting/focus. Four REDs and1294 executions/85.65% LLVM/lint/native build pass; normal feature commit follows. Science24 itself remains unaccepted.
+- [x] Implement/verify the current four UI fixes: source radial/numeric turn text agreement; clear known no-target/already-known target controls/icon without turning unprojected data into zero; selected known discovery updates description/links without changing active research; constructor removes stray off-window Advice from painting/focus. Four REDs and1294 executions/85.65% LLVM/lint/native build/normal hooks pass; committed4b02dbe. Science24 itself remains unaccepted.
 - [ ] Complete original Research chooser/Cancel/Close/ESC/parent return, explicit available-ID selection, current request/queued receipt/stale and removed selections, header sorting and source row geometry.
-- [ ] Resolve the demonstrated selected-installation picture lookup dependency: GOG `CM2_Upap012l.tga` exists loose, but Science diagnostic currently falls through to a missing lowercase archive `.rim`. Follow original file/archive precedence and safe case handling, not a wrong-art fallback or a false missing-asset diagnosis.
+- [x] Resolve demonstrated selected-installation picture lookup: GOG `CM2_Upap012l.tga` exists loose but old two-case guesses fell through to missing archive `.rim`. Immutable startup localized/default case-folded inventory now uses exact installed filename before existing565/555 fallback; unsafe/colliding/error cases fail honestly. Nine fileless regressions pass. Read-only GOG production Science frame now renders, still nonidentical:111639/307200 over delta8/raw11700143. No copied/wrong art or per-picture directory scans.
 - [ ] Freeze a source-backed authorized reference scenario, compare every viewport pixel at justified native/reference sizes and inspect; current bundled diagnostic is **not identical** (112457/307200 pixels above delta8, raw RGB error12109902, origin5,23). No reference acceptance claimed.
 
 ## UI-first remaining implementation
@@ -125,7 +125,7 @@ Every remaining file under `plans/` must be linked directly here. Work below inh
 
 ## Completed implementation ledger
 
-Pre-Science committed checkpoint: `fbeb093`,1286 executions/85.62% LLVM. Current Science source-control slice:1294 executions (628 library+646 binary+19 integration+1 example),85.65% LLVM; strict lint/full suite/native build pass, normal feature commit follows. This is four UI behavior fixes, not whole Science or33-screen acceptance. Tracking consolidation is committed in `cac02df` with unchanged hooks.
+Latest measured quality gate (Science picture lookup):1312 executions (637 library+655 binary+19 integration+1 example),85.66% LLVM; strict lint/full suite/dedicated native build pass. Previous Science source-control fixes are committed in4b02dbe (1294/85.65%); tracking consolidation is cac02df with unchanged hooks. These are component fixes, not whole Science or33-screen acceptance.
 
 - [x] Launch/intro skip, menu/shell/setup/options/audio/input/viewport foundations, extraction/dialog fixes and related source-art regressions. Historical shell option state/persistence is not proof of all in-game effects.
 - [x] Original terrain/SPR/RIM/resource/city decoding, fog/edge/seam fixes, actual viewer starter/projection decoding and menu-owned window handoff. No screenshot-completion claim.
@@ -142,7 +142,7 @@ The six redundant trackers were merged, not silently accepted: `full-game-parity
 
 ### Retired completed component plans
 
-Files below had completed local checklists/commit evidence; implementation evidence is retained in Git, FIXES.txt, source/tests, and the ledger above. Retrieve full prior text with `git show <commit>:plans/<filename>`. Historical plans may describe **superseded** approaches (generated frontier IDs, blocking/zero-resync policies, community layouts or synthetic fallback); current original-source/server-authority rules win. Removing these files does not certify the whole game or the33 screens.
+Files below had completed local checklists/commit evidence; implementation evidence is retained in Git, FIXES.txt, source/tests, and the ledger above. All51 quoted commits were independently verified to contain the exact retired file. Retrieve full prior text with `git show <commit>:plans/<filename>`. Historical plans may describe **superseded** approaches (generated frontier IDs, blocking/zero-resync policies, community layouts or synthetic fallback); current original-source/server-authority rules win. Removing these files does not certify the whole game or the33 screens.
 
 | Retired filename | Evidence commit |
 |---|---|

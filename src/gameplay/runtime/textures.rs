@@ -13,8 +13,7 @@ use sdl2::surface::Surface;
 use sdl2::video::WindowContext;
 use std::path::{Path, PathBuf};
 
-use crate::gameplay::assets::PICTURE_ARCHIVE;
-use crate::gameplay::assets::rim::{RgbaImage, load_rim_rgba_entry};
+use crate::gameplay::assets::rim::RgbaImage;
 use crate::gameplay::assets::tile::TileSet;
 use crate::gameplay::model::{FogState, GameState, MapPoint, TerrainKind, UnitKind};
 use crate::gameplay::{GameplayError, asset_error, runtime_error};
@@ -23,6 +22,8 @@ use crate::gameplay::{GameplayError, asset_error, runtime_error};
 mod art;
 /// Revision-bound observed-coordinate lookup shared by overlay and border drawing.
 mod observed;
+/// Cached original localized/default loose-picture lookup and archive decoding.
+mod pictures;
 #[cfg(test)]
 mod tests;
 /// Directional action/frame uploads and sequence sampling.
@@ -90,6 +91,8 @@ pub(super) struct GameplayTextures<'texture> {
     goods: BTreeMap<(u16, bool), SpriteTexture<'texture>>,
     /// Installation root for resource art first encountered during play.
     root: PathBuf,
+    /// Once-enumerated original loose-picture paths; image uploads stay lazy/cached.
+    pictures: pictures::PictureSources,
     /// Original software cursors, uploaded on first use with black chroma key.
     cursors: BTreeMap<super::cursor::CursorKind, Texture<'texture>>,
     /// Complete installed CTP2 roster from Units/newsprite/uniticon databases.
@@ -123,6 +126,7 @@ impl<'texture> GameplayTextures<'texture> {
             goods_ids: BTreeMap::new(),
             goods: BTreeMap::new(),
             root: PathBuf::new(),
+            pictures: pictures::PictureSources::default(),
             cursors: BTreeMap::new(),
             unit_catalog: BTreeMap::new(),
             dynamic_ui: BTreeMap::new(),
@@ -165,6 +169,7 @@ impl<'texture> GameplayTextures<'texture> {
             },
             goods: BTreeMap::new(),
             root: root.to_path_buf(),
+            pictures: pictures::PictureSources::discover(root)?,
             cursors: BTreeMap::new(),
             unit_catalog: match crate::gameplay::assets::unit_catalog::load(root) {
                 Ok(catalog) => catalog,
@@ -184,7 +189,7 @@ impl<'texture> GameplayTextures<'texture> {
             strict,
         };
         for &name in art::UI_NAMES {
-            match load_ui_rgba(root, name).and_then(|mut image| {
+            match textures.pictures.load(name).and_then(|mut image| {
                 if name == "uptbtest.rim" {
                     art::apply_original_bevel(&mut image, 2_u32, false);
                 }
@@ -195,7 +200,7 @@ impl<'texture> GameplayTextures<'texture> {
                 Err(_) => {}
             }
         }
-        if let Ok(pattern) = load_ui_rgba(root, "uptg32.rim") {
+        if let Ok(pattern) = textures.pictures.load("uptg32.rim") {
             for (pressed, key) in [(false, "radar-off"), (true, "radar-on")] {
                 let background =
                     art::tiled_pattern(&pattern, 24_u32, 20_u32).and_then(|mut image| {
@@ -210,7 +215,7 @@ impl<'texture> GameplayTextures<'texture> {
             }
         }
         for index in 1_u16..=23_u16 {
-            match load_ui_rgba(root, &format!("upc{index:03}.rim")) {
+            match textures.pictures.load(&format!("upc{index:03}.rim")) {
                 Ok(image) => {
                     textures.icons.insert(index, image);
                 }
@@ -412,7 +417,7 @@ impl<'texture> GameplayTextures<'texture> {
         let key = format!("c3-slider:{pattern}:{width}x{height}:{ticks:?}");
         if !self.dynamic_ui.contains_key(&key) {
             let name = pattern.to_ascii_lowercase().replace(".tga", ".rim");
-            let mut image = match load_ui_rgba(&self.root, &name) {
+            let mut image = match self.pictures.load(&name) {
                 Ok(source) => art::c3_slider_track(&source, width, height)?,
                 Err(error) if self.strict => return Err(error),
                 Err(_error) => return Ok(None),
@@ -439,7 +444,7 @@ impl<'texture> GameplayTextures<'texture> {
         let key = format!("static-bevel:{pattern}:{size:?}:{bevel:?}");
         if !self.dynamic_ui.contains_key(&key) {
             let name = pattern.to_ascii_lowercase().replace(".tga", ".rim");
-            let mut image = match load_ui_rgba(&self.root, &name) {
+            let mut image = match self.pictures.load(&name) {
                 Ok(source) => art::tiled_pattern(&source, size.0, size.1)?,
                 Err(error) if self.strict => return Err(error),
                 Err(_error) => return Ok(None),
@@ -460,7 +465,7 @@ impl<'texture> GameplayTextures<'texture> {
             return Ok(None);
         };
         if !self.dynamic_ui.contains_key(name) {
-            let image = match load_ui_rgba(&self.root, name) {
+            let image = match self.pictures.load(name) {
                 Ok(image) => image,
                 Err(error) if self.strict => return Err(error),
                 Err(_) => return Ok(None),
@@ -629,47 +634,9 @@ fn texture_from_pixels<'texture>(
 }
 
 /// Tries both release picture archives, preserving source chroma-key transparency.
+#[cfg(test)]
 fn load_ui_rgba(root: &Path, name: &str) -> Result<RgbaImage, GameplayError> {
-    // TileSet::LoadMapIcons prefers loose TGA files. In the retail install
-    // UPC008–011 exist ONLY as TGAs, not as entries in either picture archive.
-    if let Some(stem) = name.strip_suffix(".rim") {
-        let directory = root.join("ctp2_data/default/graphics/pictures");
-        for filename in [
-            format!("{}.TGA", stem.to_ascii_uppercase()),
-            format!("{stem}.tga"),
-        ] {
-            let path = directory.join(filename);
-            if path
-                .try_exists()
-                .map_err(|error| asset_error(error.to_string()))?
-            {
-                let surface = Surface::from_file(path)
-                    .and_then(|surface| surface.convert_format(PixelFormatEnum::RGBA32))
-                    .map_err(asset_error)?;
-                let bytes = surface
-                    .without_lock()
-                    .ok_or_else(|| asset_error("TGA surface requires locking".to_owned()))?;
-                return Ok(RgbaImage {
-                    width: surface.width(),
-                    height: surface.height(),
-                    pitch: usize::try_from(surface.pitch())
-                        .map_err(|error| asset_error(error.to_string()))?,
-                    data: bytes.to_vec(),
-                });
-            }
-        }
-    }
-    // Map icons encode magenta as a destination-shadow run, unlike UI chrome
-    // where it is a chroma key. Preserve it for the map-icon conversion pass.
-    let chroma_key = (!name.starts_with("upc0")).then_some((248_u8, 0_u8, 248_u8));
-    load_rim_rgba_entry(root, PICTURE_ARCHIVE, name, chroma_key).or_else(|_| {
-        load_rim_rgba_entry(
-            root,
-            "ctp2_data/default/graphics/pictures/pic555.zfs",
-            name,
-            chroma_key,
-        )
-    })
+    pictures::PictureSources::discover(root)?.load(name)
 }
 
 /// Uploads a full-size frame and retains its original source anchor.
