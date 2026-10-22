@@ -92,6 +92,16 @@ mod selection;
 mod selector_tests;
 /// Source dropdown lifecycle and exact owned-city selection.
 mod selectors;
+/// Exact Trade identities, source columns, filters and explicit quote gaps.
+mod trade;
+/// Resolved three-tab Trade reference revision without shipped assets.
+mod trade_layout;
+/// Native reference trade tab geometry and empty/projection accounting.
+#[cfg(test)]
+mod trade_layout_tests;
+/// Source Trade row identity, filtering, accounting and receipt regressions.
+#[cfg(test)]
+mod trade_tests;
 /// Original control-tree geometry, active panels and dynamic list insertion.
 mod tree;
 /// Original per-control typography and fileless measured text metadata.

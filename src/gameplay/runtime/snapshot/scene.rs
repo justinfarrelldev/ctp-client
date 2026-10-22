@@ -64,11 +64,11 @@ pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameSt
     if matches!(
         scene,
         PreviewScene::PopulatedManager {
-            kind: ManagerKind::Unit,
+            kind: ManagerKind::Unit | ManagerKind::Trade,
             ..
         }
     ) {
-        return super::manager_fixture::unit_state();
+        return super::manager_fixture::starting_state();
     }
     if matches!(scene, PreviewScene::PopulatedManager { .. }) {
         return super::manager_fixture::state();
@@ -141,7 +141,7 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
         }
         PreviewScene::PopulatedManager { kind, chart } => {
             ui.management.open(kind, state, None);
-            if kind == ManagerKind::Unit {
+            if matches!(kind, ManagerKind::Unit | ManagerKind::Trade) {
                 ui.active_tab = crate::gameplay::ui_model::ControlPanelTab::TileImprovements;
                 // The reference inspects a black viewport; observed units still
                 // exist elsewhere, rather than hiding their authorized facts.

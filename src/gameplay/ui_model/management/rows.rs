@@ -22,6 +22,8 @@ pub(super) fn templates(
         "UnitManagerAdviceItem",
         "UnitStatsItem",
         "UnitTacticalItem",
+        "CreateRouteItem",
+        "TradeSummaryItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))
@@ -55,7 +57,7 @@ impl Row<'_> {
         let Some(template) = self.ui.row_templates.get(name) else {
             return false;
         };
-        if self.view.kind == ManagerKind::Unit {
+        if matches!(self.view.kind, ManagerKind::Unit | ManagerKind::Trade) {
             self.columns(template, widgets);
         } else if self.view.kind == ManagerKind::Science {
             self.science(template, widgets);
@@ -91,6 +93,9 @@ impl Row<'_> {
     fn value(&self, name: &str) -> String {
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
+        }
+        if self.view.kind == ManagerKind::Trade {
+            return super::trade::value(self.ui, self.state, self.path, self.id, name);
         }
         if self.view.kind == ManagerKind::Unit {
             return super::units::value(self.ui, self.state, self.path, self.id, name);
@@ -168,6 +173,13 @@ impl Row<'_> {
                         "imageblttype".to_owned(),
                         if stretch { "stretch" } else { "copy" }.to_owned(),
                     );
+                }
+            }
+            if self.view.kind == ManagerKind::Trade {
+                if let Some(image) =
+                    super::trade::image(self.ui, self.state, self.path, self.id, &column.name)
+                {
+                    widget.node.fields.insert("image00".to_owned(), image);
                 }
             }
             widgets.push(widget);
@@ -294,6 +306,10 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         ManagerKind::Unit if path == "Advisor.List" => Some("UnitManagerAdviceItem"),
         ManagerKind::Unit if path.contains("Tactical") => Some("UnitTacticalItem"),
         ManagerKind::Unit => Some("UnitStatsItem"),
+        ManagerKind::Trade if path == super::trade::MARKET => Some("CreateRouteItem"),
+        ManagerKind::Trade if matches!(path, super::trade::SUMMARY | super::trade::IMPORT) => {
+            Some("TradeSummaryItem")
+        }
         _ => None,
     }
 }

@@ -49,6 +49,32 @@ fn unit_reference_diagnostic_is_two_owned_settlers_not_the_unrelated_city_previe
 }
 
 #[test]
+fn trade_reference_fixture_is_an_explicit_no_city_start_not_builds_unrelated_queue() {
+    let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
+        kind: ManagerKind::Trade,
+        chart: false,
+    });
+    assert!(
+        state.cities.is_empty(),
+        "original no-opportunity Trade reference has not founded a city"
+    );
+    assert_eq!(
+        state.units.len(),
+        2,
+        "same explicit two-settler starting profile"
+    );
+    assert_eq!(
+        state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| viewer.interface.contract.as_ref())
+            .map(|contract| contract.version),
+        Some(2_u32),
+        "complete v2 facts justify empty own-city accounting sums"
+    );
+}
+
+#[test]
 fn motion_probe_captures_real_window_at_an_injected_animation_phase() -> Result<(), String> {
     let _guard = crate::sdl_test_lock::lock_sdl_for_test()?;
     let environment = HeadlessSdlEnvironment::apply();

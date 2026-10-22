@@ -94,8 +94,8 @@ pub(super) fn state() -> GameState {
     from_projection(&projection())
 }
 
-/// Separate original Unit reference setup; no unrelated city or fabricated ranking.
-pub(super) fn unit_state() -> GameState {
+/// Explicit Unit/Trade no-city reference start, not unrelated queues or rankings.
+pub(super) fn starting_state() -> GameState {
     let mut projection = projection();
     projection.turn = 1;
     projection.cities.clear();

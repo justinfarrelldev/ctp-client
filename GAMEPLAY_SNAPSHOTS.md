@@ -126,6 +126,8 @@ Current contract integration is tracked in [client-contract-v2.md](plans/client-
 
 Native inspection exposed real shared rendering/loading bugs: HyperTextBox is intrinsically left-wrapped, implicit total-value width cannot inherit an entire window, and `Strings.txt` imports the addon/tooltip databases omitted by the old loader. Advisor and Library title strings do exist in the installation. Canonical first-definition precedence and bounded read-only imports now replace the earlier incorrect missing-title assumption. This is not full 33-scenario screenshot acceptance; follow [the active continuation](plans/full-screen-reference-parity.md).
 
+The `trade-populated` profile shares that explicit two-settler/no-city start. Native/reference-sized `images/parity-trade-{native,reference}.png` were inspected after restoring three source tabs and six advisor totals. No owned cities in a complete v2 view proves the installed no-opportunity advice and zero transit/piracy sums; populated-city sums stay unavailable without effective accounting. Source/destination/payload market IDs do not alias Export/Import route selections. Accurate server fixtures never invent a `rules.goods` resource-definition contract. Current Trade complete-frame comparison at independently menu-calibrated origin (3,21) still differs in 137010 of 307200 pixels above channel delta 8 (raw error 11983726); it remains unaccepted.
+
 ### Read-only full-frame comparison
 
 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy cargo run --example gameplay-reference -- ctp2 images/ctp2_references/unit-manager-opened.png unit-populated 2 21 scan`

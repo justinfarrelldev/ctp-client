@@ -15,6 +15,9 @@ pub(super) fn apply(ui: &mut ManagementUi, state: &GameState) {
 }
 /// Drops only identities that disappeared, retaining independent content/entry IDs.
 fn view_state(view: &mut ManagerView, state: &GameState) {
+    if view.kind == ManagerKind::Trade {
+        super::trade::reconcile(view, state);
+    }
     let owned = data::owned_city_ids(state);
     if view.city_id.as_ref().is_some_and(|id| !owned.contains(id)) {
         view.city_id = None;

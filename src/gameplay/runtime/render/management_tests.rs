@@ -51,18 +51,29 @@ fn docked_advisor_roof_is_the_actual_original_full_width_art_and_hides_with_its_
                 .iter()
                 .find(|widget| widget.id == "Advisor")
                 .ok_or_else(|| "missing attached advisor".to_owned())?;
-            let canopy = Rect::new(advice.rect.x, advice.rect.y, 224, 30);
+            let source_left = usize::try_from(advice.rect.x.saturating_neg().max(0_i32))
+                .map_err(|error| error.to_string())?;
+            let visible_width = 224_usize.saturating_sub(source_left);
+            let canopy = Rect::new(
+                advice.rect.x.max(0_i32),
+                advice.rect.y,
+                u32::try_from(visible_width).map_err(|error| error.to_string())?,
+                30,
+            );
             canvas.set_draw_color(Color::RGB(0, 0, 0));
             canvas.clear();
             draw_management(canvas, &mut textures, &state, &ui, None)
                 .map_err(|error| error.to_string())?;
             let pixels = canvas.read_pixels(Some(canopy), PixelFormatEnum::RGBA32)?;
             for y in 0_usize..30_usize {
-                for x in 0_usize..224_usize {
-                    let actual = y.saturating_mul(224).saturating_add(x).saturating_mul(4);
+                for x in 0_usize..visible_width {
+                    let actual = y
+                        .saturating_mul(visible_width)
+                        .saturating_add(x)
+                        .saturating_mul(4);
                     let expected = y
                         .saturating_mul(source.pitch)
-                        .saturating_add(x.saturating_mul(4));
+                        .saturating_add(x.saturating_add(source_left).saturating_mul(4));
                     for channel in 0_usize..3_usize {
                         let composite = u8::try_from(
                             u32::from(source.data[expected.saturating_add(channel)])

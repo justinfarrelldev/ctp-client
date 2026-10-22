@@ -23,6 +23,9 @@ pub(super) fn binding(
     if let Some(binding) = super::selectors::binding(state, view, path) {
         return binding;
     }
+    if let Some(binding) = super::trade::binding(state, view, path) {
+        return binding;
+    }
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
@@ -82,9 +85,6 @@ pub(super) fn binding(
             enabled(ManagerIntent::Open(ManagerKind::Build))
         }
         ManagerKind::Unit if name == "DisbandButton" => dialog(super::units::disband(state, view)),
-        ManagerKind::Trade if name == "CreateRouteButton" => {
-            selected_action(state, view, "create-trade-route", "trade")
-        }
         ManagerKind::Diplomacy if name == "MessageButton" => disabled(
             "Select a specific authoritative diplomatic proposal; a contact alone does not identify a proposal",
         ),
@@ -274,39 +274,6 @@ fn selected_city_navigation(
         enabled(ManagerIntent::Open(kind))
     } else {
         disabled("Select an owned city first")
-    }
-}
-
-/// A selected row must identify exactly one eligible action, never a first target.
-fn selected_action(
-    state: &GameState,
-    view: &ManagerView,
-    route: &str,
-    key: &str,
-) -> (Option<ManagerIntent>, Option<String>) {
-    let selected = view.selections.get(key);
-    let candidates: Vec<_> = state.viewer.as_ref().map_or_else(Vec::new, |viewer| {
-        viewer
-            .interface
-            .legal_actions
-            .iter()
-            .filter(|action| {
-                action.route == route
-                    && action.http_supported()
-                    && selected.is_some_and(|id| action.entity_id == *id || action.target_id == *id)
-            })
-            .collect()
-    });
-    if candidates.len() == 1 {
-        advertised(state, Some(candidates[0]))
-    } else {
-        dialog(
-            crate::gameplay::ui_model::operations::OperationDialog::actions(
-                state,
-                "Choose exact target",
-                candidates.into_iter().cloned(),
-            ),
-        )
     }
 }
 

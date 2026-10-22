@@ -19,6 +19,7 @@ pub(super) fn configure(
         ManagerKind::Empire => empire(root, book)?,
         ManagerKind::Graphics => graphics(root, book)?,
         ManagerKind::Unit => unit(root),
+        ManagerKind::Trade => super::trade_layout::main(root, book)?,
         _ => {}
     }
     Ok(())
@@ -63,7 +64,10 @@ fn unit(root: &mut LayoutNode) {
 }
 
 /// Exact scoped lookup; absent optional source controls are not guessed.
-fn node<'layout>(root: &'layout mut LayoutNode, path: &str) -> Option<&'layout mut LayoutNode> {
+pub(super) fn node<'layout>(
+    root: &'layout mut LayoutNode,
+    path: &str,
+) -> Option<&'layout mut LayoutNode> {
     let mut current = root;
     for part in path.split('.').filter(|part| !part.is_empty()) {
         current = current
@@ -75,7 +79,7 @@ fn node<'layout>(root: &'layout mut LayoutNode, path: &str) -> Option<&'layout m
 }
 
 /// Mutates only resolved source properties, retaining native style/art metadata.
-fn set(root: &mut LayoutNode, path: &str, fields: &[(&str, &str)]) {
+pub(super) fn set(root: &mut LayoutNode, path: &str, fields: &[(&str, &str)]) {
     if let Some(control) = node(root, path) {
         for &(key, value) in fields {
             control.fields.insert(key.to_owned(), value.to_owned());

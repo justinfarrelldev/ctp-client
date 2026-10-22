@@ -132,7 +132,7 @@ pub(super) fn rows(
             })
             .collect(),
         ManagerKind::Unit => unit_rows(ui, state, path),
-        ManagerKind::Trade => trade_rows(ui, viewer, path),
+        ManagerKind::Trade => super::trade::rows(state, view, path),
         ManagerKind::Diplomacy => viewer
             .diplomacy
             .as_ref()
@@ -211,60 +211,6 @@ fn unit_rows(ui: &ManagementUi, state: &GameState, path: &str) -> Vec<(String, S
         .map(|(id, count)| {
             let title = format!("{}      {count}", label(ui, &id));
             (id, title)
-        })
-        .collect()
-}
-
-/// Route lists retain projected endpoint identities without inventing goods/income.
-fn trade_rows(
-    ui: &ManagementUi,
-    viewer: &crate::gameplay::server::ServerProjection,
-    path: &str,
-) -> Vec<(String, String)> {
-    if path.contains("Market") {
-        return viewer
-            .interface
-            .legal_actions
-            .iter()
-            .filter(|action| action.route == "create-trade-route" && action.http_supported())
-            .map(|action| {
-                (
-                    action.target_id.clone(),
-                    format!("{} → {}", action.entity_id, action.target_id),
-                )
-            })
-            .collect();
-    }
-    viewer
-        .interface
-        .trade_routes
-        .iter()
-        .filter_map(|route| {
-            let id = route["id"].as_str()?;
-            Some((
-                id.to_owned(),
-                format!(
-                        "{} → {}    {}    {}",
-                        viewer
-                            .cities
-                            .iter()
-                            .find(|city| route["source_city_id"].as_str() == Some(city.id.as_str()))
-                            .map_or_else(|| "—".to_owned(), city_name),
-                        viewer
-                            .cities
-                            .iter()
-                            .find(|city| route["destination_city_id"].as_str()
-                                == Some(city.id.as_str()))
-                            .map_or_else(|| "—".to_owned(), city_name),
-                        route["good_id"]
-                            .as_str()
-                            .filter(|good| !good.is_empty())
-                            .map_or_else(|| "—".to_owned(), |good| label(ui, good)),
-                        route["gold"]
-                            .as_i64()
-                            .map_or_else(|| "—".to_owned(), |gold| format!("{gold} gross"))
-                    ),
-            ))
         })
         .collect()
 }
@@ -373,7 +319,7 @@ pub(super) fn text(
     if let Some(text) = super::advisors::text(ui, state, view, path) {
         return Some(text);
     }
-    if let Some(text) = articles::text(ui, view, path) {
+    if let Some(text) = articles::text(ui, view, path).or_else(|| super::trade::text(view, path)) {
         return Some(text);
     }
     let viewer = state.viewer.as_ref()?;

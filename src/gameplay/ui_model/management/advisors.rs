@@ -21,6 +21,9 @@ pub(super) fn templates(
         let mut root = book.resolve(name)?;
         root.fields.insert("xpix".to_owned(), "0".to_owned());
         root.fields.insert("ypix".to_owned(), "0".to_owned());
+        if kind == ManagerKind::Trade {
+            super::trade_layout::advice(&mut root, book);
+        }
         Ok((kind, root))
     })
     .collect()
@@ -119,8 +122,13 @@ pub(super) fn text(
     }
     let value = match path {
         "Advisor.Advice" => {
-            return Some("Strategic advice is unavailable in this viewer snapshot.".to_owned());
+            return Some(if empty_trade(state, view) {
+                ui.book.label("MAXIMUM_TRADE_EFFICIENCY").to_owned()
+            } else {
+                "Strategic advice is unavailable in this viewer snapshot.".to_owned()
+            });
         }
+        "Advisor.Transit" | "Advisor.Piracy" => empty_trade(state, view).then_some(0_i64),
         "Advisor.Available" => transport(state, "trade_transport_points")
             .zip(transport(state, "used_trade_transport_points"))
             .and_then(|(total, used)| total.checked_sub(used))
@@ -152,6 +160,17 @@ pub(super) fn text(
         _ => return None,
     };
     Some(value.map_or_else(|| "—".to_owned(), |value| value.to_string()))
+}
+/// Original city-accounting sums and market loop are empty with no own cities.
+/// This proof is restricted to complete v2 snapshots, not legacy missing metadata.
+fn empty_trade(state: &GameState, view: &ManagerView) -> bool {
+    view.kind == ManagerKind::Trade
+        && state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| viewer.interface.contract.as_ref())
+            .is_some_and(|contract| contract.version == 2)
+        && data::owned_city_ids(state).is_empty()
 }
 /// Only routes originating in a fresh owned city enter outbound advisor totals.
 fn outgoing(state: &GameState) -> Vec<&serde_json::Value> {

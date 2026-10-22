@@ -9,6 +9,90 @@ use serde_json::json;
 use std::{net::TcpListener, thread};
 
 #[test]
+fn trade_selection_posts_exact_source_to_shared_destination_and_never_invents_queued_route() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("isolated transport");
+    let port = listener.local_addr().expect("ephemeral port").port();
+    let initial = json!({"revision":17_i64,"turn":3_u32,"contract":{"version":2_u32},"diplomacy":{"trade_transport_points":10_i64,"used_trade_transport_points":0_i64,"relations":[{"target_player_id":"other","treaty":"peace","trade":true}]},"tiles":[{"id":"a","x":1_u16,"y":1_u16,"terrain":"plains"},{"id":"b","x":2_u16,"y":1_u16,"terrain":"plains"},{"id":"d","x":3_u16,"y":1_u16,"terrain":"plains"}],"cities":[{"id":"c1","name":"Rome","owner_id":"account-7","tile_id":"a"},{"id":"c2","name":"Athens","owner_id":"account-7","tile_id":"b"},{"id":"dest","name":"Known target","owner_id":"other","tile_id":"d"}],"trade_routes":[],"legal_actions":[{"route":"create-trade-route","entity_id":"c1","target_id":"dest","payload":{"source_city_id":"c1","destination_city_id":"dest"}},{"route":"create-trade-route","entity_id":"c2","target_id":"dest","payload":{"source_city_id":"c2","destination_city_id":"dest"}}]});
+    let mut returned = initial.clone();
+    returned["revision"] = json!(18_i64);
+    returned["planning_status"] = json!("queued");
+    let worker = thread::spawn(move || respond(&listener, &returned));
+    let mut active = authority(port, initial);
+    let mut state = state_from_authority_projection(
+        &active,
+        active.session.projection.as_ref().expect("snapshot"),
+    );
+    state.popups.clear();
+    let mut ui = InGameUiModel {
+        management: crate::gameplay::ui_model::management::ManagementUi::new(
+            crate::gameplay::assets::layout::LayoutBook::load(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2"),
+            )
+            .expect("read-only source"),
+        )
+        .expect("source cache"),
+        ..InGameUiModel::default()
+    };
+    ui.management.open(
+        crate::gameplay::ui_model::management::ManagerKind::Trade,
+        &state,
+        None,
+    );
+    let filter = ui
+        .management
+        .activate_id("TradeTabs.Market.TabPanel.Filters.AllButton", &state)
+        .expect("all known authorized candidates");
+    super::apply(filter, &mut state, &mut ui, Some(&mut active));
+    let select = ui
+        .management
+        .widgets(&state)
+        .into_iter()
+        .filter_map(|widget| widget.intent)
+        .find_map(|intent| match intent {
+            ManagerIntent::Select(key, id)
+                if key == "trade-market"
+                    && serde_json::from_str::<serde_json::Value>(&id)
+                        .is_ok_and(|parts| parts[0] == "c2") =>
+            {
+                Some(ManagerIntent::Select(key, id))
+            }
+            _ => None,
+        })
+        .expect("accessible distinct second-source row");
+    super::apply(select, &mut state, &mut ui, Some(&mut active));
+    let create = ui
+        .management
+        .activate_id("TradeTabs.Market.TabPanel.CreateRouteButton", &state)
+        .expect("exact selected create");
+    super::apply(create, &mut state, &mut ui, Some(&mut active));
+    let request = worker
+        .join()
+        .expect("HTTP fixture worker")
+        .expect("request");
+    assert!(
+        request
+            .line
+            .starts_with("POST /game/44/create-trade-route "),
+        "registered route only"
+    );
+    assert_eq!(
+        payload_after_validating_envelope(&request.body),
+        json!({"source_city_id":"c2","destination_city_id":"dest"}),
+        "no first source, client good/price/cost or second operation identity"
+    );
+    assert!(
+        state
+            .viewer
+            .as_ref()
+            .expect("queued receipt")
+            .interface
+            .trade_routes
+            .is_empty(),
+        "queuing is not route execution or income"
+    );
+}
+
+#[test]
 fn source_readiness_slider_posts_exact_enum_and_keeps_queued_receipt_owned_state() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("isolated gateway");
     let port = listener.local_addr().expect("ephemeral port").port();

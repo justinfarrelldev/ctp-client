@@ -155,6 +155,10 @@ impl Walker<'_> {
 
     /// Runtime-created atomic content owns its source descendants and clipping.
     fn atomic(&mut self, node: &LayoutNode, path: &str, rect: MenuRect, index: usize) -> bool {
+        if super::trade::slider(self.view, node, path, rect, &mut self.widgets) {
+            self.widgets[index].label.clear();
+            return true;
+        }
         if matches!(self.view.kind, ManagerKind::Graphics | ManagerKind::Sound)
             && super::option_art::append(node, path, rect, &mut self.widgets)
         {
@@ -338,10 +342,11 @@ impl Walker<'_> {
             data::text(self.ui, self.state, self.view, path)
         }
         .unwrap_or_else(|| source_label(self.ui, node));
-        let selected = (path == "GovernorBox.Toggle"
-            && data::city(self.state, self.view)
-                .and_then(|city| city.governor.as_ref())
-                .is_some_and(|governor| governor.enabled))
+        let selected = super::trade::selected(self.view, path)
+            || (path == "GovernorBox.Toggle"
+                && data::city(self.state, self.view)
+                    .and_then(|city| city.governor.as_ref())
+                    .is_some_and(|governor| governor.enabled))
             || (self.view.kind == ManagerKind::Library
                 && path == "SortByAgeButton"
                 && self.ui.library.sort_by_age
@@ -566,7 +571,9 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
         ManagerKind::National => "city",
         ManagerKind::Unit if path.contains("Stats") => "unit-type",
         ManagerKind::Unit | ManagerKind::Army => "unit",
-        ManagerKind::Trade => "trade",
+        ManagerKind::Trade if path == super::trade::MARKET => "trade-market",
+        ManagerKind::Trade if path == super::trade::IMPORT => "trade-import",
+        ManagerKind::Trade => "trade-route",
         ManagerKind::Diplomacy => "contact",
         ManagerKind::Library => "article",
         ManagerKind::City
