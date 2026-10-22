@@ -4,7 +4,9 @@
 //! opening a menu cannot issue a command or mutate the authoritative game.
 
 use super::MenuRect;
-use crate::gameplay::model::{CityId, FogState, GameState, MapPoint, PlayerId, UnitId, UnitKind};
+use crate::gameplay::model::{
+    CityId, FogState, GameState, MapPoint, PlayerId, Unit, UnitId, UnitKind,
+};
 use crate::gameplay::server::interface::LegalAction;
 
 /// Explicit intent, evaluated only after player selection.
@@ -50,7 +52,8 @@ impl ContextRow {
 /// Weakly-modal menu clamped inside the native logical game frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextView {
-    /// Exact clicked map coordinate, retained while the camera moves.
+    /// Exact context cell (received canonical position for an explicit actor),
+    /// retained while the camera moves; never inferred from sprite overlap.
     pub point: MapPoint,
     /// Window geometry shared by SDL and semantic interaction tests.
     pub rect: MenuRect,
@@ -66,7 +69,27 @@ impl ContextView {
     /// Constructs a menu only from viewer-visible context; no command is sent.
     #[must_use]
     pub fn new(state: &GameState, point: MapPoint, x: i32, y: i32) -> Option<Self> {
-        let rows = context_at(state, point);
+        Self::from_rows(point, context_at(state, point), x, y)
+    }
+
+    /// Original `ArmyContextClick` popup for one exact received owned actor,
+    /// independent of selected neighbor/city priority or its displayed motion.
+    #[must_use]
+    pub fn for_unit(state: &GameState, id: UnitId, x: i32, y: i32) -> Option<Self> {
+        let unit = state
+            .units
+            .iter()
+            .find(|unit| unit.id == id && unit.alive && unit.owner == PlayerId::Human)?;
+        Self::from_rows(
+            unit.position,
+            append_cell_rows(state, unit.position, unit_rows(state, unit)),
+            x,
+            y,
+        )
+    }
+
+    /// Common source-order popup clamp; creation cannot dispatch an action.
+    fn from_rows(point: MapPoint, rows: Vec<ContextRow>, x: i32, y: i32) -> Option<Self> {
         if rows.is_empty() {
             return None;
         }
@@ -174,7 +197,8 @@ impl ContextView {
     }
 }
 
-/// Chooses city-over-garrison priority and never discloses unseen occupants.
+/// Original `BuildList`: own unit rows, then own city rows, then known Map Info.
+/// A plain unknown grid cell never discloses unseen occupants.
 #[must_use]
 pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
     let Some(tile) = state
@@ -183,28 +207,45 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
     else {
         return Vec::new();
     };
-    let info = ContextRow {
-        label: "Map Info",
-        intent: ContextIntent::MapInfo(point),
-    };
-    if let Some(city) = state
-        .city_at(point)
-        .filter(|city| city.owner == PlayerId::Human && tile.fog == FogState::Visible)
-    {
-        return city_rows(state, city.id, info);
-    }
     let unit = state
         .selected_unit()
         .filter(|unit| unit.position == point && unit.owner == PlayerId::Human)
         .or_else(|| {
-            state
-                .units
-                .iter()
-                .find(|unit| unit.alive && unit.position == point && unit.owner == PlayerId::Human)
+            state.units.iter().find(|unit| {
+                unit.alive
+                    && unit.position == point
+                    && unit.owner == PlayerId::Human
+                    && !sheltered_in_city(state, unit)
+            })
         });
-    let Some(unit) = unit.filter(|_| tile.fog == FogState::Visible) else {
-        return vec![info];
-    };
+    let rows = unit
+        .filter(|_| tile.fog == FogState::Visible)
+        .map_or_else(Vec::new, |unit| unit_rows(state, unit));
+    append_cell_rows(state, point, rows)
+}
+
+/// Original city-garrison fallback omits explicitly sleeping/fortified actors
+/// unless already selected; missing stance never invents a hidden army or count.
+fn sheltered_in_city(state: &GameState, unit: &Unit) -> bool {
+    state.city_at(unit.position).is_some()
+        && state
+            .viewer
+            .as_ref()
+            .and_then(|viewer| {
+                viewer
+                    .units
+                    .iter()
+                    .find(|source| UnitId::from_server_id(&source.id) == unit.id)
+            })
+            .is_some_and(|source| {
+                ["fortified", "asleep"]
+                    .into_iter()
+                    .any(|flag| source.facts[flag].as_bool() == Some(true))
+            })
+}
+
+/// Shared exact-unit actions; no implicit selection, submission or cell inference.
+fn unit_rows(state: &GameState, unit: &Unit) -> Vec<ContextRow> {
     let mut rows = vec![
         ContextRow {
             label: "Army Manager",
@@ -268,11 +309,37 @@ pub fn context_at(state: &GameState, point: MapPoint) -> Vec<ContextRow> {
     if let Some(row) = target_row(state, unit.id) {
         rows.push(row);
     }
-    rows.push(info);
     rows
 }
 
-/// Original owned-city row order, with no garrison command substituted.
+/// Only current known cells can add city or terrain rows after the exact actor.
+fn append_cell_rows(
+    state: &GameState,
+    point: MapPoint,
+    mut rows: Vec<ContextRow>,
+) -> Vec<ContextRow> {
+    let Some(tile) = state
+        .tile(point)
+        .filter(|tile| tile.fog != FogState::Hidden)
+    else {
+        return rows;
+    };
+    let info = ContextRow {
+        label: "Map Info",
+        intent: ContextIntent::MapInfo(point),
+    };
+    if let Some(city) = state
+        .city_at(point)
+        .filter(|city| city.owner == PlayerId::Human && tile.fog == FogState::Visible)
+    {
+        rows.extend(city_rows(state, city.id, info));
+    } else {
+        rows.push(info);
+    }
+    rows
+}
+
+/// Original owned-city row order, appended after any known owned garrison.
 fn city_rows(state: &GameState, id: CityId, info: ContextRow) -> Vec<ContextRow> {
     vec![
         ContextRow {

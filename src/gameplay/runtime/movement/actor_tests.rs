@@ -206,8 +206,7 @@ fn explicit_context_and_semantic_activate_keep_second_member_identity_even_with_
     );
 }
 #[test]
-fn unselected_moving_body_right_click_activates_exact_source_unit_panel_without_an_invented_cell_action_popup()
- {
+fn unselected_moving_body_right_click_selects_exact_actor_and_opens_original_context_popup() {
     let (mut state, mut movement, id) = scene();
     let mut ui = InGameUiModel {
         active_tab: crate::gameplay::ui_model::ControlPanelTab::Domestic,
@@ -244,11 +243,20 @@ fn unselected_moving_body_right_click_activates_exact_source_unit_panel_without_
     assert_eq!(
         ui.active_tab,
         crate::gameplay::ui_model::ControlPanelTab::Unit,
-        "source ActivateSelectedInfo(LOCAL_ARMY)"
+        "installed default AutoSwitchTabs selects the Unit tab"
+    );
+    let popup = ui
+        .context
+        .as_ref()
+        .expect("original ActivateSelectedInfo calls BuildList then contextMenu.Open");
+    assert_eq!(
+        popup.activate("Move"),
+        Some(crate::gameplay::ui_model::context::ContextIntent::Move(id)),
+        "popup remains tied to the exact displayed actor, never another same-cell unit"
     );
     assert!(
-        ui.context.is_none() && ui.map_info.is_none(),
-        "no fabricated native action menu or info for unrelated terrain behind actor"
+        ui.map_info.is_none(),
+        "do not inspect unrelated terrain behind actor"
     );
     assert!(
         movement.finish_drag().is_none(),

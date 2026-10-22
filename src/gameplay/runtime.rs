@@ -544,6 +544,9 @@ fn handle_right_click(
     {
         movement.cancel_drag();
         ui.active_tab = crate::gameplay::ui_model::ControlPanelTab::Unit;
+        ui.context = state.selected_unit.and_then(|id| {
+            crate::gameplay::ui_model::context::ContextView::for_unit(state, id, x, y)
+        });
         return None;
     }
     if let Some(point) = camera.screen_to_tile(x, y) {
