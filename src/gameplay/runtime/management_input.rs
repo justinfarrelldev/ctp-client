@@ -8,6 +8,9 @@ use super::{MovementInputState, RuntimeAuthority, submit_authoritative_command};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::InGameUiModel;
 
+/// Native Build head-selection/quote requests use an isolated gateway only.
+#[cfg(test)]
+mod build_tests;
 /// Source contact-details keyboard and receipt-safe related navigation.
 #[cfg(test)]
 mod diplomacy_tests;

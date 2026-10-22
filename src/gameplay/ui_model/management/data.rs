@@ -328,6 +328,14 @@ pub(super) fn text(
     if let Some(text) = super::diplomacy::details::text(ui, state, view, path) {
         return Some(text);
     }
+    /* Original Build price caption: ctp2_source/ctp2_code/ui/interface/
+     * EditQueue.cpp::UpdateButtons and ctp2/ctp2_data/english/uidata/layouts/
+     * editqueue.ldl::BuildEditorWindow.RushBuyCost; build::text documents
+     * original style/position and current-quote/entry-identity differences.
+     */
+    if let Some(text) = super::build::text(state, view, path) {
+        return Some(text);
+    }
     if let Some(text) = super::advisors::text(ui, state, view, path) {
         return Some(text);
     }

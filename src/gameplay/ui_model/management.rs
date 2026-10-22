@@ -26,6 +26,11 @@ mod advisors;
 mod articles;
 /// Source-derived button and editable-control bindings.
 mod bindings;
+/// Original Build selected-head prices and revision-safe purchase controls.
+mod build;
+/// Original Build queue-head price/authorization regressions using received facts.
+#[cfg(test)]
+mod build_tests;
 /// Runtime-created original advance chart and viewer-safe local navigation.
 mod chart;
 /// Fileless source-chart regressions.

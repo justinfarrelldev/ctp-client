@@ -2,6 +2,16 @@
 
 Parent: `plans/reference-interaction-fidelity.md`. This is a component work plan, not completion of the 33-reference request.
 
+## Current Build/City wave (main-plan priority)
+
+Original released source only: `/home/justi/Projects/ctp-client/ctp2_source/ctp2_code/ui/interface/EditQueue.cpp`, `citywindow.cpp`, `CityControlPanel.cpp`, and original installed editqueue.ldl/citywindow.ldl. Historical public/community-layout notes below are not implementation authority. Scaling is deferred. All styles/positions/controls/features touched need adjacent multi-line C++ symbol/LDL node citations, including client-authority differences.
+
+- [x] Inspect reference03 Granary/right-queue vs04 Settler/left-buildable and original EditQueue::UpdateButtons/ShowSelectedInfo/ListCallback/QueueListCallback/RushBuy plus original control nodes.
+- [x] Bounded first repair: selected queue index0 required, not just city action/content name; duplicate entry IDs cannot become a different head. Current quote/funds and one exact current city payload/target gate purchase; wrong/foreign/stale/ambiguous metadata disabled. Actual unaffordable price stays visible; no/future/completed/non-rushable uses source---; missing/stale/null/negative price is unknown—, explicit available0 is not discarded. Four REDs/5 focused model/native tests +1 disjoint affected legacy-gateway regression pass, collected LLVM84.82%>=80%/strict lint. Native isolated queued receipt preserves100gold/stored25/head queue, exact payloadcityc2 only. No file writes/live services/source-scaling changes; multi-line original UpdateButtons/RushBuy/editqueue.ldl provenance included. Normal hooks/commit next.
+- [ ] Next source workflow: original Clear/Remove/Insert/reorder confirmations and queue selection lifecycle; inspect complete original callbacks first, preserve captured revision/entry IDs and server authority. Reuse this checklist, no new plan.
+- [ ] Finish remaining categories/selection/description/art/queue controls and confirmations/selector/parent/founding/completion; distinguish original released functionality from unsupported or installation/reference variants. Do not turn Load/custom buttons into unrelated executable actions or copy private buildability/advice/economy logic.
+- [ ] Freeze actual Build/City reference scenarios and inspect/compare production SDL whole frames once when visually relevant. Component/fixture verification does not certify any of33 frames; preserve all other main/detail tasks.
+
 ## Checklist
 
 - [x] Parse installed article sections, safe internal links and non-executable variables; test malformed markup and Windows-1252 content without writing files.

@@ -626,6 +626,16 @@ fn assert_selected_city(ui: &InGameUiModel, city: &str) {
     );
 }
 
+/// Source `EditQueue` requires a current quote and known funds for selected-head rush.
+fn operation_fixture(route: &str) -> Value {
+    let mut value = snapshot();
+    if route == "rush-buy" {
+        value["cities"][0]["rush_buy_quote"] = json!({"revision":17_i64,"status":"available","cost":30_i64});
+        value["diplomacy"]["gold"] = json!(100_i32);
+    }
+    value
+}
+
 /// Receipts can contain effective values different from the explicit requested rate.
 fn operation_receipt(route: &str, payload: &Value) -> Value {
     let mut after = snapshot();
@@ -674,7 +684,7 @@ fn semantic_production_research_and_policies_send_exact_mocked_routes_revisions_
         ),
         (
             ManagerKind::Build,
-            None,
+            Some("QueueGroup.QueueList/UNIT_HOPLITE"),
             "RushBuyButton",
             "rush-buy",
             json!({"city_id":"city-7"}),
@@ -710,7 +720,7 @@ fn semantic_production_research_and_policies_send_exact_mocked_routes_revisions_
     ] {
         let listener = TcpListener::bind("127.0.0.1:0").expect("isolated listener");
         let port = listener.local_addr().expect("stub address").port();
-        let mut authority = authority(port, snapshot());
+        let mut authority = authority(port, operation_fixture(route));
         let mut state = state_from_authority_projection(
             &authority,
             authority.session.projection.as_ref().expect("viewer"),

@@ -7,6 +7,17 @@ use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerVie
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
 
+/*
+ * Original UI callback provenance for these shared source descriptors:
+ * - ctp2_source/ctp2_code/ui/interface/ScienceManagementDialog.cpp::
+ *   EditResearchButtonActionCallback/CompareAdvance and
+ *   ctp2_source/ctp2_code/ui/aui_common/aui_header.cpp::
+ *   aui_HeaderSwitchAction::Execute define Science entries/header behavior.
+ * - ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{UpdateButtons,RushBuy}
+ *   defines Build's selected-head price/purchase behavior. science::binding
+ *   and build::binding cite exact original LDL styles/positions and explain
+ *   server-quote/entry-identity differences. Native/accessibility share this map.
+ */
 /// Returns a shared semantic intent plus an optional explicit disabled reason.
 pub(super) fn binding(
     ui: &ManagementUi,
@@ -33,17 +44,9 @@ pub(super) fn binding(
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
-    /* Original UI callback source: ctp2_source/ctp2_code/ui/interface/
-     * ScienceManagementDialog.cpp::{EditResearchButtonActionCallback,
-     * CompareAdvance}; ctp2_source/ctp2_code/ui/aui_common/aui_header.cpp::
-     * aui_HeaderSwitchAction::Execute.
-     * science::binding documents the exact LDL nodes and contract differences;
-     * native and accessible activation must share this same callback mapping.
-     */
-    if let Some(binding) = super::science::binding(view, path) {
-        return binding;
-    }
-    if let Some(binding) = super::research::binding(state, view, path) {
+    if let Some(binding) = super::build::binding(state, view, path)
+        .or_else(|| super::science::binding(view, path))
+        .or_else(|| super::research::binding(state, view, path)) {
         return binding;
     }
     let name = node.name.as_str();
@@ -296,10 +299,6 @@ fn build(
                 .into_iter()
                 .find(|action| selected == Some(&action.target_id));
             advertised(state, action)
-        }
-        "RushBuyButton" => {
-            let candidates = data::city_actions(state, view, "rush-buy");
-            advertised(state, (candidates.len() == 1).then(|| candidates[0]))
         }
         "ItemsBox.InsertButton"
         | "QueueGroup.UpButton"
