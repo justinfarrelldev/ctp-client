@@ -8,6 +8,9 @@ use super::{MovementInputState, RuntimeAuthority, submit_authoritative_command};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::InGameUiModel;
 
+/// Source contact-details keyboard and receipt-safe related navigation.
+#[cfg(test)]
+mod diplomacy_tests;
 /// Clipboard access remains injectable; editing itself is pure presentation.
 pub(super) mod editor_input;
 /// Fileless native-event text editing regressions.
@@ -231,6 +234,11 @@ pub(super) fn apply(
             }
         }
         ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::ContactDetails(id) => {
+            if !ui.management.open_contact_details(state, &id) {
+                "The selected contact is no longer known".clone_into(&mut ui.status_text);
+            }
+        }
         ManagerIntent::ForCity(kind, id) => {
             if state.viewer.as_ref().is_some_and(|viewer| {
                 viewer

@@ -22,6 +22,16 @@ Parent: [full-screen-reference-parity.md](full-screen-reference-parity.md), afte
 - [x] Use explicit complete-v2 no-city/two-settler/uncontacted start rather than Build's queue; inspect native/reference-size diagnostic frames and dense full-frame report. Complete-reference acceptance remains unchecked (failed diagnostic), including missing assets/fonts/metadata.
 - [ ] Document exact remaining server/assets/environment gaps in the active report and update PLAN/FIXES/parent/source evidence.
 
+## Contact-details continuation (source DiplomacyDetails)
+
+- [x] Add explicit contact-details identity and related-window intent; validate current selected contact again on activation, no city/player namespace alias or first-contact fallback.
+- [x] Cache installed DiplomacyDetails.ldl and original three-tab root/items; preserve exact original positions and parent-window lifecycle.
+- [x] Replace source dynamic intelligence/leader/domestic captions with explicit ID and known bilateral facts/unknown markers; do not evaluate private SLIC/foreign globals.
+- [x] Render foreign-relations/wonders/advance-difference lists as explicitly unavailable, not empty/zero or copied viewer relations/own advances. Original foreign lists concern the selected foreign nation's contacts and set differences, not our contact list/knowledge.
+- [x] Keep all Domestic/Science controls/tabs present; unknown embassy does not mean 'no embassy'. Do not preserve original pollution read outside embassy guard or unsafe source string buffers.
+- [x] RED selected second-contact details, source tabs/geometry, no raw SLIC/private/guessed metrics, exact Close/ESC parent selection restoration and disappeared-contact recovery. Native in-memory SDL render/keyboard plus no transport in view-only navigation.
+- [ ] Re-run every quality/coverage/build step and normal lint-fix/hooks commit; keep complete-frame acceptance unchecked.
+
 ## Verification and atomic commits
 
 - [ ] Run lint-fix before every commit; strict lint/full tests/dedicated native build; fix every failure and use unchanged normal hooks.
@@ -38,5 +48,9 @@ Tall-main/source-row continuation: RED root/list/row tests reproduced the old sh
 Diagnostics: images/parity-diplomacy-{native,reference}.png are explicit ignored manual captures, not test output. Decoration/menu-only origin calibration (5,23); full viewport comparison 97086/307200 pixels exceed channel delta8, raw RGB error10735316, identical:false. Dense worst cells identify unresolved side art; fonts/capture/footer and details/controls are not accepted. No interior masks/alternate favorable crop or screenshot certification.
 
 Tall-main verification checkpoint: strict lint/full tests and independent dedicated native build pass; 578 library +596 binary +19 integration +1 example =1194 executions; 85.24% LLVM lines enforced >=80%. Combined verification shell timed out after full target tests/coverage summary; reran existing complete-profile line gate (exit0) and dedicated build independently (exit0), rather than claiming timeout success. Fast script remains absent(127); Windows target/core/sysroot gap unchanged. All Rust modules remain <800 lines and server remains clean. Run lint-fix/normal hooks before this coherent main-window commit; then continue unchecked detailed contact/proposal/navigation/confirmation work, not frame acceptance.
+
+Contact-details continuation checkpoint: source DiplomacyDetails.ldl and C++ Display/Cancel/source embassy guard audited. Source Foreign Relations is the selected foreign nation's contacts, not our own; Science lists are foreign-minus-own and own-minus-foreign, not all own advances. Cached original three-tab/root/item geometry retained; explicit known-contact related intent and second-contact Details source button restore exact parent state on Close/ESC. Removed target returns to reconciled parent with no substituted contact. Foreign metrics/leader/embassy/advance differences remain unknown; known bilateral regard/treaty/trade and explicitly labeled player ID only. Source prefixes are cached localization, not a SLIC/private engine. Unavailable nonselectable descriptors differentiate missing contracts from known-empty sets. Never preserve original direct foreign pollution read outside HasEmbassyWith or unsafe string concatenation.
+
+RED source details workflow then GREEN all source tabs/no raw placeholders/unknown metrics/no own-contact substitution/parent lifecycle; native accessible Return/Science/ESC and snapshot loss use no transport; all three real tabs/art render in-memory without file writes. Strict lint/full tests/dedicated native build pass:581 library +599 binary +19 integration +1 example =1200 executions;85.30% LLVM lines enforced >=80%. Fast script absent(127); Windows target/sysroot/font/newer-frame gaps unchanged. Every Rust module<800 and server clean. Run normal lint-fix/hooks commit, then continue original proposal workspace/remaining authorization/navigation/sorting tasks; no complete frame accepted.
 
 Then return to the parent and continue **all remaining** manager/panel/options/actor/normalization work and all 33 complete-frame acceptances. This plan is not a replacement definition of full-screen/game completion.

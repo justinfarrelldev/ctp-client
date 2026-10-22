@@ -160,6 +160,108 @@ fn source_proposal_button_requires_explicit_contact_and_groups_only_that_contact
     );
 }
 #[test]
+fn exact_selected_contact_opens_source_details_tabs_without_private_or_unexpanded_slic_data_and_returns_to_same_parent()
+ {
+    let (mut ui, state) = fixture();
+    let button = "DiplomacyTabs.Intelligence.TabPanel.DetailsButton";
+    assert!(
+        ui.activate_id(button, &state).is_none(),
+        "details requires explicit current contact"
+    );
+    ui.apply_local(ManagerIntent::Select(
+        "contact".to_owned(),
+        "other-2".to_owned(),
+    ));
+    let parent = ui.view.clone();
+    assert_eq!(
+        ui.activate_id(button, &state),
+        Some(ManagerIntent::ContactDetails("other-2".to_owned())),
+        "not the first contact or an own-city namespace"
+    );
+    assert!(
+        ui.open_contact_details(&state, "other-2"),
+        "revalidate current identity before navigation"
+    );
+    assert_eq!(
+        ui.view.as_ref().map(|view| view.kind),
+        Some(ManagerKind::DiplomacyDetails),
+        "original related source root"
+    );
+    assert!(
+        ui.view.as_ref().is_some_and(|view| view.city_id.is_none()),
+        "foreign player identity never occupies a selected-city slot"
+    );
+    let report = ui
+        .widgets(&state)
+        .into_iter()
+        .find(|widget| widget.id == "IntelReportLabel")
+        .expect("source intelligence heading");
+    assert!(
+        report.label.contains("ID other-2"),
+        "identity stays an explicit ID without inventing a civilization"
+    );
+    for tab in ["Tab1", "Tab2", "Tab3"] {
+        ui.apply_local(ManagerIntent::Select(
+            "tab:TabGroup".to_owned(),
+            tab.to_owned(),
+        ));
+        let widgets = ui.widgets(&state);
+        if tab == "Tab2" {
+            for name in [
+                "EmpireSizeLabel",
+                "PopulationLabel",
+                "PollutionLabel",
+                "CapitalLabel",
+                "LargestCityLabel",
+                "GovTypeLabel",
+                "MilStateLabel",
+            ] {
+                let field = widgets
+                    .iter()
+                    .find(|widget| widget.id == format!("TabGroup.Tab2.TabPanel.{name}"))
+                    .expect("source domestic metric");
+                assert!(
+                    field.label.ends_with('—'),
+                    "unknown {name} is never zero, own data or visible-city-derived foreign accounting"
+                );
+            }
+        }
+        assert!(
+            widgets
+                .iter()
+                .all(|widget| !widget.label.contains('{') && !widget.label.contains("%d")),
+            "private/unexpanded SLIC is never exposed on {tab}"
+        );
+        assert!(
+            widgets
+                .iter()
+                .any(|widget| widget.id.ends_with("/unavailable")
+                    && widget.intent.is_none()
+                    && widget.label.to_lowercase().contains("unavailable")),
+            "unknown foreign lists are explicitly unavailable, not empty known sets on {tab}"
+        );
+        assert!(
+            !widgets.iter().any(|widget| widget.id.contains("/other-1")),
+            "the foreign nation's contact list must not be replaced with our known relations"
+        );
+    }
+    ui.apply_local(ManagerIntent::Close);
+    assert_eq!(
+        ui.view, parent,
+        "Close restores exact parent selections and local offsets"
+    );
+    assert!(ui.parents.is_empty(), "no navigation loop/window leak");
+    assert!(
+        !ui.open_contact_details(&state, "hidden-or-stale"),
+        "forged contact cannot open private global data"
+    );
+    assert_eq!(
+        ui.view, parent,
+        "failed navigation leaves the parent intact"
+    );
+}
+
+#[test]
 fn disappeared_contact_is_deselected_on_receipt_without_selecting_the_other_visible_nation() {
     let (mut ui, mut state) = fixture();
     ui.apply_local(ManagerIntent::Select(

@@ -413,6 +413,7 @@ impl Walker<'_> {
     /// Clipped dynamic rows and original list-local ranger controls.
     fn list(&mut self, node: &LayoutNode, path: &str, rect: MenuRect) {
         self.list_header(node, path, rect);
+        super::diplomacy::details::unavailable(self.ui, self.view, path, rect, &mut self.widgets);
         let rows = data::rows(self.ui, self.state, self.view, path);
         let height = row_height(self.ui, self.view.kind, path);
         let visible = visible_rows(self.ui, self.view.kind, path, rect);
@@ -575,6 +576,7 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
         ManagerKind::Trade if path == super::trade::IMPORT => "trade-import",
         ManagerKind::Trade => "trade-route",
         ManagerKind::Diplomacy => "contact",
+        ManagerKind::DiplomacyDetails => "foreign-intelligence",
         ManagerKind::Library => "article",
         ManagerKind::City
         | ManagerKind::Empire

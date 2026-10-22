@@ -27,6 +27,10 @@ pub(super) fn templates(
         "NationalResourceListItem",
         "NationalStatusListItem",
         "IntelligenceListItem",
+        "DiplomacyDetailsListItem",
+        "ForAdvancesItem",
+        "YourAdvancesItem",
+        "DipDetWondersItem",
     ]
     .into_iter()
     .map(|name| book.resolve(name).map(|node| (name, node)))

@@ -17,6 +17,51 @@ use serde_json::json;
 use std::path::Path;
 
 #[test]
+fn original_contact_details_all_three_tabs_render_with_unavailable_intelligence_without_private_world_or_writes()
+ {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures =
+            GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let viewer:ServerProjection=serde_json::from_value(serde_json::json!({"revision":1_i64,"turn":1_u32,"diplomacy":{"relations":[{"target_player_id":"known-other","treaty":"peace","regard":"neutral"}]}})).map_err(|error|error.to_string())?;
+        let state = GameState::from_server_projection(&viewer, 1, 1);
+        let mut ui = InGameUiModel {
+            management: ManagementUi::new(
+                LayoutBook::load(&root).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| error.to_string())?,
+            ..InGameUiModel::default()
+        };
+        if !ui.management.open_contact_details(&state, "known-other") {
+            return Err("known contact rejected".to_owned());
+        }
+        for tab in ["Tab1", "Tab2", "Tab3"] {
+            ui.management.apply_local(ManagerIntent::Select(
+                "tab:TabGroup".to_owned(),
+                tab.to_owned(),
+            ));
+            canvas.set_draw_color(Color::BLACK);
+            canvas.clear();
+            draw_management(canvas, &mut textures, &state, &ui, None)
+                .map_err(|error| error.to_string())?;
+            let pixels = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+            if !pixels
+                .chunks_exact(4_usize)
+                .any(|pixel| pixel[..3_usize] != [0_u8; 3_usize])
+            {
+                return Err(format!("original details art did not render: {tab}"));
+            }
+        }
+        Ok(())
+    });
+    assert!(
+        result.is_ok(),
+        "cached actual original details/tabs/art native composition: {result:?}"
+    );
+}
+
+#[test]
 fn original_diplomacy_window_is_an_opaque_surface_not_a_hud_leaking_through_missing_side_art() {
     let result = with_canvas((800_u32, 600_u32), |canvas| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");

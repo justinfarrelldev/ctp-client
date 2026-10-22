@@ -174,7 +174,8 @@ pub(super) fn rows(
         | ManagerKind::Graphics
         | ManagerKind::Sound
         | ManagerKind::Build
-        | ManagerKind::Library => Vec::new(),
+        | ManagerKind::Library
+        | ManagerKind::DiplomacyDetails => Vec::new(),
     }
 }
 
@@ -306,6 +307,9 @@ pub(super) fn text(
     view: &ManagerView,
     path: &str,
 ) -> Option<String> {
+    if let Some(text) = super::diplomacy::details::text(ui, state, view, path) {
+        return Some(text);
+    }
     if let Some(text) = super::advisors::text(ui, state, view, path) {
         return Some(text);
     }

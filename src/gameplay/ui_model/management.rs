@@ -153,6 +153,8 @@ pub enum ManagerKind {
     Trade,
     /// Contacts and diplomatic actions.
     Diplomacy,
+    /// Original selected-contact intelligence details, not foreign global data.
+    DiplomacyDetails,
     /// Current research and available advances.
     Science,
     /// Explicit available-research selection/confirmation dialog.
@@ -194,6 +196,8 @@ pub enum ManagerIntent {
     Open(ManagerKind),
     /// Open a related manager for the exact panel city, not the first owned city.
     ForCity(ManagerKind, String),
+    /// Open original intelligence details for one exact current known contact.
+    ContactDetails(String),
     /// Set a presentation-only category, active tab or selected row.
     Select(String, String),
     /// Scroll one list without moving the world camera.
@@ -431,6 +435,13 @@ impl ManagementUi {
         if let Some(previous) = previous {
             self.parents.push(previous);
         }
+    }
+
+    /// Opens only an explicitly identified current contact, retaining its parent.
+    /// This view-only navigation never fetches global foreign/private information.
+    #[must_use]
+    pub fn open_contact_details(&mut self, state: &GameState, id: &str) -> bool {
+        diplomacy::details::open(self, state, id)
     }
 
     /// Collects installed article metrics once from the same native font used to draw.
@@ -705,6 +716,7 @@ impl ManagementUi {
             ManagerIntent::Close
             | ManagerIntent::Open(_)
             | ManagerIntent::ForCity(..)
+            | ManagerIntent::ContactDetails(_)
             | ManagerIntent::Dialog(_)
             | ManagerIntent::Submit(_)
             | ManagerIntent::Article(_)

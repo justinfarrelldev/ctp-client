@@ -88,6 +88,9 @@ pub(super) fn binding(
             enabled(ManagerIntent::Open(ManagerKind::Build))
         }
         ManagerKind::Unit if name == "DisbandButton" => dialog(super::units::disband(state, view)),
+        ManagerKind::Diplomacy if path == "DiplomacyTabs.Intelligence.TabPanel.DetailsButton" => {
+            diplomatic_details(state, view)
+        }
         ManagerKind::Diplomacy if path == "DiplomacyTabs.Intelligence.TabPanel.MessageButton" => {
             diplomatic_workspace(state, view)
         }
@@ -115,6 +118,19 @@ pub(super) fn binding(
     }
 }
 
+/// Details is view-only, but still requires the exact current selected contact.
+fn diplomatic_details(
+    state: &GameState,
+    view: &ManagerView,
+) -> (Option<ManagerIntent>, Option<String>) {
+    view.selections
+        .get("contact")
+        .filter(|id| super::diplomacy::details::known(state, id))
+        .map_or_else(
+            || disabled("Select a current known contact for intelligence details"),
+            |id| enabled(ManagerIntent::ContactDetails(id.clone())),
+        )
+}
 /// The original proposal entry opens explicit current options for one known
 /// contact. Opening neither accepts a treaty nor selects the first proposal.
 fn diplomatic_workspace(

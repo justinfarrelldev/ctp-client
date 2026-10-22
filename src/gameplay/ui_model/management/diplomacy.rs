@@ -7,6 +7,8 @@ use crate::gameplay::{
 };
 use alloc::collections::BTreeSet;
 use serde_json::Value;
+/// Original contact details and explicit unavailable foreign intelligence.
+pub(super) mod details;
 /// Source shared intelligence list; canonical contact ID is its row identity.
 pub(super) const LIST: &str = "DiplomacyTabs.Intelligence.TabPanel.List";
 /// Current public diplomacywindow.ldl reference revision, not an invented scale.
@@ -130,11 +132,13 @@ pub(super) fn value(state: &GameState, id: &str, name: &str) -> String {
 }
 /// Removed contacts lose selection on receipt; no neighboring nation is substituted.
 pub(super) fn reconcile(view: &mut ManagerView, state: &GameState) {
-    if view.kind == ManagerKind::Diplomacy
-        && view
-            .selections
-            .get("contact")
-            .is_some_and(|id| relation(state, id).is_none())
+    if matches!(
+        view.kind,
+        ManagerKind::Diplomacy | ManagerKind::DiplomacyDetails
+    ) && view
+        .selections
+        .get("contact")
+        .is_some_and(|id| relation(state, id).is_none())
     {
         view.selections.remove("contact");
     }
