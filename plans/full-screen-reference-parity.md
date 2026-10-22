@@ -2,6 +2,10 @@
 
 Continuation of [reference-interaction-fidelity.md](reference-interaction-fidelity.md), explicitly requested after contract-v2 integration `ea98904`. This is implementation/acceptance work, not a plan-only gate. Keep the main menu intact. Server, original assets/source, hooks, scripts, build rules and lint rules remain read-only. Tests use in-memory frames and accurate injected HTTP/SSE only.
 
+Immediate live-play P0 continuation: [production catalog and persistent resynchronization](immediate-live-play-recovery.md), requested after user-confirmed launch recovery. Audit/fix before more cosmetic work; never fabricate retail production or hide true sync failures. Font investigation correction: actual selected GOG installation contains Times/Arial under uidata/fonts; previous blanket missing-font conclusion was incomplete because font discovery searched system paths only. Correct selected-installation discovery after P0 recovery, without copying fonts.
+
+Priority launch recovery: [string-manifest-launch-recovery.md](string-manifest-launch-recovery.md). Continue this entire plan afterward. Source clarification: use **local original ctp2_source**, not community/Apolyton source, as behavior/style authority for new work. Earlier community-reference evidence in this historical ledger is not permission to port its accumulated changes. Installed variant metadata may require explicitly scoped compatibility without changing original semantics.
+
 ## Completion rules
 
 - Check off implementation only with source anchors, RED failure, GREEN regression and review.

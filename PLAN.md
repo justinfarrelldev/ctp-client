@@ -188,6 +188,18 @@ See [the comprehensive child checklist and verification ledger](plans/client-con
 - [x] Finish strict lint/lint-fix and source/privacy/concurrency review; stage the presentation slice for a normal verified commit. Record evidence in the child ledger; unchanged commit hooks must pass.
 - [ ] Continue the parent plan's remaining source/reference reconciliation. This integration does not certify complete-game deployment, exact missing culture/optimizer/foreign-history contracts, moving-stack/attack/death behavior or all 33 reference screenshots.
 
+## Immediate live-play concerns (user-confirmed after launch recovery)
+
+- [ ] P0: Cities only offer "Synthetic" production. Audit current server bootstrap/rules profile and viewer legal actions/catalog; expose and select actual supported retail units/buildings/wonders through authority. Never rename a synthetic server record to pretend real gameplay or invent buildable items.
+- [ ] P0: Gameplay continuously shows Resynchronizing. Reproduce current worker/SSE/current-read/receipt lifecycle with accurate isolated stubs, identify churn versus real disconnect, and stabilize authoritative recovery without masking errors, using background snapshots as acknowledgements or submitting stale commands.
+- [ ] Add native/semantic/HTTP regressions, run all quality checks, document any exact server-maintainer-only blocker and commit fixes normally. Continue all remaining main-plan work afterward.
+
+## Reported Strings.txt launch failure (priority continuation)
+
+- [x] Trace the actual configured GOG manifest read-only; its standalone DoNotImportDefaults marker shifted the paired-entry reader. Original local ctp2_source has no such marker; this is selected-installation compatibility, not original gameplay logic or imported community behavior.
+- [x] RED injected marker/import/translation and malformed-tail tests reproduce both the launch error and accidentally accepted corrupt pairs. GREEN ordered cursor preserves quoted marker values, empty translations, first-definition precedence and import/read boundaries; missing IDs now have contextual errors. Production renderer successfully loads the actual configured GOG installation without modifying assets or contacting the server.
+- [x] Complete launch-fix full verification: strict lint/full tests/native build pass;1204 executions;85.30% LLVM lines, >=80% enforced; actual GOG render exits0 and user confirms launch recovery. Fast script absent; Windows target/sysroot limitations unchanged. Commit normally, then address immediate production/synchronization concerns and resume **every unchecked main/parent item**. See [string-manifest-launch-recovery.md](plans/string-manifest-launch-recovery.md). Do not stop at the launch fix or check off unverified references.
+
 ## Full-screen reference continuation (active request)
 
 Execute [full-screen-reference-parity.md](plans/full-screen-reference-parity.md) and the existing parent until all unblocked implementation/acceptance work is complete. Do not treat another partial commit as completion or mark blocked/unverified references accepted.

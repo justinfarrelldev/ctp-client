@@ -81,6 +81,58 @@ fn string_imports_reject_traversal_cycles_and_contextualize_missing_files() {
     }
 }
 #[test]
+fn installed_manifest_standalone_marker_does_not_shift_imports_or_consume_a_translation() {
+    let mut reads = Vec::new();
+    let labels=load_with_reader(Path::new("virtual"),|path| {
+        let name=path.file_name().and_then(|name|name.to_str()).ok_or_else(||io::Error::other("virtual basename"))?;reads.push(name.to_owned());
+        let content=match name {
+            "Strings.txt"=>"# selected installation compatibility marker\nDoNotImportDefaults # no value\nimport \"add_str.txt\"\nDIRECT \"DoNotImportDefaults\"\nimport \"tips_str.txt\"\nFINAL \"Complete\"",
+            "add_str.txt"=>"TITLE \"Advisor\"\nEMPTY \"\"\nDUPLICATE \"First\"",
+            "tips_str.txt"=>"DUPLICATE \"Later\"\nSTATUS \"Description\"",
+            _=>return Err(io::Error::other("unexpected read outside manifest imports")),
+        };Ok(content.as_bytes().to_vec())
+    }).expect("standalone installed marker is not a paired translation");
+    assert_eq!(
+        reads,
+        ["Strings.txt", "add_str.txt", "tips_str.txt"],
+        "source import order and no implicit default-language read"
+    );
+    for (key, expected) in [
+        ("TITLE", "Advisor"),
+        ("EMPTY", ""),
+        ("DUPLICATE", "First"),
+        ("STATUS", "Description"),
+        ("DIRECT", "DoNotImportDefaults"),
+        ("FINAL", "Complete"),
+    ] {
+        assert_eq!(
+            labels.get(key).map(String::as_str),
+            Some(expected),
+            "manifest entry {key} remains paired"
+        );
+    }
+    assert!(
+        !labels.contains_key("DoNotImportDefaults") && !labels.contains_key("import"),
+        "directives cannot become labels"
+    );
+}
+#[test]
+fn malformed_entries_after_a_standalone_marker_report_the_actual_file_and_unpaired_id() {
+    for tail in ["BROKEN_ID", "import"] {
+        let result = load_with_reader(Path::new("virtual"), |_path| {
+            Ok(format!("DoNotImportDefaults\nVALID \"text\"\n{tail}").into_bytes())
+        });
+        let error = result
+            .expect_err("standalone marker does not make malformed trailing entries valid")
+            .to_string();
+        assert!(
+            error.contains("Strings.txt") && error.contains(tail),
+            "retain actionable file and missing-value identity: {error}"
+        );
+    }
+}
+
+#[test]
 fn installation_loads_actual_advisor_addon_captions_instead_of_exposing_internal_keys() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
     let book = super::LayoutBook::load(&root).expect("read-only original string manifest");

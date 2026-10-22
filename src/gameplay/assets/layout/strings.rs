@@ -71,21 +71,25 @@ impl<Reader: FnMut(&Path) -> io::Result<Vec<u8>>> Loader<Reader> {
             .map_err(|error| asset_error(format!("{}: {error}", path.display())))?;
         let tokens = super::tokenize(&crate::gameplay::assets::text::decode(&bytes))
             .map_err(|error| asset_error(format!("{name}: {error}")))?;
-        let mut entries = tokens.chunks_exact(2);
-        for pair in &mut entries {
-            if pair[0].eq_ignore_ascii_case("import") {
-                self.file(&pair[1], depth.saturating_add(1))?;
-            } else {
-                if pair[0].is_empty() || pair[0].chars().any(char::is_whitespace) {
-                    return Err(asset_error(format!("invalid string ID in {name}")));
-                }
-                self.labels
-                    .entry(pair[0].clone())
-                    .or_insert_with(|| pair[1].clone());
+        let mut entries = tokens.into_iter();
+        while let Some(id) = entries.next() {
+            // The configured installation can include this standalone marker.
+            // It is not in the original source grammar. Our selected-language
+            // loader never merges implicit defaults, so no value/read is needed.
+            if id == "DoNotImportDefaults" {
+                continue;
             }
-        }
-        if !entries.remainder().is_empty() {
-            return Err(asset_error(format!("unpaired string ID in {name}")));
+            let value = entries
+                .next()
+                .ok_or_else(|| asset_error(format!("unpaired string ID {id:?} in {name}")))?;
+            if id.eq_ignore_ascii_case("import") {
+                self.file(&value, depth.saturating_add(1))?;
+            } else {
+                if id.is_empty() || id.chars().any(char::is_whitespace) {
+                    return Err(asset_error(format!("invalid string ID {id:?} in {name}")));
+                }
+                self.labels.entry(id).or_insert(value);
+            }
         }
         self.active.remove(&key);
         self.loaded.insert(key);
