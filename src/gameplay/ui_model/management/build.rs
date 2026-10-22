@@ -1,5 +1,5 @@
 //! Original Build queue-head purchase controls, backed only by received quotes.
-use super::{ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
+use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
 use crate::gameplay::{model::GameState, server::{ServerCityProjection, v2::Quote}};
 use serde_json::json;
 
@@ -60,10 +60,16 @@ pub(super) fn text(state: &GameState, view: &ManagerView, path: &str) -> Option<
 }
 
 /// A selected head/quote does not grant authority to choose a different city/order.
-pub(super) fn binding(state: &GameState, view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
-    if view.kind != ManagerKind::Build || path != "RushBuyButton" {
-        return None;
+pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
+    if view.kind != ManagerKind::Build { return None; }
+    if path == "QueueGroup.ClearButton" {
+        let dialog = clear_request(state, view).and_then(|command| super::confirmation::dialog(ui, state, command));
+        return Some(dialog.map_or_else(
+            || disabled("A current safe editable queue/funding state is required before source Clear confirmation"),
+            |dialog| (Some(ManagerIntent::Dialog(Box::new(dialog))), None),
+        ));
     }
+    if path != "RushBuyButton" { return None; }
     let Some((city, content)) = selected_head(state, view) else {
         return Some(disabled("Select the exact current owned-city queue-head entry to rush"));
     };
@@ -89,6 +95,33 @@ pub(super) fn binding(state: &GameState, view: &ManagerView, path: &str) -> Opti
         || disabled("No single exact current authorization for this selected owned-city head"),
         |command| (Some(ManagerIntent::Submit(command)), None),
     ))
+}
+
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::ClearButton and
+ * ClearMessageCallback ask QueryClearQueue, clearing all unless AlreadyBoughtFront
+ * requires ClearAllButHead. MessageBoxDialog.{cpp,h} owns original OK/Cancel.
+ * Client quote.completed proves a funded head, not why it was funded: conservatively
+ * retain that exact entry. Current available/insufficient quotes prove unfinished
+ * work. Missing/stale/other/queued funding cannot be treated as unbought. Commands
+ * capture the current revision once; no private paid flag is invented or replayed.
+ */
+/// Captures a safe source clear; actual state changes remain entirely server-owned.
+fn clear_request(state: &GameState, view: &ManagerView) -> Option<ManagerCommand> {
+    let viewer = state.viewer.as_ref()?;
+    if viewer.interface.planning_status == "queued" { return None; }
+    let city = data::city(state, view)?;
+    let current = quote(state, city)?;
+    match current.status.as_str() {
+        "available" | "insufficient-gold" if current.cost.is_some_and(|cost| cost >= 0_i64) => super::queue::request(state, view, "QueueGroup.ClearButton"),
+        "completed" => {
+            let items = city.facts["queue"].as_array()?;
+            if items.len() <= 1_usize { return None; }
+            let head = items.first()?["entry_id"].as_str()?;
+            super::queue::replacement(state, &city.id, &[json!({"entry_id":head})])
+        }
+        _ => None,
+    }
 }
 
 /// Unavailable controls explain the missing proof instead of becoming silent no-ops.

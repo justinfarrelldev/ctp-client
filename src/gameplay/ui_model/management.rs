@@ -38,6 +38,8 @@ mod chart;
 mod chart_tests;
 /// Immutable command authorization, separate from manager presentation.
 mod command;
+/// Cached original `MessageBoxDialog` controls for explicit queue confirmation.
+mod confirmation;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
 /// Original tall intelligence table and privacy-safe contact columns.
@@ -322,6 +324,8 @@ pub struct ManagementUi {
     pub panel: LayoutNode,
     /// Original runtime-created Chart viewport/button template, resolved once.
     pub chart: LayoutNode,
+    /// Original `MessageBoxDialog` root, cached once; no click-time asset reads.
+    pub confirmation_layout: Option<LayoutNode>,
     /// Original dynamic item templates, resolved once rather than doing frame-time I/O.
     pub row_templates: BTreeMap<&'static str, LayoutNode>,
     /// Open manager, independent of map/control-panel selections.
@@ -372,6 +376,7 @@ impl ManagementUi {
         if let Some(root) = layouts.get_mut(&ManagerKind::Library) {
             index::configure(root, &book)?;
         }
+        let confirmation_layout = Some(book.resolve("MessageBoxDialog")?);
         let catalog = book
             .installation_root()
             .map(LibraryCatalog::load)
@@ -386,6 +391,7 @@ impl ManagementUi {
             book,
             layouts,
             chart,
+            confirmation_layout,
             row_templates,
             panel,
             view: None,

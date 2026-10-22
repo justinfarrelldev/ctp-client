@@ -239,7 +239,7 @@ fn native_forms_messages_and_own_history_are_real_nonempty_source_chrome() {
         ui.operation = OperationDialog::input(&state, "c", InputKind::Rename);
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
-        super::operations::draw(canvas, &textures, &state, &ui, None)
+        super::operations::draw(canvas, &mut textures, &state, &ui, None.into())
             .map_err(|error| error.to_string())?;
         let field = OperationDialog::field();
         let field_pixel = canvas.read_pixels(

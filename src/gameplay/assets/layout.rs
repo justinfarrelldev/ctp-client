@@ -140,6 +140,13 @@ impl LayoutBook {
             "civ3.ldl",
             "fancy.ldl",
             "controlpanel.ldl",
+            /* Source: ctp2_source/ctp2_code/ui/interface/MessageBoxDialog.cpp::
+             * MessageBoxDialog calls BuildHierarchyFromRoot("MessageBoxDialog").
+             * ctp2/ctp2_data/english/uidata/layouts/messagebox.ldl defines that
+             * active uptg29 question/control tree; cache it at startup rather
+             * than reading assets during a button click. No art is copied.
+             */
+            "messagebox.ldl",
             "spnewgame.ldl",
             "citywindow.ldl",
             "citymanager.ldl",

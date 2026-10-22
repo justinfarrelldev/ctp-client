@@ -138,3 +138,70 @@ fn build_rush_requires_one_exact_owned_city_action_not_wrong_payload_target_or_a
         assert!(ui.activate_id("RushBuyButton", &state).is_none(), "exact safe current owned-head purchase only for case{mode}");
     }
 }
+
+/// Current owner quote and city-scoped atomic-edit permission, not an implicit edit.
+fn clear_fixture() -> (ManagementUi, GameState) {
+    let (ui, mut state) = fixture();
+    state.viewer.as_mut().expect("viewer").interface.legal_actions.push(serde_json::from_value(json!({"route":"edit-production","entity_id":"c2","fields":["city_id","entries"],"payload":{"city_id":"c2","entries":[]}})).expect("current queue-editor authorization"));
+    (ui, state)
+}
+
+#[test]
+fn build_clear_requires_original_query_before_any_atomic_queue_submission() {
+    let (ui, state) = clear_fixture();
+    let intent = ui.activate_id("QueueGroup.ClearButton", &state);
+    assert!(matches!(intent, Some(ManagerIntent::Dialog(_))), "EditQueue::ClearButton opens MessageBoxDialog::Query, not immediate destructive Submit");
+}
+
+/// Extract only the explicit source query, never treat a direct Submit as confirmation.
+fn clear_dialog(ui: &ManagementUi, state: &GameState) -> crate::gameplay::ui_model::operations::OperationDialog {
+    let dialog = match ui.activate_id("QueueGroup.ClearButton", state) {
+        Some(ManagerIntent::Dialog(dialog)) => Some(*dialog),
+        _ => None,
+    };
+    dialog.expect("original source Clear query")
+}
+
+#[test]
+fn build_clear_question_uses_cached_original_window_controls_labels_and_protected_funded_head() {
+    let (ui, mut state) = clear_fixture();
+    let dialog = clear_dialog(&ui, &state);
+    let control = |id: &str| dialog.confirmation.iter().find(|widget| widget.id == id).expect("original question control");
+    assert_eq!(control("MessageBoxDialog").rect, crate::gameplay::ui_model::MenuRect { x:240_i32,y:213_i32,width:320_u32,height:174_u32 }, "original centered320x174 question, not generic input popup/scaling tweak");
+    assert_eq!(control("MessageBoxDialog.DialogBackground").node.field("image00"), Some("uptg29a.tga"), "actual original nine-piece question theme");
+    assert_eq!(control("MessageBoxDialog.DialogBackground.MessageDisplay").label, ui.book.label("str_ldl_ClearQueueQuery"), "original localized question, not copied text");
+    assert_eq!(control("MessageBoxDialog.DialogBackground.LeftButton").label, ui.book.label("str_ldl_MB_OK"), "source Query default affirmative label");
+    assert_eq!(control("MessageBoxDialog.DialogBackground.RightButton").label, ui.book.label("str_ldl_MB_CANCEL"), "source cancel label");
+    assert!(!dialog.confirmation.iter().any(|widget| widget.id.ends_with(".TextField")), "source Query hides text input");
+    let suppress = control("MessageBoxDialog.DialogBackground.DontShowButton");
+    assert!(suppress.intent.is_none() && suppress.unavailable.is_some(), "unsafe original preference must never auto-confirm destructive requests");
+    assert!(dialog.confirmation_focus.is_none(), "no implicit first-candidate/destructive default");
+    let command = dialog.activate(ui.book.label("str_ldl_MB_OK"), &state).expect("explicit semantic affirmative");
+    assert_eq!(command.payload, json!({"city_id":"c2","entries":[]}), "known unfunded queue clear captures exact city/empty replacement");
+    let quote = city(&mut state).rush_buy_quote.as_mut().expect("quote");
+    quote.status="completed".to_owned();quote.cost=Some(0_i64);
+    let funded = clear_dialog(&ui, &state).activate(ui.book.label("str_ldl_MB_OK"), &state).expect("explicit funded-head-safe clear");
+    assert_eq!(funded.payload, json!({"city_id":"c2","entries":[{"entry_id":"c2:head"}]}), "source ClearAllButHead protects known funded head, not content alias");
+    city(&mut state).facts["queue"].as_array_mut().expect("queue").truncate(1_usize);
+    assert!(ui.activate_id("QueueGroup.ClearButton", &state).is_none(), "a lone funded head has nothing safely removable; don't submit a fake clear");
+}
+
+#[test]
+fn build_clear_question_capture_stays_stale_and_missing_funding_is_not_assumed_unbought() {
+    let (ui, original) = clear_fixture();
+    let old = clear_dialog(&ui, &original);
+    let mut state = original.clone();
+    state.viewer.as_mut().expect("viewer").revision=8_i64;
+    city(&mut state).rush_buy_quote.as_mut().expect("quote").revision=8_i64;
+    assert!(old.activate(ui.book.label("str_ldl_MB_OK"), &state).is_none(), "do not rebase an open destructive confirmation to new queue/price facts");
+    for mode in 0_u8..4_u8 {
+        let mut missing=original.clone();
+        match mode {
+            0_u8 => city(&mut missing).rush_buy_quote=None,
+            1_u8 => city(&mut missing).rush_buy_quote.as_mut().expect("quote").revision=6_i64,
+            2_u8 => missing.viewer.as_mut().expect("viewer").interface.planning_status="queued".to_owned(),
+            _ => city(&mut missing).facts["queue"]=json!([]),
+        }
+        assert!(ui.activate_id("QueueGroup.ClearButton", &missing).is_none(), "unknown/stale/queued/funded-head safety cannot fall through to immediate old Submit in mode{mode}");
+    }
+}

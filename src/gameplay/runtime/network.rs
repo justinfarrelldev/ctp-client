@@ -9,6 +9,9 @@ use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 use std::time::Duration;
 
+/// Original queue-clear questions use inert source-shaped command channels only.
+#[cfg(test)]
+mod confirmation_tests;
 /// Historical display results must not become transport recovery/acknowledgements.
 #[cfg(test)]
 mod notice_tests;

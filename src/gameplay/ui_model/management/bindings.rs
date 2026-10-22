@@ -44,7 +44,7 @@ pub(super) fn binding(
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
-    if let Some(binding) = super::build::binding(state, view, path)
+    if let Some(binding) = super::build::binding(ui, state, view, path)
         .or_else(|| super::science::binding(view, path))
         .or_else(|| super::research::binding(state, view, path)) {
         return binding;

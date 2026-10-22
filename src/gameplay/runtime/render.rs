@@ -89,7 +89,7 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     history::draw(canvas, state, ui, font)?;
     draw_popups(canvas, textures, state, font)?;
     messages::draw(canvas, textures, state, ui, font)?;
-    operations::draw(canvas, textures, state, ui, font)?;
+    operations::draw(canvas, textures, state, ui, fonts)?;
     if state.network != crate::gameplay::model::NetworkStatus::Ready {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
@@ -227,6 +227,9 @@ mod chart_tests;
 mod city_tests;
 #[cfg(test)]
 mod context_tests;
+/// Original MessageBoxDialog art/extent readback, no snapshot writes.
+#[cfg(test)]
+mod confirmation_tests;
 #[cfg(test)]
 mod cursor_tests;
 #[cfg(test)]

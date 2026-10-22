@@ -1,6 +1,6 @@
 //! Source-style explicit input/target dialogs. Opening a form never submits it.
 use super::library::editor::{ClipboardRequest, TextEditor, metrics::EditMetrics};
-use super::{MenuRect, management::ManagerCommand};
+use super::{MenuRect, management::{ManagerCommand, ManagerWidget}};
 use crate::gameplay::model::GameState;
 use crate::gameplay::server::interface::LegalAction;
 use serde_json::{Value, json};
@@ -42,12 +42,30 @@ pub struct OperationDialog {
     pub clipboard: Option<ClipboardRequest>,
     /// Current authorized action/priority choices.
     pub choices: Vec<Choice>,
+    /// Cached original `MessageBoxDialog` descriptors; empty for ordinary forms.
+    pub confirmation: Vec<ManagerWidget>,
+    /// Explicit original control ID; never an implicit destructive default.
+    pub confirmation_focus: Option<String>,
     /// First visible choice index, page-sized and bounded.
     pub start: usize,
     /// Explicit keyboard target selection.
     pub focused: usize,
 }
 impl OperationDialog {
+    /* Original source: EditQueue.cpp::ClearButton and MessageBoxDialog.{cpp,h}::
+     * Query/LeftButtonActionCallback under ctp2_source/ctp2_code/ui/interface/.
+     * Source widgets come from cached messagebox.ldl, not this generic form's
+     * input geometry. Command/revision are captured once; explicit OK required.
+     */
+    /// Captures one source question without modifying any authoritative facts.
+    pub(in crate::gameplay::ui_model) fn confirmation(state: &GameState, title: &str, widgets: Vec<ManagerWidget>, command: ManagerCommand) -> Option<Self> {
+        if !command.valid_for(state) { return None; }
+        let label = widgets.iter().find(|widget| widget.node.name == "LeftButton")?.label.clone();
+        let mut dialog = Self::blank(title, command.revision);
+        dialog.choices.push(Choice { label, command });
+        dialog.confirmation = widgets;
+        Some(dialog)
+    }
     /// Original `NameTheCityPopup` uses a 400-wide popup and a 200x20 text field.
     /// The footer extends that source geometry for explicit accessible confirmation.
     #[must_use]
@@ -300,7 +318,7 @@ impl OperationDialog {
     /// Accessible activation shares the exact native confirmation/choice payload.
     #[must_use]
     pub fn activate(&self, label: &str, state: &GameState) -> Option<ManagerCommand> {
-        if label.eq_ignore_ascii_case("OK") {
+        if self.confirmation.is_empty() && label.eq_ignore_ascii_case("OK") {
             return self.command(state);
         }
         self.choices
@@ -340,6 +358,8 @@ impl OperationDialog {
             metrics: EditMetrics::default(),
             clipboard: None,
             choices: Vec::new(),
+            confirmation: Vec::new(),
+            confirmation_focus: None,
             start: 0,
             focused: 0,
         }

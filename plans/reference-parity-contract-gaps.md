@@ -76,6 +76,10 @@ Needed authoritative contracts: revision-bound per-good market quote/ranking (in
 
 Original source issue encountered: the old best-price insertion loop reads `maxPrice[j-1]`/`maxCity[j-1]` at `j == 0`. No such undefined negative indexing is ported; future projected quote sorting must use checked stable collections instead. Current client does not duplicate the private quote calculation at all.
 
+## Build paid-head versus completed production
+
+Original released `ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{UpdateButtons,ClearMessageCallback}` uses `AlreadyBoughtFront()` to preserve a purchased queue head. Read-only server `internal/gameplay/engine/inspection.go::Inspector.RushBuy` returns current `completed` only for fully funded production; it does not project a purchased-front history flag. Client Clear therefore conservatively retains the exact current completed head, never calls it purchased, and disables missing/stale/unsupported funding/queued/empty cases. An exact source distinction for Clear/Remove/Insert/reorder needs an authorized revision-bound head/paid-or-locked fact or equivalent server-owned operation constraints, not a guessed boolean. Original Question uses source MB_OK/MB_CANCEL; destructive Don'tShow auto-approval is intentionally not ported. This gap does not block unrelated queue UI, and no server files are changed.
+
 ## Other current explicit capability limits
 
 V2 advertises `policy_optimizer=false`, `city_culture_style=false` and `foreign_statistics_history=false`; unsupported barbarian ruin profiles remain disabled. The client must still render original controls/layouts with honest disabled/unavailable presentation. It cannot certify matching reference values/culture by using installed retail rules, hidden canonical endpoints, owner-derived culture, fabricated zeros or live trial mutations. Audit each relevant scenario separately before final acceptance.

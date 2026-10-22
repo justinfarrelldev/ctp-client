@@ -101,6 +101,12 @@ pub(super) fn keys(ui: &ManagementUi) -> BTreeSet<SourceFont> {
         .chain(core::iter::once(&ui.panel))
         .chain(ui.row_templates.values())
         .chain(ui.advisor_layouts.values())
+        /* Source: MessageBoxDialog.cpp::constructor (original ui/interface/)
+         * and messagebox.ldl::{MessageDisplay,LeftButton,RightButton,DontShowButton}
+         * retain declared inherited font faces/sizes, warmed with other source
+         * controls once, never replaced with the generic form's body font.
+         */
+        .chain(ui.confirmation_layout.iter())
     {
         collect(root, &mut keys);
     }

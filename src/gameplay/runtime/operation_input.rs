@@ -10,6 +10,9 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::{Keycode, Mod};
 use sdl2::mouse::MouseButton;
 
+/// Explicit original MessageBoxDialog control IDs/keyboard/modal cancellation.
+mod confirmation;
+
 /// Consumes form events before map shortcuts; Quit still propagates to the session.
 pub(super) fn consume(
     event: &Event,
@@ -86,8 +89,8 @@ pub(super) fn consume(
                 ui.management.open_diplomatic_review(state, command)
             } else {
                 authority.is_some_and(|active| {
-                    submit_authoritative_command(active, state, &command.route, command.payload);
-                    true
+                    active.session.revision() == command.revision
+                        && submit_authoritative_command(active, state, &command.route, command.payload)
                 })
             }
         });
@@ -104,6 +107,9 @@ fn key(
     key: Keycode,
     modifiers: Mod,
 ) -> (bool, Option<ManagerCommand>) {
+    if !dialog.confirmation.is_empty() {
+        return confirmation::key(dialog, state, key, modifiers);
+    }
     let ctrl =
         modifiers.intersects(Mod::LCTRLMOD | Mod::RCTRLMOD) && !modifiers.contains(Mod::RALTMOD);
     let shift = modifiers.intersects(Mod::LSHIFTMOD | Mod::RSHIFTMOD);
@@ -187,6 +193,9 @@ fn pointer(
     x: i32,
     y: i32,
 ) -> (bool, Option<ManagerCommand>) {
+    if !dialog.confirmation.is_empty() {
+        return confirmation::pointer(dialog, state, x, y);
+    }
     if OperationDialog::cancel().contains(x, y) {
         return (true, None);
     }

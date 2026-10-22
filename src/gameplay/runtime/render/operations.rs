@@ -3,11 +3,31 @@ use sdl2::{pixels::Color,rect::{Rect,Point},render::Canvas,ttf::Font,video::Wind
 use crate::gameplay::{GameplayError,runtime_error};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::{InGameUiModel,MenuRect,operations::{OperationDialog,InputKind}};
-use super::{super::textures::GameplayTextures,text::{draw_text,draw_centered_text},context::draw_gold_frame,chrome::draw_art_rect};
+use super::{super::fonts::RenderFonts,super::textures::GameplayTextures,text::{draw_text,draw_centered_text},context::draw_gold_frame,chrome::draw_art_rect};
 
 /// Shares geometry and enabled states with semantic/keyboard/pointer dispatch.
-pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&GameplayTextures<'_>,state:&GameState,ui:&InGameUiModel,font:Option<&Font<'_, '_>>)->Result<(),GameplayError> {
+pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&mut GameplayTextures<'_>,state:&GameState,ui:&InGameUiModel,fonts:RenderFonts<'_, '_, '_>)->Result<(),GameplayError> {
     let Some(dialog)=ui.operation.as_ref() else {return Ok(());};
+    /* Source: ctp2_source/ctp2_code/ui/interface/MessageBoxDialog.cpp::constructor
+     * and messagebox.ldl::MessageBoxDialog.{DialogBackground,MessageDisplay,
+     * LeftButton,RightButton,DontShowButton}. Paint actual cached uptg29 panels,
+     * source fonts/bounds above the still-visible manager, not the generic input
+     * popup's frame. A stale affirmative is unavailable, never silently rebased.
+     */
+    if !dialog.confirmation.is_empty() {
+        for widget in &dialog.confirmation {
+            if widget.node.name == "LeftButton" && !dialog.choices.first().is_some_and(|choice| choice.command.valid_for(state)) {
+                let mut disabled = widget.clone();
+                disabled.intent = None;
+                disabled.unavailable = Some("This confirmation is no longer authorized at its captured revision".to_owned());
+                super::management::draw_widget(canvas,textures,&disabled,fonts.control(&disabled.node))?;
+            } else {
+                super::management::draw_widget(canvas,textures,widget,fonts.control(&widget.node))?;
+            }
+        }
+        return Ok(());
+    }
+    let font=fonts.body;
     let bounds=OperationDialog::rect();
     draw_gold_frame(canvas,textures,rect(bounds))?;
     draw_text(canvas,font,&dialog.title,220,200,Color::RGB(50,50,50))?;
