@@ -20,6 +20,7 @@ pub(super) fn configure(
         ManagerKind::Graphics => graphics(root, book)?,
         ManagerKind::Unit => unit(root),
         ManagerKind::Science => super::science::configure(root),
+        ManagerKind::Research => super::research::configure(root, book)?,
         ManagerKind::Trade => super::trade_layout::main(root, book)?,
         ManagerKind::National => super::national::configure(root, book)?,
         ManagerKind::Diplomacy => super::diplomacy::configure(root, book)?,

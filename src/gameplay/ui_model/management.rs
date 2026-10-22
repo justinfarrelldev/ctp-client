@@ -87,11 +87,16 @@ mod reconcile;
 mod reconcile_tests;
 /// Startup-only read-only optional picture availability shared by source revisions.
 mod reference_art;
+/// Original research chooser values and identity-safe source callbacks.
+mod research;
 /// Original item enabling-advance goal mapping consumes current public rules.
 mod research_goal;
 /// Fileless item/advance goal, corruption and revision regressions.
 #[cfg(test)]
 mod research_goal_tests;
+/// Source research chooser presentation and exact related navigation regressions.
+#[cfg(test)]
+mod research_tests;
 /// Source row shapes, numeric values and research-list visibility regressions.
 #[cfg(test)]
 mod row_tests;
@@ -419,6 +424,11 @@ impl ManagementUi {
         }
         let mut selections = BTreeMap::new();
         selections.insert("build-category".to_owned(), "Units".to_owned());
+        if kind == ManagerKind::Research {
+            if let Some(id) = research::initial(state) {
+                selections.insert("advance".to_owned(), id.to_owned());
+            }
+        }
         let selected_city = city_id
             .map(str::to_owned)
             .or_else(|| data::owned_city_ids(state).into_iter().next());

@@ -334,6 +334,9 @@ pub(super) fn text(
     if view.kind == ManagerKind::Science {
         return super::science::text(ui, state, path);
     }
+    if view.kind == ManagerKind::Research {
+        return super::research::text(ui, state, view, path);
+    }
     let viewer = state.viewer.as_ref()?;
     match view.kind {
         ManagerKind::Unit => super::units::text(ui, state, path),

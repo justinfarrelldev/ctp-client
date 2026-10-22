@@ -229,7 +229,7 @@ fn document<'catalog>(
             LibrarySection::Statistics,
         ),
         ManagerKind::Research if path == "Background.GlStats" => (
-            view.selections.get("advance")?.clone(),
+            super::research::selected(view, state)?.to_owned(),
             LibrarySection::Statistics,
         ),
         _ => return None,

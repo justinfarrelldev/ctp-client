@@ -27,6 +27,7 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
         super::trade::reconcile(view, state);
     }
     super::diplomacy::reconcile(view, state);
+    super::research::reconcile(view, state);
     let owned = data::owned_city_ids(state);
     if view.city_id.as_ref().is_some_and(|id| !owned.contains(id)) {
         view.city_id = None;
@@ -57,17 +58,6 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
                 view.selections.remove("description");
             }
             view.selections.remove("queue");
-        }
-        if view.kind == ManagerKind::Research
-            && view.selections.get("advance").is_some_and(|id| {
-                viewer
-                    .interface
-                    .research
-                    .as_ref()
-                    .is_none_or(|research| !research.available.contains(id))
-            })
-        {
-            view.selections.remove("advance");
         }
         let units = data::owned_units(state);
         if view

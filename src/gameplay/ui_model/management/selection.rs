@@ -25,6 +25,9 @@ pub(super) fn apply(view: &mut ManagerView, key: String, value: String) -> bool 
         view.selections
             .insert("description".to_owned(), value.clone());
     }
+    if key == "advance" {
+        super::research::clear_description_scroll(view);
+    }
     view.selections.insert(key, value);
     true
 }

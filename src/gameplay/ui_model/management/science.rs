@@ -35,6 +35,18 @@ pub(super) fn description_target<'data>(
         .map(String::as_str)
         .or_else(|| current_target(state))
 }
+/// Only the received active-target estimate is available, never a counterfactual.
+/// Server forecasts already include their assumption; do not port engine's +1.
+pub(super) fn turns(state: &GameState, id: &str) -> Option<u32> {
+    if current_target(state) != Some(id) {
+        return None;
+    }
+    let viewer = state.viewer.as_ref()?;
+    viewer.interface.research.as_ref()?.forecast.as_ref()
+        .filter(|forecast| forecast.revision == viewer.revision
+            && matches!(forecast.status.as_str(), "estimated" | "completed"))
+        .and_then(|forecast| forecast.turns)
+}
 /// Shared source labels for both radial and numeric turn controls; no target is
 /// blank, unprojected research unavailable, and an active unknown estimate '-'.
 pub(super) fn text(ui: &ManagementUi, state: &GameState, path: &str) -> Option<String> {
@@ -74,14 +86,7 @@ pub(super) fn text(ui: &ManagementUi, state: &GameState, path: &str) -> Option<S
             .filter(|cost| *cost >= 0_i64)
             .map_or_else(|| "—".to_owned(), |cost| cost.to_string()),
         "CurrentResearch.Turn.Value"
-        | "CurrentResearch.AdvanceProgress.IconBorder.IconButton.RadialButton" => research
-            .forecast
-            .as_ref()
-            .filter(|forecast| {
-                forecast.revision == viewer.revision
-                    && matches!(forecast.status.as_str(), "estimated" | "completed")
-            })
-            .and_then(|forecast| forecast.turns)
+        | "CurrentResearch.AdvanceProgress.IconBorder.IconButton.RadialButton" => turns(state, target)
             .map_or_else(|| "-".to_owned(), |turns| turns.to_string()),
         _ => return None,
     })

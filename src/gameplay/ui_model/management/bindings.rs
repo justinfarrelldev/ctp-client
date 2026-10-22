@@ -3,8 +3,6 @@
 //! An unbound or server-unsupported original control is disabled with a reason;
 //! merely drawing its original art must never make a fake command look enabled.
 
-use serde_json::json;
-
 use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
 use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::model::GameState;
@@ -35,6 +33,9 @@ pub(super) fn binding(
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
+    if let Some(binding) = super::research::binding(state, view, path) {
+        return binding;
+    }
     let name = node.name.as_str();
     if let Some(binding) = governor_binding(state, view, path, name) {
         return binding;
@@ -62,7 +63,6 @@ pub(super) fn binding(
         {
             enabled(ManagerIntent::Open(ManagerKind::Research))
         }
-        ManagerKind::Research if path == "Background.BackButton" => research(state, view),
         ManagerKind::Library => library(ui, state, name),
         ManagerKind::National | ManagerKind::City if name == "DisbandButton" => {
             let city = view.selections.get("city").or(view.city_id.as_ref());
@@ -318,28 +318,6 @@ fn build(
             ),
         "GotoCityButton" => enabled(ManagerIntent::Open(ManagerKind::City)),
         _ => (None, None),
-    }
-}
-
-/// Research suggestions are intentionally incomplete when a target already exists.
-/// The engine accepts any currently available advance through set-research; use
-/// the actual available list, not an unrelated first legal-action suggestion.
-fn research(state: &GameState, view: &ManagerView) -> (Option<ManagerIntent>, Option<String>) {
-    let Some(advance) = view.selections.get("advance") else {
-        return disabled("Select an available advance first");
-    };
-    let Some(viewer) = state.viewer.as_ref() else {
-        return disabled("No authoritative viewer snapshot");
-    };
-    let command = ManagerCommand {
-        revision: viewer.revision,
-        route: "set-research".to_owned(),
-        payload: json!({"advance_id":advance}),
-    };
-    if command.valid_for(state) {
-        enabled(ManagerIntent::Submit(command))
-    } else {
-        disabled("The selected advance is no longer available in this viewer revision")
     }
 }
 
