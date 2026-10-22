@@ -204,6 +204,43 @@ impl OperationDialog {
     ) -> Option<Self> {
         let mut dialog = Self::blank(title, state.viewer.as_ref()?.revision);
         for action in actions.filter(LegalAction::http_supported) {
+            if action.route == "respond-agreement" {
+                for accept in [true, false] {
+                    let mut payload = action.payload.clone();
+                    if let Some(fields) = payload.as_object_mut() {
+                        fields.insert("accept".to_owned(), Value::Bool(accept));
+                        dialog.add(
+                            state,
+                            format!(
+                                "{} proposal from ID {}",
+                                if accept { "Accept" } else { "Reject" },
+                                action.target_id
+                            ),
+                            &action.route,
+                            payload,
+                        );
+                    }
+                }
+                continue;
+            }
+            if action.route == "propose-agreement" {
+                if let (Some(kind), Some(target)) = (
+                    action.payload["kind"]
+                        .as_str()
+                        .filter(|kind| !kind.is_empty()),
+                    action.payload["target_player_id"]
+                        .as_str()
+                        .filter(|target| !target.is_empty() && *target == action.target_id),
+                ) {
+                    dialog.add(
+                        state,
+                        format!("Propose {kind} to ID {target}"),
+                        &action.route,
+                        action.payload,
+                    );
+                }
+                continue;
+            }
             let target = state
                 .viewer
                 .as_ref()

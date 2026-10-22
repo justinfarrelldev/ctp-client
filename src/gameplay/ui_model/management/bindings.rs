@@ -88,9 +88,9 @@ pub(super) fn binding(
             enabled(ManagerIntent::Open(ManagerKind::Build))
         }
         ManagerKind::Unit if name == "DisbandButton" => dialog(super::units::disband(state, view)),
-        ManagerKind::Diplomacy if name == "MessageButton" => disabled(
-            "Select a specific authoritative diplomatic proposal; a contact alone does not identify a proposal",
-        ),
+        ManagerKind::Diplomacy if path == "DiplomacyTabs.Intelligence.TabPanel.MessageButton" => {
+            diplomatic_workspace(state, view)
+        }
         ManagerKind::Empire if name == "DetailsButton" => enabled(ManagerIntent::Select(
             "empire-details".to_owned(),
             view.selections
@@ -115,6 +115,48 @@ pub(super) fn binding(
     }
 }
 
+/// The original proposal entry opens explicit current options for one known
+/// contact. Opening neither accepts a treaty nor selects the first proposal.
+fn diplomatic_workspace(
+    state: &GameState,
+    view: &ManagerView,
+) -> (Option<ManagerIntent>, Option<String>) {
+    let Some(contact) = view.selections.get("contact").filter(|id| !id.is_empty()) else {
+        return disabled("Select a contacted nation before opening proposals or replies");
+    };
+    let Some(viewer) = state.viewer.as_ref() else {
+        return disabled("No current authoritative diplomacy snapshot");
+    };
+    if !viewer
+        .diplomacy
+        .as_ref()
+        .and_then(|diplomacy| diplomacy.facts["relations"].as_array())
+        .is_some_and(|relations| {
+            relations
+                .iter()
+                .any(|relation| relation["target_player_id"].as_str() == Some(contact))
+        })
+    {
+        return disabled("The selected contact is not present in this viewer revision");
+    }
+    dialog(
+        crate::gameplay::ui_model::operations::OperationDialog::actions(
+            state,
+            "Diplomatic proposals and replies",
+            viewer
+                .interface
+                .legal_actions
+                .iter()
+                .filter(|action| {
+                    matches!(
+                        action.route.as_str(),
+                        "propose-agreement" | "respond-agreement"
+                    ) && action.target_id == *contact
+                })
+                .cloned(),
+        ),
+    )
+}
 /// Original toggle dispatches immediately; the pulldown chooses pinned priorities.
 fn governor_binding(
     state: &GameState,

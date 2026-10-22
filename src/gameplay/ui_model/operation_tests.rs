@@ -4,6 +4,112 @@ use crate::gameplay::{model::GameState, server::ServerProjection};
 use serde_json::json;
 
 #[test]
+fn received_proposal_dialog_offers_explicit_accept_and_reject_with_one_current_identity() {
+    let viewer:ServerProjection=serde_json::from_value(json!({"revision":6_i64,"turn":2_u32,"diplomacy":{"relations":[{"target_player_id":"other","treaty":"peace","regard":"neutral"}],"proposals":[{"id":"offer-1","from_player_id":"other","to_player_id":"human","kind":"trade"}]},"legal_actions":[{"route":"respond-agreement","entity_id":"offer-1","target_id":"other","fields":["proposal_id","accept"],"payload":{"proposal_id":"offer-1","accept":true}}]})).expect("actual response DTO");
+    let mut state = GameState::from_server_projection(&viewer, 1, 1);
+    let dialog = OperationDialog::actions(
+        &state,
+        "Respond to received proposal",
+        viewer.interface.legal_actions.into_iter(),
+    )
+    .expect("explicit current choices");
+    assert_eq!(
+        dialog.choices.len(),
+        2_usize,
+        "accept is a typed choice, not the only hardcoded suggestion"
+    );
+    for accept in [true, false] {
+        let choice = dialog
+            .choices
+            .iter()
+            .find(|choice| choice.command.payload["accept"].as_bool() == Some(accept))
+            .expect("both explicit dispositions");
+        assert_eq!(
+            choice.command.payload["proposal_id"],
+            json!("offer-1"),
+            "same exact authorized received proposal"
+        );
+        assert!(
+            choice
+                .label
+                .starts_with(if accept { "Accept" } else { "Reject" }),
+            "choice never obscures whether it signs a treaty"
+        );
+        assert!(choice.command.valid_for(&state), "current shape/identity");
+    }
+    state.viewer.as_mut().expect("viewer").revision = 7_i64;
+    assert!(
+        dialog
+            .choices
+            .iter()
+            .all(|choice| !choice.command.valid_for(&state)),
+        "old response forms are not silently rebased to a different offer"
+    );
+}
+
+#[test]
+fn response_choices_fail_closed_for_malformed_payloads_and_keep_fixed_legacy_acceptance_fixed() {
+    for payload in [
+        json!("not-an-object"),
+        json!([]),
+        json!({"proposal_id":"offer-1","accept":true,"other":1_i64}),
+        json!({"proposal_id":"wrong-offer","accept":true}),
+    ] {
+        let action = crate::gameplay::server::interface::LegalAction {
+            route: "respond-agreement".to_owned(),
+            entity_id: "offer-1".to_owned(),
+            target_id: "other".to_owned(),
+            fields: vec!["proposal_id".to_owned(), "accept".to_owned()],
+            payload,
+            ..crate::gameplay::server::interface::LegalAction::default()
+        };
+        let viewer = ServerProjection {
+            revision: 6_i64,
+            turn: 2_u32,
+            interface: crate::gameplay::server::interface::ServerInterface {
+                legal_actions: vec![action.clone()],
+                ..crate::gameplay::server::interface::ServerInterface::default()
+            },
+            ..ServerProjection::default()
+        };
+        let state = GameState::from_server_projection(&viewer, 1, 1);
+        assert!(
+            OperationDialog::actions(&state, "Respond", core::iter::once(action)).is_none(),
+            "malformed/inexact current action cannot create a response or panic"
+        );
+    }
+    let action = crate::gameplay::server::interface::LegalAction {
+        route: "respond-agreement".to_owned(),
+        entity_id: "offer-1".to_owned(),
+        target_id: "other".to_owned(),
+        payload: json!({"proposal_id":"offer-1","accept":true}),
+        ..crate::gameplay::server::interface::LegalAction::default()
+    };
+    let viewer = ServerProjection {
+        revision: 6_i64,
+        turn: 2_u32,
+        interface: crate::gameplay::server::interface::ServerInterface {
+            legal_actions: vec![action.clone()],
+            ..crate::gameplay::server::interface::ServerInterface::default()
+        },
+        ..ServerProjection::default()
+    };
+    let state = GameState::from_server_projection(&viewer, 1, 1);
+    let dialog = OperationDialog::actions(&state, "Legacy", core::iter::once(action))
+        .expect("exact legacy response");
+    assert_eq!(
+        dialog.choices.len(),
+        1_usize,
+        "no mutable accept permission means no invented reject choice"
+    );
+    assert_eq!(
+        dialog.choices[0].command.payload["accept"],
+        json!(true),
+        "fixed legacy suggestion unchanged"
+    );
+}
+
+#[test]
 fn mayor_toggle_preserves_current_focus_and_disables_without_fabricating_a_priority() {
     let viewer:ServerProjection=serde_json::from_value(json!({"revision":6_i64,"turn":2_u32,"rules":{"governor_priorities":["growth"]},"cities":[{"id":"c","owner_id":"human","governor":{"enabled":true,"priority":"growth"}}],"legal_actions":[{"route":"set-governor","entity_id":"c","payload":{"city_id":"c","enabled":false}}]})).expect("governor fixture");
     let mut state = GameState::from_server_projection(&viewer, 1, 1);

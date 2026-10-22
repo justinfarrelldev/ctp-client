@@ -35,6 +35,9 @@ mod chart_tests;
 mod command;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
+/// Exact selected-contact proposal/response choices and labels.
+#[cfg(test)]
+mod diplomacy_tests;
 /// Source Empire Details/Summary lifecycle and government comparison regressions.
 #[cfg(test)]
 mod empire_tests;
@@ -125,6 +128,8 @@ mod variable_tests;
 /// Explicit non-executable mappings from original expressions to public rule data.
 mod variables;
 
+/// Leaf identity/action mapping keeps this shared management module below 800 lines.
+mod kind;
 /// Original manager/dialog identity, independent of the lower control-panel tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ManagerKind {
@@ -157,98 +162,10 @@ pub enum ManagerKind {
     /// Live local sound options.
     Sound,
 }
-
-impl ManagerKind {
-    /// All implemented source-layout roots, including nested research selection.
-    pub const ALL: [Self; 14] = [
-        Self::Build,
-        Self::Empire,
-        Self::National,
-        Self::City,
-        Self::Unit,
-        Self::Army,
-        Self::Trade,
-        Self::Diplomacy,
-        Self::Science,
-        Self::Research,
-        Self::Library,
-        Self::Statistics,
-        Self::Graphics,
-        Self::Sound,
-    ];
-
-    /// Diagnostic/automation name, independent of localized dialog titles.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Build => "build",
-            Self::Empire => "empire",
-            Self::National => "national",
-            Self::City => "city",
-            Self::Unit => "unit",
-            Self::Army => "army",
-            Self::Trade => "trade",
-            Self::Diplomacy => "diplomacy",
-            Self::Science => "science",
-            Self::Research => "research",
-            Self::Library => "library",
-            Self::Statistics => "statistics",
-            Self::Graphics => "graphics",
-            Self::Sound => "sound",
-        }
-    }
-
-    /// Parses an explicit diagnostic name without falling back to another manager.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|kind| kind.name().eq_ignore_ascii_case(name))
-    }
-
-    /// Original LDL instance whose inherited children form this dialog.
-    #[must_use]
-    pub const fn root(self) -> &'static str {
-        match self {
-            Self::Build => "BuildEditorWindow",
-            Self::Empire => "DomesticDialog",
-            Self::National => "CityStatusWin",
-            Self::City => "CityWindow",
-            Self::Unit => "UnitManager",
-            Self::Army => "ArmyManager",
-            Self::Trade => "TradeManager",
-            Self::Diplomacy => "DiplomacyWindow",
-            Self::Science => "ScienceManagementDialog",
-            Self::Research => "SciAdvanceScreen",
-            Self::Library => "GreatLibrary",
-            Self::Statistics => "InfoDialog",
-            Self::Graphics => "GraphicsWindow",
-            Self::Sound => "SoundWindow",
-        }
-    }
-}
-
-/// Resolves distinct original manager entry points without collapsing them to tabs.
+/// Preserves the stable action API while delegating its bounded source mapping.
 #[must_use]
 pub const fn kind_for_action(action: InGameAction) -> Option<ManagerKind> {
-    match action {
-        InGameAction::OpenCityBuild => Some(ManagerKind::Build),
-        InGameAction::OpenCityManager => Some(ManagerKind::City),
-        InGameAction::OpenNationalManager => Some(ManagerKind::National),
-        InGameAction::OpenTradeManager => Some(ManagerKind::Trade),
-        InGameAction::OpenCivilizationStatus => Some(ManagerKind::Empire),
-        InGameAction::OpenUnitManager => Some(ManagerKind::Unit),
-        InGameAction::OpenArmyManager => Some(ManagerKind::Army),
-        InGameAction::OpenDiplomacy => Some(ManagerKind::Diplomacy),
-        InGameAction::OpenScienceStatus => Some(ManagerKind::Science),
-        InGameAction::OpenGreatLibrary => Some(ManagerKind::Library),
-        InGameAction::OpenInfo | InGameAction::OpenScore | InGameAction::OpenWonders => {
-            Some(ManagerKind::Statistics)
-        }
-        InGameAction::OpenGraphicsOptions => Some(ManagerKind::Graphics),
-        InGameAction::OpenSoundOptions => Some(ManagerKind::Sound),
-        _ => None,
-    }
+    kind::kind_for_action(action)
 }
 
 /// Exact command metadata displayed and confirmed by a manager.

@@ -9,6 +9,87 @@ use serde_json::json;
 use std::{net::TcpListener, thread};
 
 #[test]
+fn explicit_diplomacy_rejection_posts_false_for_the_same_offer_and_waits_for_authority() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("isolated response gateway");
+    let port = listener.local_addr().expect("ephemeral port").port();
+    let initial = json!({"revision":17_i64,"turn":3_u32,"contract":{"version":2_u32},"diplomacy":{"relations":[{"target_player_id":"other","treaty":"peace","regard":"neutral"}],"proposals":[{"id":"offer-1","from_player_id":"other","to_player_id":"account-7","kind":"trade"}]},"legal_actions":[{"route":"respond-agreement","entity_id":"offer-1","target_id":"other","fields":["proposal_id","accept"],"payload":{"proposal_id":"offer-1","accept":true}}]});
+    let mut returned = initial.clone();
+    returned["revision"] = json!(18_i64);
+    returned["planning_status"] = json!("queued");
+    let worker = thread::spawn(move || respond(&listener, &returned));
+    let mut active = authority(port, initial);
+    let mut state = state_from_authority_projection(
+        &active,
+        active.session.projection.as_ref().expect("viewer"),
+    );
+    state.popups.clear();
+    let mut model = super::tests::ui();
+    model.management.open(
+        crate::gameplay::ui_model::management::ManagerKind::Diplomacy,
+        &state,
+        None,
+    );
+    super::apply(
+        ManagerIntent::Select("contact".to_owned(), "other".to_owned()),
+        &mut state,
+        &mut model,
+        Some(&mut active),
+    );
+    let open = model
+        .management
+        .activate_id("DiplomacyTabs.Intelligence.TabPanel.MessageButton", &state)
+        .expect("reachable original proposal button");
+    super::apply(open, &mut state, &mut model, Some(&mut active));
+    let form = model
+        .operation
+        .take()
+        .expect("explicit source workspace choices");
+    let reject = form
+        .choices
+        .into_iter()
+        .find(|choice| choice.command.payload["accept"].as_bool() == Some(false))
+        .expect("reject, not implicit acceptance")
+        .command;
+    super::apply(
+        ManagerIntent::Submit(reject),
+        &mut state,
+        &mut model,
+        Some(&mut active),
+    );
+    let request = worker
+        .join()
+        .expect("isolated worker")
+        .expect("one response envelope");
+    assert!(
+        request.line.starts_with("POST /game/44/respond-agreement "),
+        "actual registered route"
+    );
+    assert_eq!(
+        payload_after_validating_envelope(&request.body),
+        json!({"proposal_id":"offer-1","accept":false}),
+        "same authorized proposal, explicit false and no unrelated target fields"
+    );
+    let received = &state
+        .viewer
+        .as_ref()
+        .expect("queued authority")
+        .diplomacy
+        .as_ref()
+        .expect("diplomacy")
+        .facts;
+    assert_eq!(
+        received["proposals"].as_array().map(Vec::len),
+        Some(1_usize),
+        "queuing is not local deletion of the proposal"
+    );
+    assert_eq!(
+        received["relations"][0]["treaty"],
+        json!("peace"),
+        "no speculative acceptance/trade treaty"
+    );
+}
+
+#[test]
 fn national_selected_city_mayor_and_quoted_rush_keep_exact_envelopes_and_only_received_state() {
     for (route, control, payload) in [
         (

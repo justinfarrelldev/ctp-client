@@ -34,6 +34,7 @@ pub fn valid(viewer: &ServerProjection, route: &str, payload: &Value) -> bool {
                 })
         }
         "set-governor" => governor(viewer, payload),
+        "respond-agreement" => response(viewer, payload),
         "set-research" => {
             shape(payload, &["advance_id"], &[])
                 && viewer.interface.research.as_ref().is_some_and(|research| {
@@ -53,6 +54,24 @@ pub fn valid(viewer: &ServerProjection, route: &str, payload: &Value) -> bool {
     }
 }
 
+/// Current received-proposal identity stays fixed; its advertised accept field
+/// authorizes either typed boolean, not an unrelated proposal or extra parameters.
+fn response(viewer: &ServerProjection, payload: &Value) -> bool {
+    if !shape(payload, &["proposal_id", "accept"], &[]) || payload["accept"].as_bool().is_none() {
+        return false;
+    }
+    let Some(proposal) = payload["proposal_id"].as_str().filter(|id| !id.is_empty()) else {
+        return false;
+    };
+    viewer.interface.legal_actions.iter().any(|action| {
+        action.route == "respond-agreement"
+            && action.entity_id == proposal
+            && action.payload["proposal_id"].as_str() == Some(proposal)
+            && action.payload["accept"].as_bool().is_some()
+            && shape(&action.payload, &["proposal_id", "accept"], &[])
+            && (action.payload == *payload || action.fields.iter().any(|field| field == "accept"))
+    })
+}
 /// Exact required/optional JSON shape; no executable display metadata allowed.
 pub(in crate::gameplay) fn shape(payload: &Value, required: &[&str], optional: &[&str]) -> bool {
     payload.as_object().is_some_and(|fields| {
