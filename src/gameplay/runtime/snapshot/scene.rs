@@ -52,6 +52,9 @@ pub(in crate::gameplay::runtime) fn preview_state(scene: PreviewScene) -> GameSt
     if scene == PreviewScene::CityChooser {
         return super::manager_fixture::chooser_state();
     }
+    if matches!(scene, PreviewScene::PopulatedManager { kind: ManagerKind::Science, .. }) {
+        return super::manager_fixture::science_state();
+    }
     if matches!(
         scene,
         PreviewScene::PopulatedManager {
@@ -150,6 +153,7 @@ pub(in crate::gameplay::runtime) fn preview_presentation(
                     | ManagerKind::Trade
                     | ManagerKind::National
                     | ManagerKind::Diplomacy
+                    | ManagerKind::Science
             ) {
                 ui.active_tab = crate::gameplay::ui_model::ControlPanelTab::TileImprovements;
                 // The reference inspects a black viewport; observed units still

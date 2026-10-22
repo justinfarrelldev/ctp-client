@@ -24,6 +24,14 @@ Uses cargo-make for build automation.
 - `cargo make test-verbose` - Run tests with verbose output (--nocapture)
 - `cargo make test-release` - Run tests in release mode for performance testing
 
+## Efficient Verification (User Priority)
+
+- **One verification pass per coherent change.** Write the focused RED regression first, implement/refactor, then verify the finished change once. Re-run affected checks only after a failure or a further relevant edit; do not repeat equivalent successful checks on unchanged code.
+- **Use relevant tests by default.** Prefer `cargo test --lib <module-or-test-filter>` (or the corresponding integration target) for a bounded change. Do not automatically run `cargo make test` after every edit or small slice. Reserve a manual full suite for broad/cross-cutting changes or final integration.
+- Let tests verify most behavior. Avoid repeated manual smoke runs/reference renders when regression tests already cover the changed behavior; run visual comparisons when they are needed to evaluate actual visual changes or certify a reference screen.
+- Choose one test/coverage run rather than a full test run followed by an equivalent full LLVM coverage run. Reuse already-collected coverage reports when valid; retain the >=80% coverage gate and report unavailable tooling honestly.
+- Required commit hooks remain unchanged and must pass normally. Their test/lint/build runs are not permission to bypass hooks, but do not manually duplicate the same full suite/build immediately before them without a concrete reason.
+
 # Examples
 
 See scripts folder for cargo-make build examples. Scripts folder is read-only.
@@ -129,13 +137,13 @@ You can fetch documentation here as needed:
 
 ## Steps (always)
 
-1. Open or create a plan file in the plans folder with a comprehensive checklist (all steps/substeps to complete the task at-hand). If the task should be broken into multiple plans, then do that with a reference to the next plan in the chain at the bottom (for example, "Once finished with this plan, see plan2 and finish that").
-2. Pick the next unchecked item → **write tests first** (incl. edge cases).
-3. Run `cargo make lint` and fix all issues; run tests; ensure coverage **≥ 80%** via `./scripts/check-coverage-fast.sh`.
-4. Implement; re-lint; re-test; update PLAN.md and check off completed items.
-5. Run a dedicated build step to ensure the app compiles cleanly.
-6. Final code review (security, performance, maintainability, plan adherence).
-7. Stage and commit; commit hooks must pass tests & lints. **Never** use `--no-verify`.
+1. Open `PLAN.md`, the single priority/acceptance index, and update its existing linked detail checklist. Keep comprehensive task/subtask checkboxes there; avoid a new micro-plan for each fix/commit. Any genuinely necessary new detail plan must be directly linked from `PLAN.md`.
+2. Pick the next unchecked item → **write focused tests first** (incl. edge cases) and observe RED.
+3. Implement/refactor to GREEN, then perform **one planned verification pass** under Efficient Verification above. Run `cargo make lint` and fix issues; choose relevant tests by default, not an automatic full `cargo make test`.
+4. Retain coverage **≥80%**: use `./scripts/check-coverage-fast.sh` when available, otherwise the available LLVM gate. Combine test/coverage execution when needed instead of re-running the same suite; update `PLAN.md` and completed checkboxes with actual scope/results.
+5. Ensure one dedicated build succeeds. A normal hook's dedicated build of the same finished code satisfies this step; do not duplicate it manually without a concrete need.
+6. Final code review (security, performance, maintainability, original-source/plan adherence). If code changes or checks fail, re-run the relevant checks, not unrelated suites by default.
+7. Run `cargo make lint-fix` before committing, stage and commit normally; unchanged hooks must pass tests/lints/build. **Never** use `--no-verify`, and avoid a redundant manual full suite immediately before hooks.
 
 ## Bug Fixes
 
@@ -155,7 +163,9 @@ You can fetch documentation here as needed:
 
 - **Allow attributes policy:** Do **not** use `#[allow(...)]` in normal flow. Prefer fixing the code or using `expect` with justification. If an `#[allow]` is absolutely unavoidable, it **must** include a `reason="..."` and be tightly scoped.
 
-- Always check the original source code when implementing new UI. You should ALWAYS make note of the original styling and placements of the elements on the screen - they need to match EXACTLY to the original game (with the exception that the game menu should fit the whole screen with only minimal black borders, and a couple of quality-of-life changes). The main menu right now is an excellent example of the quality bar. The main menu should stay largely intact.
+- **Verify every UI change against the original released CTP2 source for accuracy AND functionality.** The exact C++ source-code folder is `/home/justi/Projects/ctp-client/ctp2_source/ctp2_code/` (repository-relative `ctp2_source/ctp2_code/`; source-release root `ctp2_source/`). Trace complete constructors/callbacks/call chains, selection, navigation, confirmation, cancellation and lifecycle, not just layout fragments. Cross-check original installed LDL/art/string references read-only. Record original styling, dimensions and placements; match original behavior/appearance except explicitly agreed quality-of-life changes. Keep the largely intact main menu as the quality bar; it should fit the screen with minimal black borders.
+- **`https://github.com/civctp/civctp2` is NOT the original released CTP2 source.** It is the **Apolyton Edition**, which we are **NOT trying to copy**. Do not use it or its accumulated community UI/gameplay changes as implementation authority or silently treat them as retail behavior. The local released source above is authoritative; explicitly identify installation/reference variants rather than importing Apolyton changes.
+- **UI scaling is deferred to later work.** Preserve the current scaling while restoring original-source UI accuracy/functionality. Track scaling discrepancies for that later pass; do not spend current screen work on global/per-widget scaling, resampling, or ad-hoc screenshot-fitting adjustments. Do not claim full-frame parity while unresolved scaling differences remain.
 
 ## End-goal
 

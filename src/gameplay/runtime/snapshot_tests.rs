@@ -130,9 +130,54 @@ fn motion_probe_captures_real_window_at_an_injected_animation_phase() -> Result<
 }
 
 #[test]
+fn science_reference_fixture_has_original_visible_current_and_four_known_facts_without_build_city() {
+    let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager { kind: ManagerKind::Science, chart: false });
+    let viewer = state.viewer.as_ref().expect("explicit viewer-safe fixture");
+    assert!(viewer.cities.is_empty() && state.cities.is_empty(), "reference24 is not the unrelated Build/city preview");
+    assert_eq!(state.units.len(), 2_usize, "two received own settlers, never a synthetic Hoplite city garrison");
+    assert!(viewer.units.iter().all(|unit| unit.type_id == "UNIT_SETTLER"), "explicit source-reference starter identities");
+    assert_eq!((viewer.turn, state.gold, state.public_works), (1_u32, 100_i32, 0_i32), "original visible starting HUD");
+    assert_eq!(viewer.interface.calendar.as_ref().map(|calendar| calendar.year), Some(-4000_i64), "received original date, not a guessed turn-to-year conversion");
+    let research = viewer.interface.research.as_ref().expect("own current research");
+    assert_eq!((research.target_id.as_str(), research.progress), ("ADVANCE_BALLISTICS", 0_i64), "original active target/spending");
+    assert!(!research.advances.contains(&research.target_id), "don't render an already discovered target as current work");
+    assert_eq!(research.advances, ["ADVANCE_TOOLMAKING", "ADVANCE_AGRICULTURE", "ADVANCE_RELIGION", "ADVANCE_BRONZE_WORKING"], "only explicit own four discoveries, no foreign knowledge");
+    assert!(research.forecast.is_none(), "reference unavailable estimate is not invented zero/turn1");
+    for (id, cost) in [("ADVANCE_TOOLMAKING",196_i64),("ADVANCE_AGRICULTURE",242_i64),("ADVANCE_RELIGION",334_i64),("ADVANCE_BRONZE_WORKING",473_i64),("ADVANCE_BALLISTICS",570_i64)] {
+        assert_eq!(viewer.interface.rules.as_ref().and_then(|rules| rules["advances"].as_array()).and_then(|advances| advances.iter().find(|advance| advance["id"].as_str() == Some(id))).and_then(|advance| advance["cost"].as_i64()), Some(cost), "original explicit reference cost for {id}, not unrelated synthetic rule values");
+    }
+    let build = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager { kind: ManagerKind::Build, chart: false });
+    assert_eq!(build.viewer.as_ref().expect("Build viewer").cities.len(), 1_usize, "separate fixture must not alter Build/Library scenarios");
+}
+
+#[test]
+fn science_reference_presentation_uses_original_geometry_known_order_and_black_viewport_tile_tab() {
+    let scene = snapshot::scene::PreviewScene::PopulatedManager { kind: ManagerKind::Science, chart: false };
+    let mut state = snapshot::scene::preview_state(scene);
+    let before = state.clone();
+    let book = crate::gameplay::assets::layout::LayoutBook::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2")).expect("read-only original layouts");
+    let mut ui = crate::gameplay::ui_model::InGameUiModel { management: crate::gameplay::ui_model::management::ManagementUi::new(book).expect("cached source UI"), ..crate::gameplay::ui_model::InGameUiModel::default() };
+    let textures = super::textures::GameplayTextures::without_assets_for_test();
+    let (camera, _movement) = snapshot::scene::preview_presentation(scene, &mut state, &textures, &mut ui);
+    let mut expected = super::Camera::centered_on_selected(&state);
+    expected.center_on(crate::gameplay::model::MapPoint::new(63_u16, 47_u16));
+    assert_eq!(camera, expected, "reference's inspected black viewport does not delete permitted units/cells");
+    assert_eq!(ui.active_tab, crate::gameplay::ui_model::ControlPanelTab::TileImprovements, "original four tile-category controls behind Science, not Hoplite Unit tab");
+    assert_eq!(state, before, "presentation never mutates fixture/server facts to hide actors or geography");
+    let fields = ui.management.widgets(&state);
+    let rows: Vec<_> = fields.iter().filter_map(|field| field.id.strip_prefix("AdvanceList/")).filter(|id| !id.contains('/')).collect();
+    assert_eq!(rows, ["ADVANCE_TOOLMAKING", "ADVANCE_AGRICULTURE", "ADVANCE_RELIGION", "ADVANCE_BRONZE_WORKING"], "default cost order uses exact known four rather than current/available candidates");
+    for (path, text) in [("CurrentResearch.Spent.Value","0"),("CurrentResearch.TotalCost.Value","570"),("CurrentResearch.Turn.Value","-")] {
+        assert_eq!(fields.iter().find(|field| field.id == path).map(|field| field.label.as_str()), Some(text), "reference scalar {path}");
+    }
+    let root = fields.iter().find(|field| field.id.is_empty()).expect("source window");
+    assert_eq!(root.rect, crate::gameplay::ui_model::MenuRect { x:224_i32, y:108_i32, width:576_u32, height:384_u32 }, "original centered-window right clamp, not screenshot-fitting/scaling edits");
+}
+
+#[test]
 fn populated_manager_diagnostics_use_explicit_offline_projection_fixtures() {
     let state = snapshot::scene::preview_state(snapshot::scene::PreviewScene::PopulatedManager {
-        kind: ManagerKind::Science,
+        kind: ManagerKind::Build,
         chart: false,
     });
     let viewer = state.viewer.as_ref().expect("explicit fixture viewer");

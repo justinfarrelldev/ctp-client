@@ -96,6 +96,11 @@ pub(super) fn state() -> GameState {
 
 /// Explicit Unit/Trade/National no-city start, not unrelated queues or rankings.
 pub(super) fn starting_state() -> GameState {
+    from_projection(&starting_projection())
+}
+
+/// Shared received starting facts; each reference may supply its own visible data.
+fn starting_projection() -> ServerProjection {
     let mut projection = projection();
     projection.turn = 1;
     projection.cities.clear();
@@ -148,6 +153,34 @@ pub(super) fn starting_state() -> GameState {
             ..LegalAction::default()
         })
         .collect();
+    projection
+}
+
+/// Reference24's own visible facts, not Build's city/queue or a research simulation.
+/// Costs are explicit source/reference fixture facts, never installed rule overrides.
+pub(super) fn science_state() -> GameState {
+    let mut projection = starting_projection();
+    projection.interface.research = Some(Research {
+        target_id: "ADVANCE_BALLISTICS".to_owned(),
+        progress: 0_i64,
+        advances: ["ADVANCE_TOOLMAKING", "ADVANCE_AGRICULTURE", "ADVANCE_RELIGION", "ADVANCE_BRONZE_WORKING"].into_iter().map(str::to_owned).collect(),
+        available: vec!["ADVANCE_BALLISTICS".to_owned()],
+        ..Research::default()
+    });
+    if let Some(rules) = projection.interface.rules.as_mut() {
+        rules["advances"] = json!([
+            {"id":"ADVANCE_TOOLMAKING","age_id":"AGE_ANCIENT","cost":196_i64},
+            {"id":"ADVANCE_AGRICULTURE","age_id":"AGE_ANCIENT","cost":242_i64},
+            {"id":"ADVANCE_RELIGION","age_id":"AGE_ANCIENT","cost":334_i64},
+            {"id":"ADVANCE_BRONZE_WORKING","age_id":"AGE_ANCIENT","cost":473_i64},
+            {"id":"ADVANCE_BALLISTICS","age_id":"AGE_ANCIENT","cost":570_i64,"prerequisites":["ADVANCE_AGRICULTURE","ADVANCE_TOOLMAKING"]}
+        ]);
+    }
+    projection.interface.legal_actions = vec![LegalAction {
+        route: "pass".to_owned(),
+        payload: json!({}),
+        ..LegalAction::default()
+    }];
     from_projection(&projection)
 }
 

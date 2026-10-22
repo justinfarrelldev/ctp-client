@@ -57,6 +57,10 @@ Original constructor/list/update/Goal/Cancel callbacks now populate cached local
 
 Two source behavior REDs fixed: OK now returns only after accepted immutable enqueue/ack, and double-click confirms its exact visible row through the same current callback. Cancel/ESC preserves parent with no command. Five production-shaped inert-channel native journeys cover non-first ID/envelope, one submit/no release map order, queued facts unchanged, full/disconnected channels and stale/pending/removed/missing session/viewer.1338 executions/85.83% LLVM/lint/full suite/native build pass; normal feature commit follows. Native input workflow is not complete-reference acceptance; immediate work now stays on visible Science fixture/source geometry/comparison.
 
+## Science visible fixture / deferred-scaling checkpoint
+
+Source/current screenshot facts now have a dedicated own-only Science diagnostic: turn1/no cities/two settlers,4000BC/100gold/0PW, Ballistics0/570 and known Toolmaking/Agriculture/Religion/BronzeWorking at source costs196/242/334/473. Existing Build/Library data unchanged.10 focused snapshot tests/2 REDs, collected LLVM85.82% with retained valid profiles and strict lint pass; no repeated manual full suite/build before unchanged hooks. One actual SDL manual capture was inspected and all307200 RGB pixels compared at5,23:110935 above delta8/raw10872725/false. This changes fixture accuracy, not renderer parity or acceptance. User defers scaling: no scaling changes; preserve logical source root, continue bounded header/description fixes then other source UI screens. All33 acceptance boxes remain open.
+
 ## Evidence ledger
 
 Baseline: 514 library + 532 binary + 19 integration = 1065 executions; 84.27% LLVM lines. Native build/lints/hooks pass. Missing fast coverage script; Windows GNU target and GTK/GLib cross sysroot unavailable at the preceding checkpoint. No complete-reference acceptance is inherited from that checkpoint.
