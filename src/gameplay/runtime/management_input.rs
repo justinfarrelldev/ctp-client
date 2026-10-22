@@ -128,8 +128,9 @@ pub(super) fn consume(
             mouse_btn: MouseButton::Left,
             x,
             y,
+            clicks,
             ..
-        } => pointer_intent(ui, state, x, y),
+        } => click_intent(ui, state, x, y, clicks),
         Event::MouseWheel { y, .. } => ui.pointer.and_then(|(x, pointer_y)| {
             ui.management
                 .widgets(state)
@@ -150,6 +151,21 @@ pub(super) fn consume(
         apply(intent, state, ui, authority);
     }
     true
+}
+
+/// Original research double-click first selects its exact presented row and then
+/// uses the same current confirmation as OK. Other manager rows remain selection.
+fn click_intent(ui: &mut InGameUiModel, state: &GameState, x: i32, y: i32, clicks: u8) -> Option<ManagerIntent> {
+    match pointer_intent(ui, state, x, y) {
+        Some(ManagerIntent::Select(key, id)) if clicks > 1_u8 && key == "advance"
+            && ui.management.view.as_ref().is_some_and(|view| view.kind == ManagerKind::Research) => {
+                if !ui.management.apply_local(ManagerIntent::Select(key, id)) {
+                    return None;
+                }
+                ui.management.activate_id("Background.BackButton", state)
+            }
+        intent => intent,
+    }
 }
 
 /// Shared pointer descriptors also expose explicit disabled reasons; empty
@@ -230,15 +246,13 @@ pub(super) fn apply(
             if let Some(authority) =
                 authority.filter(|authority| authority.session.revision() == command.revision)
             {
-                if ui
-                    .management
-                    .view
-                    .as_ref()
-                    .is_some_and(|view| view.kind == ManagerKind::DiplomacyReview)
-                {
+                let close = ui.management.view.as_ref().is_some_and(|view| {
+                    view.kind == ManagerKind::DiplomacyReview
+                        || (view.kind == ManagerKind::Research && command.route == "set-research")
+                });
+                if submit_authoritative_command(authority, state, &command.route, command.payload) && close {
                     ui.management.apply_local(ManagerIntent::Close);
                 }
-                submit_authoritative_command(authority, state, &command.route, command.payload);
             } else {
                 "No matching authoritative session; no game state was changed"
                     .clone_into(&mut ui.status_text);

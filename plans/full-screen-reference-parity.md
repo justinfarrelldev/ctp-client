@@ -53,6 +53,10 @@ Four original callback/constructor mismatches are fixed: paired radial/numeric t
 
 Original constructor/list/update/Goal/Cancel callbacks now populate cached localized instructions, exact active available selection, selected name/stats/links, distinct future-goal caption and current-only received ETA. Removed/known-only/injected IDs clear rather than become neighboring selections, including parent hypertext positions. Goal opens Library and returns without submitting a goal/research order. Seven REDs/eight source tests,1328 executions/85.72% LLVM/lint/full suite/native build pass. Original forced-first-row fallback deliberately requires explicit choice if no matching current target; native OK/double-click/Cancel/ESC/full geometry/frames remain unfinished. Candidate counterfactuals and exact permitted nation/knowledge columns are separately documented gaps, not excuses to stop client UI work. All33 main acceptance boxes remain open.
 
+## Native research return/cancellation checkpoint
+
+Two source behavior REDs fixed: OK now returns only after accepted immutable enqueue/ack, and double-click confirms its exact visible row through the same current callback. Cancel/ESC preserves parent with no command. Five production-shaped inert-channel native journeys cover non-first ID/envelope, one submit/no release map order, queued facts unchanged, full/disconnected channels and stale/pending/removed/missing session/viewer.1338 executions/85.83% LLVM/lint/full suite/native build pass; normal feature commit follows. Native input workflow is not complete-reference acceptance; immediate work now stays on visible Science fixture/source geometry/comparison.
+
 ## Evidence ledger
 
 Baseline: 514 library + 532 binary + 19 integration = 1065 executions; 84.27% LLVM lines. Native build/lints/hooks pass. Missing fast coverage script; Windows GNU target and GTK/GLib cross sysroot unavailable at the preceding checkpoint. No complete-reference acceptance is inherited from that checkpoint.

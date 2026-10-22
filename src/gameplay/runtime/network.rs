@@ -12,6 +12,9 @@ use std::time::Duration;
 /// Historical display results must not become transport recovery/acknowledgements.
 #[cfg(test)]
 mod notice_tests;
+/// Source research modal journeys use inert real-shaped channels, never services.
+#[cfg(test)]
+mod research_ui_tests;
 /// Shared admission and revision-aware recovery, independent of SDL state.
 mod recovery;
 /// Fake-time recovery/coalescing regressions perform no IO.

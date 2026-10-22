@@ -756,7 +756,11 @@ fn semantic_production_research_and_policies_send_exact_mocked_routes_revisions_
             state.selected_unit, selected,
             "receipt preserves exact selected unit"
         );
-        assert_selected_city(&ui, "city-7");
+        if kind == ManagerKind::Research {
+            assert!(ui.management.view.is_none(), "original OK closes root chooser only after acknowledged request");
+        } else {
+            assert_selected_city(&ui, "city-7");
+        }
         assert_received_policy(&ui, &state, route);
         assert!(state.popups.is_empty(), "no hidden command failure");
     }

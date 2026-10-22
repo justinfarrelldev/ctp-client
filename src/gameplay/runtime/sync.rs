@@ -6,15 +6,16 @@ use crate::gameplay::server::envelope::PreparedCommand;
 use crate::gameplay::ui_model::InGameUiModel;
 use serde_json::Value;
 
-/// Enqueues one immutable user operation; authoritative facts remain untouched.
+/// True only when an immutable job was enqueued, not when gameplay executed.
+/// Authoritative facts remain untouched, and failed/blocked sends return false.
 pub(super) fn submit(
     authority: &RuntimeAuthority,
     state: &mut GameState,
     route: &str,
     payload: Value,
-) {
+) -> bool {
     if state.network != NetworkStatus::Ready {
-        return;
+        return false;
     }
     let result = PreparedCommand::new(&authority.session, route, payload)
         .map_err(|error| error.to_string())
@@ -26,13 +27,17 @@ pub(super) fn submit(
                 .submit(command)
         });
     match result {
-        Ok(()) => state.network = NetworkStatus::Pending,
+        Ok(()) => {
+            state.network = NetworkStatus::Pending;
+            true
+        }
         Err(error) => {
             state.popups.push(crate::gameplay::model::GameplayPopup {
                 title: "Order not submitted".to_owned(),
                 body: error,
                 kind: crate::gameplay::model::PopupKind::Info,
             });
+            false
         }
     }
 }

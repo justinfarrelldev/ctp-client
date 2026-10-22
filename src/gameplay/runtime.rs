@@ -713,16 +713,16 @@ fn submit_authoritative_move_path(
     }
 }
 
-/// Submits a command and rebuilds local state from the returned projection.
+/// True for actual enqueue/acknowledgement, never proof of gameplay execution.
+/// Rebuilds facts only from a received projection; callers can retain failed confirmations.
 fn submit_authoritative_command(
     authority: &mut RuntimeAuthority,
     state: &mut GameState,
     command: &str,
     payload: Value,
-) {
+) -> bool {
     if authority.io.is_some() {
-        sync::submit(authority, state, command, payload);
-        return;
+        return sync::submit(authority, state, command, payload);
     }
     match authority
         .client
@@ -733,12 +733,16 @@ fn submit_authoritative_command(
                 authority.session.apply_projection(projection.clone());
                 replace_state_from_projection(authority, state, &projection);
             }
+            true
         }
-        Err(error) => state.popups.push(GameplayPopup {
-            title: "Server Command Failed".to_owned(),
-            body: error.to_string(),
-            kind: PopupKind::GameStart,
-        }),
+        Err(error) => {
+            state.popups.push(GameplayPopup {
+                title: "Server Command Failed".to_owned(),
+                body: error.to_string(),
+                kind: PopupKind::GameStart,
+            });
+            false
+        }
     }
 }
 
