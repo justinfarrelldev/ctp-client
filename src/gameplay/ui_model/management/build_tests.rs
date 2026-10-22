@@ -205,3 +205,97 @@ fn build_clear_question_capture_stays_stale_and_missing_funding_is_not_assumed_u
         assert!(ui.activate_id("QueueGroup.ClearButton", &missing).is_none(), "unknown/stale/queued/funded-head safety cannot fall through to immediate old Submit in mode{mode}");
     }
 }
+
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::UpdateButtons,
+ * InsertItem/Add/InsertInQueue, RemoveItem/Remove, ItemUp/Up, ItemDown/Down and
+ * QueueListCallback. These protect bought index0 and index1->0, NOT every future
+ * entry. CityData.cpp::InsertBuildItem and bldque.cpp::{InsertBefore,
+ * RemoveNodeByIndex,RemoveHead,MoveNodeUp,MoveNodeDown} mutate the original queue;
+ * this client only prepares exact entry-addressed commands. The original
+ * editqueue.ldl controls below remain source controls, not new confirmations.
+ * Current completed funding conservatively protects the head; no paid-history
+ * flag, negative/missing price or stale data is invented into an unlocked head.
+ */
+#[test]
+fn build_queue_edit_funded_head_blocks_all_four_source_paths_even_with_legacy_cancel_fallback() {
+    let (mut ui, mut state)=clear_fixture();
+    city(&mut state).rush_buy_quote.as_mut().expect("quote").status="completed".to_owned();
+    city(&mut state).rush_buy_quote.as_mut().expect("quote").cost=Some(0_i64);
+    state.viewer.as_mut().expect("viewer").interface.legal_actions.push(serde_json::from_value(json!({"route":"cancel-production","entity_id":"c2","target_id":"c2:head","payload":{"city_id":"c2","index":0_u32}})).expect("registered legacy city cancellation"));
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"independent visible buildable selection");
+    for (entry,path) in [("c2:head","QueueGroup.RemoveButton"),("c2:head","QueueGroup.DownButton"),("c2:head","ItemsBox.InsertButton"),("c2:duplicate","QueueGroup.UpButton")] {
+        select(&mut ui,&state,entry);
+        assert!(ui.activate_id(path,&state).is_none(),"funded head cannot be replaced by {path} or confused with identical-content {entry}");
+        assert!(ui.widgets(&state).iter().any(|widget| widget.id==path && widget.unavailable.is_some()),"disabled source control explains head protection");
+    }
+    state.viewer.as_mut().expect("viewer").interface.legal_actions.retain(|action| action.route!="edit-production");
+    select(&mut ui,&state,"c2:head");
+    assert!(ui.activate_id("QueueGroup.RemoveButton",&state).is_none(),"cannot bypass funded protection through a current legacy cancel action");
+}
+
+#[test]
+fn build_queue_edit_unknown_funding_only_blocks_head_changes_not_exact_future_entries_or_append() {
+    for mode in 0_u8..7_u8 {
+        let (mut ui, mut state)=clear_fixture();
+        match mode {
+            0_u8 => city(&mut state).rush_buy_quote=None,
+            1_u8 => city(&mut state).rush_buy_quote.as_mut().expect("quote").revision=6_i64,
+            2_u8 => city(&mut state).rush_buy_quote.as_mut().expect("quote").cost=None,
+            3_u8 => city(&mut state).rush_buy_quote.as_mut().expect("quote").cost=Some(-1_i64),
+            4_u8 => city(&mut state).rush_buy_quote.as_mut().expect("quote").status="not-rushable".to_owned(),
+            5_u8 => state.viewer.as_mut().expect("viewer").interface.planning_status="queued".to_owned(),
+            _ => city(&mut state).rush_buy_quote.as_mut().expect("quote").status="unavailable".to_owned(),
+        }
+        assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"explicit buildable");
+        for (entry,path) in [("c2:head","QueueGroup.RemoveButton"),("c2:head","QueueGroup.DownButton"),("c2:head","ItemsBox.InsertButton"),("c2:duplicate","QueueGroup.UpButton")] {
+            select(&mut ui,&state,entry);
+            assert!(ui.activate_id(path,&state).is_none(),"mode{mode} never assumes head unbought for {path}");
+        }
+        select(&mut ui,&state,"c2:duplicate");
+        for path in ["QueueGroup.RemoveButton","QueueGroup.DownButton","ItemsBox.InsertButton","ItemsBox.AddButton"] {
+            let command=ui.activate_id(path,&state).and_then(ManagerIntent::into_command).expect("future-only current edit stays authorized");
+            assert_eq!(command.payload["entries"][0_usize],json!({"entry_id":"c2:head"}),"exact funded/unknown head untouched for {path}");
+            assert_eq!(command.payload["city_id"],"c2","non-first selected city");
+        }
+        select(&mut ui,&state,"c2:granary");
+        let up=ui.activate_id("QueueGroup.UpButton",&state).and_then(ManagerIntent::into_command).expect("index2 can move up while index0 protected");
+        assert_eq!(up.payload["entries"],json!([{"entry_id":"c2:head"},{"entry_id":"c2:granary"},{"entry_id":"c2:duplicate"}]),"stable identities, not duplicate-content substitution");
+    }
+}
+
+#[test]
+fn build_queue_edit_current_unfunded_quote_preserves_exact_source_payloads_and_rejects_stale_receipts() {
+    for (status,cost) in [("available",30_i64),("insufficient-gold",300_i64),("available",0_i64)] {
+        let (mut ui, mut state)=clear_fixture();
+        city(&mut state).rush_buy_quote.as_mut().expect("quote").status=status.to_owned();
+        city(&mut state).rush_buy_quote.as_mut().expect("quote").cost=Some(cost);
+        assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"explicit buildable");
+        select(&mut ui,&state,"c2:head");
+        for (path,entries) in [("QueueGroup.RemoveButton",json!([{"entry_id":"c2:duplicate"},{"entry_id":"c2:granary"}])),("QueueGroup.DownButton",json!([{"entry_id":"c2:duplicate"},{"entry_id":"c2:head"},{"entry_id":"c2:granary"}])),("ItemsBox.InsertButton",json!([{"item_id":"UNIT_SETTLER"},{"entry_id":"c2:head"},{"entry_id":"c2:duplicate"},{"entry_id":"c2:granary"}]))] {
+            let command=ui.activate_id(path,&state).and_then(ManagerIntent::into_command).expect("current known unfinished head may change");
+            assert_eq!(command.payload,json!({"city_id":"c2","entries":entries}),"source index operation captures exact identities");
+            let mut newer=state.clone();newer.viewer.as_mut().expect("viewer").revision=8_i64;
+            assert!(!command.valid_for(&newer),"old click cannot rebase onto a different revision");
+        }
+        assert_eq!(ui.view.as_ref().and_then(|view| view.selections.get("queue")).map(String::as_str),Some("c2:head"),"preparing a command never locally reorders selection");
+    }
+}
+
+#[test]
+fn build_queue_edit_boundaries_and_removed_selection_are_not_misreported_as_missing_atomic_contract() {
+    let (mut ui,state)=clear_fixture();
+    for path in ["ItemsBox.InsertButton","QueueGroup.RemoveButton","QueueGroup.UpButton","QueueGroup.DownButton"] {
+        let widget=ui.widgets(&state).into_iter().find(|widget|widget.id==path).expect("source queue control");
+        assert!(widget.intent.is_none() && widget.unavailable.as_ref().is_some_and(|reason|reason.contains("Select")),"no explicit queue entry: explain selection, not nonexistent missing server route");
+    }
+    for (entry,path,word) in [("c2:head","QueueGroup.UpButton","first"),("c2:granary","QueueGroup.DownButton","last")] {
+        select(&mut ui,&state,entry);
+        let widget=ui.widgets(&state).into_iter().find(|widget|widget.id==path).expect("source queue control");
+        assert!(widget.intent.is_none() && widget.unavailable.as_ref().is_some_and(|reason|reason.contains(word)),"source boundary, not missing atomic API");
+    }
+    assert!(ui.apply_local(ManagerIntent::Select("queue".to_owned(),"c2:removed".to_owned())),"simulate retained stale explicit selection");
+    for path in ["ItemsBox.InsertButton","QueueGroup.RemoveButton","QueueGroup.UpButton","QueueGroup.DownButton"] {
+        assert!(ui.activate_id(path,&state).is_none(),"removed entry must not become the first/head/identical unit for {path}");
+    }
+}

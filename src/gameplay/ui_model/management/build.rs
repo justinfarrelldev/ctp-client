@@ -62,6 +62,7 @@ pub(super) fn text(state: &GameState, view: &ManagerView, path: &str) -> Option<
 /// A selected head/quote does not grant authority to choose a different city/order.
 pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
     if view.kind != ManagerKind::Build { return None; }
+    if let Some(reason) = editing_reason(state, view, path) { return Some((None, Some(reason))); }
     if path == "QueueGroup.ClearButton" {
         let dialog = clear_request(state, view).and_then(|command| super::confirmation::dialog(ui, state, command));
         return Some(dialog.map_or_else(
@@ -95,6 +96,37 @@ pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, 
         || disabled("No single exact current authorization for this selected owned-city head"),
         |command| (Some(ManagerIntent::Submit(command)), None),
     ))
+}
+
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::UpdateButtons,
+ * {InsertItem,Add,InsertInQueue},{RemoveItem,Remove},{ItemUp,Up},{ItemDown,Down}
+ * disable removing/demoting/inserting before bought index0 and index1->0, not
+ * future-only edits. editqueue.ldl::{ItemsBox.InsertButton,QueueGroup.RemoveButton,
+ * QueueGroup.UpButton,QueueGroup.DownButton} retains its source styling/positions.
+ * CityData.cpp::InsertBuildItem and bldque.cpp::{InsertBefore,RemoveNodeByIndex,
+ * RemoveHead,MoveNodeUp,MoveNodeDown} mutate the original queue without an ordinary
+ * Remove Query; here existing atomic requests preserve exact entry identities.
+ * Current quote funding conservatively replaces unavailable AlreadyBoughtFront;
+ * unknown/stale/queued funding cannot unlock a head. Safe future-only operations
+ * remain available. Return an explicit binding reason BEFORE any legacy fallback,
+ * never cancel a duplicate content item or another city. No local queue execution.
+ */
+/// Explains an unsafe current source edit; None leaves existing safe validation.
+fn editing_reason(state: &GameState, view: &ManagerView, path: &str) -> Option<String> {
+    if !matches!(path, "ItemsBox.InsertButton" | "QueueGroup.RemoveButton" | "QueueGroup.UpButton" | "QueueGroup.DownButton") { return None; }
+    let Some(city) = data::city(state, view) else { return Some("Select an exact current owned city".to_owned()); };
+    let Some(items) = city.facts["queue"].as_array() else { return Some("Select a known current queue before editing".to_owned()); };
+    let selected = view.selections.get("queue");
+    let index = items.iter().position(|item| item["entry_id"].as_str().is_some_and(|id| selected.is_some_and(|entry| entry == id)));
+    let Some(index) = index else { return Some("Select an exact current queue entry before editing".to_owned()); };
+    if path == "QueueGroup.UpButton" && index == 0_usize { return Some("The first queue entry cannot move up".to_owned()); }
+    if path == "QueueGroup.DownButton" && index.saturating_add(1_usize) >= items.len() { return Some("The last queue entry cannot move down".to_owned()); }
+    let touches_head = if path == "QueueGroup.UpButton" { index == 1_usize } else { index == 0_usize };
+    if !touches_head { return None; }
+    let queued = state.viewer.as_ref().is_some_and(|viewer| viewer.interface.planning_status == "queued");
+    if !queued && quote(state, city).is_some_and(|current| matches!(current.status.as_str(), "available" | "insufficient-gold") && current.cost.is_some_and(|cost| cost >= 0_i64)) { return None; }
+    Some("A funded or unprojected/stale/queued funding state protects this exact queue head; edit only future entries".to_owned())
 }
 
 /*

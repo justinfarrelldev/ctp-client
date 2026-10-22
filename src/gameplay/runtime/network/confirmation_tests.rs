@@ -1,4 +1,4 @@
-//! Original queue-clear question journeys with inert bounded command channels.
+//! Original Build questions/queue guards with inert bounded command channels.
 use super::{Network, Outcome};
 use crate::gameplay::{assets::layout::LayoutBook, model::{GameState, NetworkStatus}, runtime::{MovementInputState, RuntimeAuthority, authority::state_from_authority_projection, management_input, operation_input, sync}, server::{ServerClient, ServerConfig, ServerGameplaySession, envelope::PreparedCommand}, ui_model::{InGameUiModel, management::{ManagementUi, ManagerKind}}};
 use alloc::sync::Arc;
@@ -144,4 +144,38 @@ fn build_clear_question_stale_session_revision_or_failed_enqueue_keeps_captured_
             assert_eq!(jobs.try_recv(),Err(TryRecvError::Empty),"no new/rebased command");
         }
     }
+}
+
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::UpdateButtons,
+ * RemoveItem/Remove and ItemUp/Up guard bought index0/index1->0, while future
+ * removal stays enabled. Original queue edits call CityData/bldque directly;
+ * this native path instead captures one entry-addressed authoritative request.
+ * Completed quote means funded, not a fabricated original paid-history flag.
+ */
+#[test]
+fn build_queue_edit_native_funded_guard_does_not_fallthrough_or_mutate_queue_on_safe_future_enqueue() {
+    let mut harness=fixture();
+    let quote=harness.state.viewer.as_mut().expect("viewer").cities.iter_mut().find(|city| city.id=="c2").expect("exact city").rush_buy_quote.as_mut().expect("quote");
+    quote.status="completed".to_owned();quote.cost=Some(0_i64);
+    harness.authority.session.projection=harness.state.viewer.clone();
+    let select=harness.ui.management.activate_id("QueueGroup.QueueList/c2:future",&harness.state).expect("explicit actual source queue row");
+    assert!(harness.ui.management.apply_local(select),"select entry, not its content or another city");
+    harness.ui.management.focused=Some("QueueGroup.UpButton".to_owned());
+    assert!(management_input::consume(&key(Keycode::RETURN),&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Some(&mut harness.authority)),"disabled source Up consumes native key before map");
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"index1 cannot displace funded head");
+    assert_eq!(harness.state.network,NetworkStatus::Ready,"disabled attempt creates no pending action");
+    let before=harness.state.viewer.clone();
+    harness.ui.management.focused=Some("QueueGroup.RemoveButton".to_owned());
+    assert!(management_input::consume(&key(Keycode::RETURN),&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Some(&mut harness.authority)),"future Remove uses actual source native callback without invented Query");
+    let command=harness.jobs.as_ref().expect("jobs").try_recv().expect("one safe future removal");
+    assert_eq!(command.path,"/game/44/edit-production","atomic editor, not dangerous legacy cancel");
+    assert_eq!(command.body["city_id"],"c2","exact non-first selected city");
+    assert_eq!(command.body["entries"],json!([{"entry_id":"c2:head"}]),"funded head unchanged, exact future removed");
+    assert_eq!(command.body["expected_revision"],7_i64,"captured receipt revision");
+    assert_eq!(harness.state.network,NetworkStatus::Pending,"enqueue isn't execution");
+    assert_eq!(harness.state.viewer,before,"canonical queue and funding are not locally changed");
+    assert!(harness.ui.operation.is_none(),"ordinary original Remove has no Query");
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:future"),"do not replace pending removed entry with first/current head");
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"one exact request");
 }
