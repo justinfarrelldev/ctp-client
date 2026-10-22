@@ -22,6 +22,9 @@ mod government_tests;
 /// Accessible National manager navigation preserves exact city/return identity.
 #[cfg(test)]
 mod national_tests;
+/// Original item enabling-advance Set Goal through isolated source/HTTP input.
+#[cfg(test)]
+mod research_goal_tests;
 /// Source thumb capture and keyboard range behavior.
 mod scroll_input;
 /// Source ranger capture and accessible-value regressions.

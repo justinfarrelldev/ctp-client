@@ -87,6 +87,11 @@ mod reconcile;
 mod reconcile_tests;
 /// Startup-only read-only optional picture availability shared by source revisions.
 mod reference_art;
+/// Original item enabling-advance goal mapping consumes current public rules.
+mod research_goal;
+/// Fileless item/advance goal, corruption and revision regressions.
+#[cfg(test)]
+mod research_goal_tests;
 /// Source row shapes, numeric values and research-list visibility regressions.
 #[cfg(test)]
 mod row_tests;

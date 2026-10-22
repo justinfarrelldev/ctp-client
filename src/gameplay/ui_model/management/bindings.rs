@@ -377,35 +377,7 @@ fn library(
         "BackButton" | "ForwardButton" => {
             disabled("No article in this direction of browser history")
         }
-        "SetGoalButton" => dialog(state.viewer.as_ref().and_then(|viewer| {
-            let goal = viewer
-                .interface
-                .research
-                .as_ref()
-                .map_or("", |research| research.goal_id.as_str());
-            let title = format!(
-                "Research Goal: {}",
-                if goal.is_empty() {
-                    "None"
-                } else {
-                    ui.book.label(goal)
-                }
-            );
-            crate::gameplay::ui_model::operations::OperationDialog::actions(
-                state,
-                &title,
-                viewer
-                    .interface
-                    .legal_actions
-                    .iter()
-                    .filter(|action| {
-                        action.route == "set-research-goal"
-                            && (ui.library.current.as_deref() == Some(action.target_id.as_str())
-                                || action.payload["advance_id"].as_str() == Some(""))
-                    })
-                    .cloned(),
-            )
-        })),
+        "SetGoalButton" => dialog(super::research_goal::dialog(ui, state)),
         _ => (None, None),
     }
 }
