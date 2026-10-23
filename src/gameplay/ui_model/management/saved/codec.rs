@@ -15,6 +15,27 @@ pub const MAX_ITEMS: usize = 256_usize;
  * of silently skipping items before a destructive replacement. Parsing supplies
  * no costs, effects, buildability or authoritative entry IDs; UTF-8/ASCII only.
  */
+/// Serializes all original categories, correcting original Save's swapped CAP/INF.
+///
+/// # Errors
+/// Rejects oversized/malformed templates as a whole; never emits partial records.
+pub fn encode(template: &Template) -> Result<String, String> {
+    if template.items.len()>MAX_ITEMS { return Err("Saved queue exceeds 256 items".to_owned()); }
+    let mut output=String::new();
+    for item in &template.items {
+        let (kind,id)=item.definition();
+        let tag=match kind {"unit"=>"U","building"=>"B","wonder"=>"W","capitalization"=>"CAP","infrastructure"=>"INF",_=>return Err("Unknown template category".to_owned())};
+        output.push_str(tag);
+        if let Some(identifier)=id {
+            if identifier.is_empty() || identifier.len()>256_usize || identifier.chars().any(|character|character.is_control()||character.is_whitespace()) {return Err("Saved queue contains an invalid original content ID".to_owned());}
+            output.push(' ');output.push_str(identifier);
+        }
+        output.push('\n');
+        if output.len()>MAX_BYTES {return Err("Saved queue exceeds the safe file-size limit".to_owned());}
+    }
+    Ok(output)
+}
+
 /// Parses original user template bytes already decoded losslessly as UTF-8.
 ///
 /// # Errors

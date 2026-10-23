@@ -86,7 +86,7 @@ fn build_saved_load_native_browser_art_rows_and_localized_query_render_without_f
 /* Released EditQueue.cpp::SetMode(CUSTOM), editqueue.ldl::BuildEditorWindow.
  * {CustomModeButtons,ItemsBox.ModeLabel,QueueGroup.QueueLabel} provide the actual
  * source-only control geometry/art. This in-memory composition is not a full
- * reference frame or proof of the still-unimplemented file Save operation.
+ * reference frame or proof of destructive file overwrite/delete functionality.
  */
 #[test]
 fn build_custom_source_mode_buttons_labels_and_local_queue_art_render_in_memory() {
@@ -99,10 +99,32 @@ fn build_custom_source_mode_buttons_labels_and_local_queue_art_render_in_memory(
         ui.management.open(ManagerKind::Build,&state,None);
         if !crate::gameplay::ui_model::management::saved::custom::apply(&mut ui.management,&state,crate::gameplay::ui_model::management::saved::custom::Action::Begin) {return Err("local Custom mode unavailable".to_owned());}
         let save=ui.management.widgets(&state).into_iter().find(|widget|widget.id=="CustomModeButtons.SaveButton").ok_or_else(||"source custom Save control missing".to_owned())?;
-        if save.rect.width!=160_u32 || save.label!=ui.management.book.label("str_ldl_EditQueueSave") || save.intent.is_some() {return Err("source Save geometry/label or honest pending file-effect availability lost".to_owned());}
+        if save.rect.width!=160_u32 || save.label!=ui.management.book.label("str_ldl_EditQueueSave") || !matches!(save.intent,Some(ManagerIntent::Dialog(form)) if form.queue_save.is_some()) {return Err("source Save geometry/label or original filename form binding lost".to_owned());}
         canvas.set_draw_color(Color::BLACK);canvas.clear();
         super::management::draw_management(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;
         Ok(())
     });
     assert!(result.is_ok(),"source local Custom presentation: {result:?}");
+}
+
+/* Original MessageBoxDialog.cpp::TextQuery and messagebox.ldl source field
+ * overlays the unchanged editor; ui/aui_common/aui_textfield.cpp paints white
+ * and RGB20 text. Check the entire outside overlay, not a favorable image crop.
+ */
+#[test]
+fn build_save_source_name_field_art_white_background_and_all_outside_pixels_remain_original_parent(){
+    let result=with_canvas((800_u32,600_u32),|canvas| {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;
+        let projection:ServerProjection=serde_json::from_value(json!({"revision":7_i64,"turn":1_u32,"tiles":[],"cities":[],"rules":{"units":[{"id":"UNIT_SETTLER"}]}})).map_err(|error|error.to_string())?;let state=GameState::from_server_projection(&projection,1_u8,1_u64);
+        let mut ui=InGameUiModel {management:ManagementUi::new(LayoutBook::load(&root).map_err(|error|error.to_string())?).map_err(|error|error.to_string())?,..InGameUiModel::default()};ui.management.open(ManagerKind::Build,&state,None);
+        if !crate::gameplay::ui_model::management::saved::custom::apply(&mut ui.management,&state,crate::gameplay::ui_model::management::saved::custom::Action::Begin){return Err("Custom unavailable".to_owned());}
+        canvas.set_draw_color(Color::BLACK);canvas.clear();super::management::draw_management(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;
+        let before=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
+        let mut dialog=crate::gameplay::ui_model::management::saved::save::dialog(&ui.management).ok_or_else(||"source Save unavailable".to_owned())?;dialog.text="Name".to_owned();ui.operation=Some(dialog);
+        super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;
+        let after=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
+        for (index,pixel) in after.chunks_exact(4_usize).enumerate(){let x=index.checked_rem(800_usize).ok_or_else(||"index".to_owned())?;let y=index.div_euclid(800_usize);if !(240_usize..560_usize).contains(&x)||!(213_usize..387_usize).contains(&y){let start=index.saturating_mul(4_usize);if before.get(start..start.saturating_add(4_usize))!=Some(pixel){return Err("Source Save changed a pixel outside original320x174 overlay".to_owned());}}}
+        let probe=canvas.read_pixels(Some(sdl2::rect::Rect::new(529_i32,328_i32,1_u32,1_u32)),PixelFormatEnum::RGBA32)?;
+        if probe.get(..3_usize)!=Some(&[255_u8;3_usize]){return Err("Original source TextField white rectangle/overlap not painted".to_owned());}Ok(())
+    });assert!(result.is_ok(),"source filename modal pixels: {result:?}");
 }

@@ -12,6 +12,8 @@ pub enum InputKind {
     Rename,
     /// Complete custom queue: comma-separated content IDs or @existing-entry IDs.
     Queue,
+    /// Local original Save-name field; never a canonical city command.
+    QueueName,
 }
 /// An explicit projected target/priority choice with a captured revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +50,8 @@ pub struct OperationDialog {
     pub confirmation_focus: Option<String>,
     /// Original `QueryLoadQueue` returns to `ItemsBox` only after real enqueue/ack.
     pub close_load_on_submit: bool,
+    /// Original local Save-name snapshot/deferred effect; no fake HTTP action.
+    pub queue_save: Option<super::management::saved::save::Capture>,
     /// First visible choice index, page-sized and bounded.
     pub start: usize,
     /// Explicit keyboard target selection.
@@ -68,6 +72,25 @@ impl OperationDialog {
         dialog.confirmation = widgets;
         Some(dialog)
     }
+    /* Original MessageBoxDialog.cpp::TextQuery and EditQueue.cpp::SaveButton
+     * use cached messagebox.ldl controls, not NameTheCityPopup's generic geometry.
+     * Local file capture deliberately carries no canonical command/revision.
+     */
+    /// Initializes a pure source filename form with owned template data.
+    #[must_use]
+    pub fn queue_name(title: &str, widgets: Vec<ManagerWidget>, capture: super::management::saved::save::Capture) -> Self {
+        let mut dialog=Self::blank(title,0_i64);
+        dialog.input=Some(InputKind::QueueName);dialog.queue_save=Some(capture);
+        dialog.confirmation=widgets;
+        dialog.confirmation_focus=Some(super::management::saved::save::FIELD.to_owned());
+        dialog
+    }
+    /// Current actual field geometry for source `TextQuery` or generic forms.
+    #[must_use]
+    pub fn field_rect(&self)->MenuRect {
+        self.confirmation.iter().find(|widget|widget.node.name=="TextField").map_or_else(Self::field,|widget|widget.rect)
+    }
+
     /// Original `NameTheCityPopup` uses a 400-wide popup and a 200x20 text field.
     /// The footer extends that source geometry for explicit accessible confirmation.
     #[must_use]
@@ -116,6 +139,7 @@ impl OperationDialog {
         let route = match kind {
             InputKind::Rename => "rename-city",
             InputKind::Queue => "edit-production",
+            InputKind::QueueName => return None,
         };
         viewer
             .interface
@@ -127,6 +151,7 @@ impl OperationDialog {
             .iter()
             .find(|source| source.id == city && !source.stale)?;
         let text = match kind {
+            InputKind::QueueName => return None,
             InputKind::Rename => source.facts["name"].as_str().unwrap_or("").to_owned(),
             InputKind::Queue => {
                 source.facts["queue"]
@@ -145,6 +170,7 @@ impl OperationDialog {
             match kind {
                 InputKind::Rename => "Rename City",
                 InputKind::Queue => "Custom Production Queue",
+                InputKind::QueueName => return None,
             },
             viewer.revision,
         );
@@ -289,6 +315,7 @@ impl OperationDialog {
     #[must_use]
     pub fn command(&self, state: &GameState) -> Option<ManagerCommand> {
         let (route, payload) = match self.input? {
+            InputKind::QueueName => return None,
             InputKind::Rename => (
                 "rename-city",
                 json!({"city_id":self.city_id,"name":self.text.trim()}),
@@ -363,6 +390,7 @@ impl OperationDialog {
             confirmation: Vec::new(),
             confirmation_focus: None,
             close_load_on_submit: false,
+            queue_save: None,
             start: 0,
             focused: 0,
         }

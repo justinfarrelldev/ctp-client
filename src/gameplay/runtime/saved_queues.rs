@@ -4,6 +4,8 @@ use alloc::collections::{BTreeMap, BTreeSet};
 use std::{fs, io::Read, path::{Path, PathBuf}};
 #[cfg(test)]
 mod tests;
+/// Original Save-name create-only local file effects, isolated behind a fakeable store.
+pub(super) mod writes;
 
 /// Read-only directory metadata; symbolic links/folders are never opened as files.
 #[derive(Debug, Clone, PartialEq, Eq)]

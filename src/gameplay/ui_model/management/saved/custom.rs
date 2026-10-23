@@ -99,8 +99,8 @@ pub enum Action {
  * full All Items fidelity unaccepted. No inferred false flags, gameplay/paid-head
  * mutation, filesystem writes, first-row selection or duplicate-content removal.
  * Immutable local version protects authoring without binding it to remote ticks.
- * Source Save/TextQuery/file effects remain a following complete workflow; they
- * are visibly unavailable, never an enabled raw authoritative queue substitute.
+ * Save uses the separate source TextQuery/create-only persistence workflow;
+ * never substitute an enabled raw authoritative city queue action.
  */
 /// Visible local editor, including its optional source `LoadBox` overlay.
 #[must_use]
@@ -157,7 +157,7 @@ pub(in crate::gameplay::ui_model::management) fn binding(
     let selected = view.selections.get("queue").cloned();
     let edit=match path {
         "CustomModeButtons.CancelButton"=>return Some((Some(ManagerIntent::Custom(Action::Cancel)),None)),
-        "CustomModeButtons.SaveButton"=>return Some(disabled("Local authoring works; original Save-name and safe file persistence/overwrite workflow is not implemented yet")),
+        "CustomModeButtons.SaveButton"=>return Some(super::save::dialog(ui).map_or_else(||disabled("A complete serializable current local template and original Save-name controls are required"),|dialog|(Some(ManagerIntent::Dialog(Box::new(dialog))),None))),
         "RushBuyButton"|"GotoCityButton"=>return Some(disabled("A local custom template is not city production")),
         "ItemsBox.AddButton"=>choice.map(Edit::Add),
         "ItemsBox.InsertButton"=>choice.zip(selected).map(|(item,entry)|Edit::Insert(item,entry)),

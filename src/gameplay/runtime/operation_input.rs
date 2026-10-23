@@ -12,6 +12,8 @@ use sdl2::mouse::MouseButton;
 
 /// Explicit original MessageBoxDialog control IDs/keyboard/modal cancellation.
 mod confirmation;
+/// Original local Save-name controls share native/accessible editing before gameplay.
+pub(super) mod queue_save;
 
 /// Consumes form events before map shortcuts; Quit still propagates to the session.
 pub(super) fn consume(
@@ -20,6 +22,10 @@ pub(super) fn consume(
     ui: &mut InGameUiModel,
     authority: Option<&mut RuntimeAuthority>,
 ) -> bool {
+    if ui.operation.as_ref().is_some_and(|dialog|dialog.queue_save.is_some()) {
+        ui.manager_press=None;
+        return queue_save::consume(event,state,ui);
+    }
     let Some(dialog) = ui.operation.as_mut() else {
         return false;
     };
@@ -121,7 +127,7 @@ fn key(
     key: Keycode,
     modifiers: Mod,
 ) -> (bool, Option<ManagerCommand>) {
-    if !dialog.confirmation.is_empty() {
+    if !dialog.confirmation.is_empty() && dialog.queue_save.is_none() {
         return confirmation::key(dialog, state, key, modifiers);
     }
     let ctrl =
@@ -240,7 +246,9 @@ fn pointer(
 
 /// Parameter field bounds; queue text remains below the server body cap.
 const fn limit(dialog: &OperationDialog) -> usize {
-    if matches!(dialog.input, Some(InputKind::Rename)) {
+    if matches!(dialog.input,Some(InputKind::QueueName)) {
+        crate::gameplay::ui_model::management::saved::save::MAX_NAME
+    } else if matches!(dialog.input, Some(InputKind::Rename)) {
         128
     } else {
         0x4000_usize
@@ -252,6 +260,7 @@ pub(super) fn flush(ui: &mut InGameUiModel, clipboard: &mut impl Clipboard) {
     let Some(dialog) = ui.operation.as_mut() else {
         return;
     };
+    if dialog.queue_save.as_ref().is_some_and(|capture|capture.name.is_some()) {dialog.clipboard=None;return;}
     let Some(request) = dialog.clipboard.take() else {
         return;
     };

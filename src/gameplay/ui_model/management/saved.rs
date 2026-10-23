@@ -7,6 +7,8 @@ use alloc::collections::{BTreeMap, BTreeSet};
 pub mod codec;
 /// Source local Custom authoring; never city production or filesystem effects.
 pub mod custom;
+/// Original local Save-name form and captured safe new-file request.
+pub mod save;
 #[cfg(test)]
 mod tests;
 
@@ -88,8 +90,8 @@ pub struct QueueLibrary {
  * current pinned kinds/IDs, captures one atomic revision-bound replacement and
  * retains known funded head. No costs/private buildability/local CityData edits.
  * Failed/invalid files cannot clear a queue before open as original Load does.
- * Local custom authoring delegates to custom; Save/destructive delete remain
- * unfinished workflows, never a raw authoritative comma/JSON editor substitute.
+ * Local authoring delegates to custom, new-file Save to save; destructive
+ * overwrite/delete remain unfinished, never a raw authoritative command substitute.
  */
 /// True only for the visible original inline browser mode.
 pub(super) fn active(view: &ManagerView) -> bool {

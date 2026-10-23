@@ -143,13 +143,23 @@ fn save_capture(canvas: &Canvas<Window>) {
     }
 }
 
+/* Original ui/aui_common/aui_textfield.cpp::{CreateWin,DrawThis} and
+ * messagebox.ldl::TextField -> CTP2_TEXT_FIELD/CTP2_STANDARD_FONT supply the
+ * field face. Source filenames use it for both event-prefix hits and painting,
+ * including text typed earlier in the same SDL event batch; no font substitution.
+ */
 /// Measures the active input with exactly the font used by its renderer.
-fn measure_operation(ui: &mut InGameUiModel, font: Option<&sdl2::ttf::Font<'_, '_>>) {
-    if let (Some(dialog), Some(body_font)) = (ui.operation.as_mut(), font) {
-        dialog.metrics.measure(&dialog.text, |text| {
-            body_font.size_of(text).map_or(0, |size| size.0)
-        });
+fn measure_operation(ui: &mut InGameUiModel, fonts: RenderFonts<'_, '_, '_>) {
+    if let Some(dialog)=ui.operation.as_mut() {
+        let font=dialog.confirmation.iter().find(|widget|widget.node.name=="TextField").and_then(|widget|fonts.control(&widget.node)).or(fonts.body);
+        if let Some(font)=font {dialog.metrics.measure(&dialog.text,|text|font.size_of(text).map_or(0_u32,|size|size.0));}
     }
+}
+
+/// Refreshes source editor metrics before each event, including same-batch typing.
+fn measure_inputs(ui:&mut InGameUiModel,fonts:RenderFonts<'_, '_, '_>) {
+    if let Some(management)=fonts.management {management.measure_query(&mut ui.management);}
+    measure_operation(ui,fonts);
 }
 
 /// Runs gameplay on the existing canvas, preserving the main menu's window.
@@ -200,9 +210,7 @@ pub(super) fn run_sdl_game_on_canvas(
                 capture_requested = true;
                 continue;
             }
-            if let Some(fonts) = management_fonts.as_ref() {
-                fonts.measure_query(&mut ui.management);
-            }
+            measure_inputs(&mut ui,RenderFonts {body:font.as_ref(),management:management_fonts.as_ref()});
             if let Some(next) = handle_event(
                 &event,
                 &mut state,
@@ -219,6 +227,7 @@ pub(super) fn run_sdl_game_on_canvas(
         super::sync::frame(authority.as_mut(), &mut state, &mut ui, &mut movement);
         super::management_input::open_pending_build(&mut state, &mut ui);
         super::saved_queues::service(&mut ui);
+        super::saved_queues::writes::service(&mut ui);
         movement
             .actors
             .begin_frame(u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX));
@@ -233,7 +242,7 @@ pub(super) fn run_sdl_game_on_canvas(
         if camera != before_pan {
             super::cursor::refresh_map_pointer(&state, &mut ui, &camera, &mut movement);
         }
-        measure_operation(&mut ui, font.as_ref());
+        measure_operation(&mut ui, RenderFonts {body:font.as_ref(),management:management_fonts.as_ref()});
         frame::draw_scaled_frame(
             canvas,
             &mut frame_texture,

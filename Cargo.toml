@@ -27,6 +27,7 @@ device_query = "1.1.1"
 unciv = "0.2"
 serde_json = "1.0"
 sysinfo = { version = "0.30" }
+tempfile = "3.8.0"
 
 [[bin]]
 name = "ctp-client"
@@ -38,4 +39,3 @@ path = "src/lib.rs"
 
 [dev-dependencies]
 byteorder = "1.5"
-tempfile = "3.8.0"

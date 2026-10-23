@@ -3,6 +3,8 @@
 mod saved_load_tests;
 /// Source custom-mode editing is local, never an authoritative queue operation.
 mod custom_tests;
+/// Source Save-name/native/storage journeys with an entirely fake file boundary.
+mod save_tests;
 use super::{Network, Outcome};
 use crate::gameplay::{assets::layout::LayoutBook, model::{GameState, NetworkStatus}, runtime::{MovementInputState, RuntimeAuthority, authority::state_from_authority_projection, management_input, operation_input, sync}, server::{ServerClient, ServerConfig, ServerGameplaySession, envelope::PreparedCommand}, ui_model::{InGameUiModel, management::{ManagementUi, ManagerKind}}};
 use alloc::sync::Arc;
