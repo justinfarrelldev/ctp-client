@@ -1,4 +1,4 @@
-//! Explicit read-only saved-queue requests, outside model/input/render execution.
+//! Saved-queue read scans and isolated explicit profile effects, outside rendering.
 use crate::gameplay::ui_model::{InGameUiModel, management::{ManagerKind, saved::{self, QueueFile}}};
 use alloc::collections::{BTreeMap, BTreeSet};
 use std::{fs, io::Read, path::{Path, PathBuf}};
@@ -6,6 +6,10 @@ use std::{fs, io::Read, path::{Path, PathBuf}};
 mod tests;
 /// Original Save-name create-only local file effects, isolated behind a fakeable store.
 pub(super) mod writes;
+/// Shared cooperative profile-write lock; no actual I/O is called in tests.
+mod profile;
+/// Explicit destructive original Delete after exact source confirmation.
+pub(super) mod deletes;
 
 /// Read-only directory metadata; symbolic links/folders are never opened as files.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,10 +42,11 @@ impl QueueReader for NativeReader {
         if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() { return Err("Saved queue source is not a safe directory".to_owned()); }
         let directory = fs::read_dir(directory).map_err(|error| format!("Saved queue directory could not be read: {error}"))?;
         let mut entries = Vec::new();
-        for result in directory.take(saved::MAX_FILES.saturating_add(1_usize)) {
+        for result in directory.take(saved::MAX_FILES.saturating_add(2_usize)) {
             let entry = result.map_err(|error| format!("Saved queue entry could not be read: {error}"))?;
             let kind = entry.file_type().map_err(|error| format!("Saved queue file type is unavailable: {error}"))?;
             let name = entry.file_name().into_string().map_err(|_name| "Saved queue filename is not valid Unicode".to_owned())?;
+            if name == profile::LOCK_NAME { continue; }
             entries.push(Entry { name, regular: regular(kind) });
         }
         Ok(entries)
@@ -120,7 +125,7 @@ fn scan(sources: &[(String, PathBuf)], reader: &mut impl QueueReader) -> Result<
             if files.contains_key(&id) { return Err("Saved queue catalog sources contain a duplicate identity".to_owned()); }
             let file = match reader.read(&directory.join(&name), saved::codec::MAX_BYTES) {
                 Ok(bytes) => QueueFile::from_bytes(id.clone(), name, &bytes),
-                Err(reason) => QueueFile { id: id.clone(), name, parsed: Err(reason) },
+                Err(reason) => QueueFile { id: id.clone(), name, parsed: Err(reason), bytes:None },
             };
             files.insert(id, file);
         }

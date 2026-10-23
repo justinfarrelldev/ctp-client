@@ -52,6 +52,8 @@ pub struct OperationDialog {
     pub close_load_on_submit: bool,
     /// Original local Save-name snapshot/deferred effect; no fake HTTP action.
     pub queue_save: Option<super::management::saved::save::Capture>,
+    /// Original file Delete question; immutable profile identity/complete byte version.
+    pub queue_delete: Option<super::management::saved::delete::Capture>,
     /// First visible choice index, page-sized and bounded.
     pub start: usize,
     /// Explicit keyboard target selection.
@@ -84,6 +86,11 @@ impl OperationDialog {
         dialog.confirmation=widgets;
         dialog.confirmation_focus=Some(super::management::saved::save::FIELD.to_owned());
         dialog
+    }
+    /// Captures a local source Delete Query without a fake city command.
+    #[must_use]
+    pub fn queue_delete(title:&str,widgets:Vec<ManagerWidget>,capture:super::management::saved::delete::Capture)->Self{
+        let mut dialog=Self::blank(title,0_i64);dialog.confirmation=widgets;dialog.queue_delete=Some(capture);dialog
     }
     /// Current actual field geometry for source `TextQuery` or generic forms.
     #[must_use]
@@ -391,6 +398,7 @@ impl OperationDialog {
             confirmation_focus: None,
             close_load_on_submit: false,
             queue_save: None,
+            queue_delete: None,
             start: 0,
             focused: 0,
         }

@@ -19,7 +19,7 @@ pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&mut GameplayTextures<'_>
             if widget.node.name == "TextField" && dialog.queue_save.is_some() {
                 super::management::draw_widget(canvas,textures,widget,fonts.control(&widget.node))?;
                 draw_input(canvas,fonts.control(&widget.node),dialog,widget.rect)?;
-            } else if widget.node.name == "LeftButton" && !dialog.queue_save.as_ref().map_or_else(||dialog.choices.first().is_some_and(|choice|choice.command.valid_for(state)),|capture|capture.name.is_none() && capture.current(&ui.management) && crate::gameplay::ui_model::management::saved::save::name_valid(&dialog.text)) {
+            } else if widget.node.name == "LeftButton" && !affirmative(dialog,state,ui) {
                 let mut disabled = widget.clone();
                 disabled.intent = None;
                 disabled.unavailable = Some("This confirmation is no longer authorized at its captured revision".to_owned());
@@ -54,6 +54,16 @@ pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&mut GameplayTextures<'_>
         draw_text(canvas,font,&format!("{page}/{pages} — arrows / mouse wheel"),220,390,Color::RGB(50,50,50))?;
     }
     button(canvas,textures,font,"Cancel",OperationDialog::cancel(),true)
+}
+/* Released EditQueue.cpp::DeleteCallback/LoadCallback and MessageBoxDialog.cpp
+ * Query/LeftButtonActionCallback use messagebox.ldl::LeftButton. Async source
+ * dialogs retain captured local bytes or canonical revision, never rebase an
+ * affirmative onto changed contents or treat queued approval as execution.
+ */
+/// Source affirmative reflects exact local-file approval or canonical authorization.
+fn affirmative(dialog:&OperationDialog,state:&GameState,ui:&InGameUiModel)->bool{
+    if let Some(capture)=dialog.queue_delete.as_ref(){return !capture.approved&&capture.current(&ui.management);}
+    dialog.queue_save.as_ref().map_or_else(||dialog.choices.first().is_some_and(|choice|choice.command.valid_for(state)),|capture|capture.name.is_none()&&capture.current(&ui.management)&&crate::gameplay::ui_model::management::saved::save::name_valid(&dialog.text))
 }
 /* Released ctp2_source/ctp2_code/ui/aui_common/aui_textfield.cpp::CreateWin/
  * DrawThis sets white background and RGB(20,20,20) text; ui/aui_ctp2/

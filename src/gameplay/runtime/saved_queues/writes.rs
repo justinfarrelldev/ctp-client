@@ -6,7 +6,7 @@ use crate::gameplay::ui_model::{
 use std::{
     fs,
     io::{Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 #[cfg(test)]
 mod tests;
@@ -41,21 +41,20 @@ impl QueueWriter for NativeWriter {
         if !save::name_valid(name) || bytes.len() > codec::MAX_BYTES {
             return Err("Invalid bounded local queue filename/data".to_owned());
         }
-        let client = self.home.join("ctp-client");
-        ensure_directory(&client)?;
-        let root = client.join("queues");
-        ensure_directory(&root)?;
-        let entries = fs::read_dir(&root)
+        let profile=super::profile::open(&self.home)?;
+        let root=profile.root();
+        let entries = fs::read_dir(root)
             .map_err(|error| format!("Queue directory cannot be inspected: {error}"))?;
         let mut count = 0_usize;
         for entry in entries.take(saved::MAX_FILES.saturating_add(1_usize)) {
             let entry =
                 entry.map_err(|error| format!("Queue directory entry is unavailable: {error}"))?;
-            count = count.saturating_add(1_usize);
             let existing = entry
                 .file_name()
                 .into_string()
                 .map_err(|_name| "Queue directory has a non-Unicode filename".to_owned())?;
+            if existing==super::profile::LOCK_NAME {continue;}
+            count=count.saturating_add(1_usize);
             if existing.to_lowercase() == name.to_lowercase() {
                 return Err("A queue/file with this name already exists; overwrite requires its separate confirmation workflow".to_owned());
             }
@@ -63,7 +62,7 @@ impl QueueWriter for NativeWriter {
         if count >= saved::MAX_FILES {
             return Err("Saved queue directory has reached its safe file-count limit".to_owned());
         }
-        let mut temporary = tempfile::NamedTempFile::new_in(&root)
+        let mut temporary = tempfile::NamedTempFile::new_in(root)
             .map_err(|error| format!("Cannot stage local queue: {error}"))?;
         temporary
             .write_all(bytes)
@@ -85,30 +84,6 @@ impl QueueWriter for NativeWriter {
         .read_to_end(&mut readback)
         .map_err(|error| format!("Saved queue readback failed; retain your draft: {error}"))?;
         Ok(readback)
-    }
-}
-/// Reject unsafe client-owned leaf directories; no installation directory creation.
-fn ensure_directory(path: &Path) -> Result<(), String> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
-                Ok(())
-            } else {
-                Err("Client queue location is not a safe non-symlink directory".to_owned())
-            }
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            fs::create_dir_all(path)
-                .map_err(|failure| format!("Cannot create client queue directory: {failure}"))?;
-            let metadata = fs::symlink_metadata(path)
-                .map_err(|failure| format!("Cannot inspect client queue directory: {failure}"))?;
-            if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
-                Ok(())
-            } else {
-                Err("Created queue location is not a safe directory".to_owned())
-            }
-        }
-        Err(error) => Err(format!("Cannot inspect client queue directory: {error}")),
     }
 }
 /// Production session executes only an explicit currently owned local approval.

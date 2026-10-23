@@ -14,6 +14,8 @@ use sdl2::mouse::MouseButton;
 mod confirmation;
 /// Original local Save-name controls share native/accessible editing before gameplay.
 pub(super) mod queue_save;
+/// Original destructive profile Delete question with explicit exact-file approval.
+pub(super) mod queue_delete;
 
 /// Consumes form events before map shortcuts; Quit still propagates to the session.
 pub(super) fn consume(
@@ -22,6 +24,10 @@ pub(super) fn consume(
     ui: &mut InGameUiModel,
     authority: Option<&mut RuntimeAuthority>,
 ) -> bool {
+    if ui.operation.as_ref().is_some_and(|dialog|dialog.queue_delete.is_some()) {
+        ui.manager_press=None;
+        return queue_delete::consume(event,ui);
+    }
     if ui.operation.as_ref().is_some_and(|dialog|dialog.queue_save.is_some()) {
         ui.manager_press=None;
         return queue_save::consume(event,state,ui);

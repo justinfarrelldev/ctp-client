@@ -128,3 +128,24 @@ fn build_save_source_name_field_art_white_background_and_all_outside_pixels_rema
         if probe.get(..3_usize)!=Some(&[255_u8;3_usize]){return Err("Original source TextField white rectangle/overlap not painted".to_owned());}Ok(())
     });assert!(result.is_ok(),"source filename modal pixels: {result:?}");
 }
+
+/* Original EditQueue.cpp::DeleteCallback/MessageBoxDialog::Query and
+ * messagebox.ldl use the same source opaque question/OK/Cancel, no TextField.
+ * This source-art native composition is in memory, not frame certification.
+ */
+#[test]
+fn build_delete_original_question_art_and_stale_affirmative_render_without_parameter_field(){
+    let result=with_canvas((800_u32,600_u32),|canvas| {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;
+        let projection:ServerProjection=serde_json::from_value(json!({"revision":7_i64,"turn":1_u32,"tiles":[],"cities":[]})).map_err(|error|error.to_string())?;let state=GameState::from_server_projection(&projection,1_u8,1_u64);
+        let mut ui=InGameUiModel {management:ManagementUi::new(LayoutBook::load(&root).map_err(|error|error.to_string())?).map_err(|error|error.to_string())?,..InGameUiModel::default()};ui.management.open(ManagerKind::Build,&state,None);
+        ui.management.apply_local(ManagerIntent::Select(crate::gameplay::ui_model::management::saved::MODE.to_owned(),"true".to_owned()));ui.management.view.as_mut().ok_or_else(||"view".to_owned())?.selections.remove(crate::gameplay::ui_model::management::saved::REFRESH);
+        ui.management.saved_queues.files.insert("profile:exact".to_owned(),crate::gameplay::ui_model::management::saved::QueueFile::from_bytes("profile:exact".to_owned(),"exact".to_owned(),b"# exact version\nU UNIT_SETTLER\n"));ui.management.apply_local(ManagerIntent::Select("saved-queue".to_owned(),"profile:exact".to_owned()));
+        let dialog=crate::gameplay::ui_model::management::saved::delete::dialog(&ui.management).ok_or_else(||"source Delete unavailable".to_owned())?;
+        if dialog.confirmation.iter().any(|widget|widget.node.name=="TextField")||!dialog.confirmation.iter().any(|widget|widget.node.name=="DontShowButton"&&widget.unavailable.is_some()){return Err("Delete source modality lost: parameter field or destructive DontShow approval".to_owned());}
+        ui.operation=Some(dialog);canvas.set_draw_color(Color::BLACK);canvas.clear();super::management::draw_management(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;
+        super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;
+        ui.management.saved_queues.files.get_mut("profile:exact").ok_or_else(||"file".to_owned())?.bytes=Some(b"changed".to_vec());
+        super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;Ok(())
+    });assert!(result.is_ok(),"source Delete question and stale paint: {result:?}");
+}

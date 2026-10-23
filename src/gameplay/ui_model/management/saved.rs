@@ -9,6 +9,8 @@ pub mod codec;
 pub mod custom;
 /// Original local Save-name form and captured safe new-file request.
 pub mod save;
+/// Explicit source profile-file deletion questions and complete byte snapshots.
+pub mod delete;
 #[cfg(test)]
 mod tests;
 
@@ -58,13 +60,15 @@ pub struct QueueFile {
     pub name: String,
     /// Complete bounded parse or an honest unavailable reason.
     pub parsed: Result<Template, String>,
+    /// Complete bounded raw version; None on failed/oversized reads, never empty by default.
+    pub bytes: Option<Vec<u8>>,
 }
 impl QueueFile {
     /// Decodes only lossless UTF-8/ASCII records, retaining parse failures visibly.
     #[must_use]
     pub fn from_bytes(id: String, name: String, bytes: &[u8]) -> Self {
         let parsed = core::str::from_utf8(bytes).map_err(|_error| "Saved queue is not valid UTF-8/ASCII".to_owned()).and_then(codec::parse);
-        Self { id, name, parsed }
+        Self { id, name, parsed, bytes:(bytes.len()<=codec::MAX_BYTES).then(||bytes.to_vec()) }
     }
 }
 /// Last explicit local directory snapshot; no file I/O is performed by rendering.
@@ -90,8 +94,8 @@ pub struct QueueLibrary {
  * current pinned kinds/IDs, captures one atomic revision-bound replacement and
  * retains known funded head. No costs/private buildability/local CityData edits.
  * Failed/invalid files cannot clear a queue before open as original Load does.
- * Local authoring delegates to custom, new-file Save to save; destructive
- * overwrite/delete remain unfinished, never a raw authoritative command substitute.
+ * Local authoring delegates to custom, new-file Save to save, profile Delete
+ * to delete; Overwrite remains unfinished, never a raw authoritative substitute.
  */
 /// True only for the visible original inline browser mode.
 pub(super) fn active(view: &ManagerView) -> bool {
@@ -104,7 +108,7 @@ pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, 
     match path {
         "ItemsBox.LoadSaveButton" => Some((Some(ManagerIntent::Select(MODE.to_owned(), "true".to_owned())), None)),
         "LoadBox.CancelButton" => Some((Some(ManagerIntent::Select(MODE.to_owned(), "false".to_owned())), None)),
-        "LoadBox.DeleteButton" => Some(disabled("Original saved-file deletion confirmation/write backend is not implemented; no file is altered")),
+        "LoadBox.DeleteButton" => Some(delete::dialog(ui).map_or_else(||disabled("Select one exact fully read current client-profile file; installed/read-failed/ambiguous files are read-only"),|dialog|(Some(ManagerIntent::Dialog(Box::new(dialog))),None))),
         "LoadBox.LoadButton" => Some(load_dialog(ui, state, view).map_or_else(|reason| disabled(&reason), |dialog| (Some(ManagerIntent::Dialog(Box::new(dialog))), None))),
         _ => None,
     }
