@@ -241,8 +241,9 @@ impl<'texture> GameplayTextures<'texture> {
      * gfx/tilesys/tiledraw.cpp::TiledMap::{DrawCityNames,DrawNationalBorders}
      * share one player palette. See installed
      * Colors00.txt and assets/player_colors.rs for the exact packed-channel rule.
-     * Public setup membership gives CLIENT display slots; unknown foreign owners
-     * use an explicit neutral fallback, never the first empire/red or an ID hash.
+     * Repaired persisted participant indices select original palette slots;
+     * frozen public setup order is legacy-only. Unknown colors stay neutral,
+     * including self when the server omits its slot, never a red/ID-hash guess.
      * These colors confer no ownership/knowledge/action permission or culture.
      */
     /// One color lookup for unit flags/heralds, panel shields, city labels and borders.

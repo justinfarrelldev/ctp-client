@@ -157,6 +157,12 @@ pub struct Research {
 /// Management data flattened into the viewer snapshot, not another envelope.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 pub struct ServerInterface {
+    /// Explicit authenticated player identity; presence/null must not become legacy guessing.
+    #[serde(default,deserialize_with="super::roster::present")]
+    pub viewer_player_id:Option<Value>,
+    /// Public persisted participant identities/palette indices; never foreign intelligence.
+    #[serde(default,deserialize_with="super::roster::present")]
+    pub players:Option<Value>,
     /// Actions authorized by the engine for this exact revision/viewer.
     #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub legal_actions: Vec<LegalAction>,

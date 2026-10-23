@@ -1,6 +1,6 @@
 //! Reference-sized presentation contracts, independent of server commands.
 
-use super::{ManagementUi, ManagerKind};
+use super::{ManagementUi, ManagerKind,ManagerIntent};
 use crate::gameplay::assets::layout::LayoutBook;
 use crate::gameplay::model::GameState;
 use crate::gameplay::server::ServerProjection;
@@ -130,10 +130,13 @@ fn reference_graphics_has_two_sliders_and_twelve_labeled_switches_without_fake_c
             !switch.label.is_empty(),
             "source stringtable caption for {id}"
         );
-        assert!(
-            switch.intent.is_none(),
-            "presentation alone cannot claim a bound option"
-        );
+        let local_key=match id {"PoliticalBordersButton"=>Some("map-filter:political"),"CityInflenceButton"=>Some("map-filter:influence"),_=>None};
+        if let Some(key)=local_key {
+            assert_eq!(switch.intent,Some(ManagerIntent::Select(key.to_owned(),"false".to_owned())),"only the two implemented source callbacks may change local overlays");
+            assert!(switch.unavailable.is_none()&&switch.selected,"actual source ON flag is available without server authority");
+        } else {
+            assert!(switch.intent.is_none(),"unimplemented option {id} must remain disabled; no fake command");
+        }
     }
 }
 

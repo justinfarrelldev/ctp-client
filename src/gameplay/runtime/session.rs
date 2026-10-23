@@ -53,9 +53,15 @@ impl Drop for TextInputScope {
     }
 }
 
+/// Carry source display choices into the actual state before first paint/input.
+fn bootstrap(config:&SinglePlayerLaunchConfig)->Result<(Option<RuntimeAuthority>,GameState),GameplayError> {
+    let (authority,mut state)=bootstrap_state(config)?;
+    crate::gameplay::ui_model::management::map_filters::initialize(&mut state,&config.graphics);
+    Ok((authority,state))
+}
 /// Creates only server-authoritative state in interactive play; preview/test mode
 /// is explicitly selected by a disabled server configuration, never by a failure.
-fn bootstrap(
+fn bootstrap_state(
     config: &SinglePlayerLaunchConfig,
 ) -> Result<(Option<RuntimeAuthority>, GameState), GameplayError> {
     if !config.server.required {

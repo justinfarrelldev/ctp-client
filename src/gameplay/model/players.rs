@@ -17,7 +17,7 @@ impl PlayerId {
     /// Production self is only the exact authenticated owner, never an ID substring/suffix.
     #[must_use]
     pub(in crate::gameplay) fn authenticated(owner:&str,viewer:&str)->Self {
-        if owner==viewer {Self::Human}else{Self::foreign(owner)}
+        if !viewer.is_empty()&&owner==viewer {Self::Human}else{Self::foreign(owner)}
     }
     /// Preserve opaque identity; only explicit legacy barbarian owner IDs imply that role.
     fn foreign(owner:&str)->Self {
@@ -25,18 +25,19 @@ impl PlayerId {
     }
     /* Released ctp2_source/ctp2_code/gfx/gfx_utils/ColorSet.cpp::GetPlayerColor
      * uses native player index.
-     * Live sessions freeze authenticated public setup membership into client display
-     * slots (server/roster.rs documents the integration rule), not guessed country
-     * colors, observed actor order or ID hashes. Source barbarian slot0 is reserved.
+     * Repaired sessions use persisted participant indices (server/roster.rs);
+     * only wholly legacy projections keep frozen public setup-order slots.
+     * No guessed country/encounter/hash colors; source barbarian0 is reserved.
      * Offline fixture Empire(1) is first AI/slot2; legacy self-only blue fallback
-     * remains slot1 when roster metadata is unavailable. Unknown foreign colors
+     * remains slot1 only for legacy schemas, not missing repaired server slots.
+     * Unknown participant colors
      * remain unavailable rather than masquerading as another player's palette row.
      */
     /// Borrowed territorial lookup avoids allocating owner strings for every painted tile.
     #[must_use]
     pub(in crate::gameplay) fn observed_color_slot(owner:&str,roster:&PlayerRoster)->Option<u8> {
         roster.slot(owner).or_else(|| {
-            if matches!(owner,"barbarian"|"barbarians") {Some(0_u8)}else if roster.viewer()==Some(owner)||(roster.viewer().is_none()&&matches!(owner,"human"|"player-1")){Some(1_u8)}else{None}
+            if matches!(owner,"barbarian"|"barbarians") {Some(0_u8)}else if !roster.uses_server_slots()&&(roster.viewer()==Some(owner)||(roster.viewer().is_none()&&matches!(owner,"human"|"player-1"))){Some(1_u8)}else{None}
         })
     }
     /// Exact original palette slot, without authorizing actions or hidden information.
@@ -44,7 +45,7 @@ impl PlayerId {
     #[expect(clippy::pattern_type_mismatch,reason="Borrow exact opaque owner strings without cloning retained identities")]
     pub(in crate::gameplay) fn color_slot(&self,roster:&PlayerRoster)->Option<u8> {
         match self {
-            Self::Human=>roster.viewer().and_then(|id|roster.slot(id)).or(Some(1_u8)),
+            Self::Human=>roster.viewer().and_then(|id|roster.slot(id)).or_else(||(!roster.uses_server_slots()).then_some(1_u8)),
             Self::Empire(index)=>index.checked_add(1_u8).filter(|slot|*slot<=16_u8),
             Self::Server(id)=>roster.slot(id),
             Self::Barbarians=>Some(0_u8),

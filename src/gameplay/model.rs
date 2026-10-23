@@ -367,12 +367,20 @@ pub struct MapFilters {
     pub grid: bool,
     /// Show political borders.
     pub political_borders: bool,
+    /// Show authoritative city-influence boundaries independently of national territory.
+    pub city_influence:bool,
     /// Apply fog-of-war darkening.
     pub fog_of_war: bool,
     /// Show minimap/radar.
     pub radar: bool,
 }
 
+/* Released ctp2_source/ctp2_code/ctp/userprofile.txt sets both
+ * ShowPoliticalBorders and ShowCityInfluence=Yes. ui/interface/graphicsscreen.cpp
+ * reads independent ProfileDB flags; graphics.ldl PoliticalBordersButton and
+ * CityInflenceButton are the source controls. Existing shell launch settings
+ * override these defaults at runtime; neither flag grants hidden map knowledge.
+ */
 impl Default for MapFilters {
     fn default() -> Self {
         Self {
@@ -380,6 +388,7 @@ impl Default for MapFilters {
             trade_routes: true,
             grid: false,
             political_borders: true,
+            city_influence:true,
             fog_of_war: true,
             radar: true,
         }
@@ -436,7 +445,7 @@ pub struct GameState {
     pub network: NetworkStatus,
     /// Exact viewer-safe source facts used by management UI and legal orders.
     pub viewer: Option<super::server::ServerProjection>,
-    /// Frozen public setup membership used only for stable presentation colors.
+    /// Received public identities/persisted palette slots; legacy setup fallback is explicit.
     pub roster:super::server::roster::PlayerRoster,
 }
 

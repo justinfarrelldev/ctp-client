@@ -130,6 +130,8 @@ mod selector_tests;
 mod selectors;
 /// Exact Trade identities, source columns, filters and explicit quote gaps.
 mod trade;
+/// Original local display switches shared by native/accessibility and startup.
+pub mod map_filters;
 /// Resolved three-tab Trade reference revision without shipped assets.
 mod trade_layout;
 /// Native reference trade tab geometry and empty/projection accounting.

@@ -332,7 +332,7 @@ impl Walker<'_> {
             );
         }
         let (intent, unavailable) = bindings::binding(self.ui, self.state, self.view, path, node);
-        let label = if node.name == "TitleBar" {
+        let mut label = if node.name == "TitleBar" {
             self.ui
                 .layouts
                 .get(&self.view.kind)
@@ -342,7 +342,9 @@ impl Walker<'_> {
             data::text(self.ui, self.state, self.view, path)
         }
         .unwrap_or_else(|| source_label(self.ui, node));
-        let selected = super::trade::selected(self.view, path)
+        let filter=super::map_filters::style(self.view.kind,self.state,path,&mut flat,&self.ui.book);
+        let filter_on=filter.is_some_and(|(on,text)|{label=text;on});
+        let selected = filter_on||super::trade::selected(self.view, path)
             || (path == "GovernorBox.Toggle"
                 && data::city(self.state, self.view)
                     .and_then(|city| city.governor.as_ref())

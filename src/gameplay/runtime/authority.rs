@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -30,8 +29,8 @@ pub(super) fn state_from_authority_projection(
 ) -> GameState {
     let mut state =
         GameState::from_server_projection(projection, authority.empire_count, authority.seed);
-    apply_authority_owner_mapping(authority, &mut state, projection);
-    state.roster=authority.session.roster.for_account(authority.session.account_id);
+    state.roster=if state.roster.uses_server_slots(){state.roster.for_account(authority.session.account_id)}else{authority.session.roster.for_account(authority.session.account_id)};
+    apply_authority_owner_mapping(&mut state, projection);
     state
 }
 
@@ -77,7 +76,8 @@ pub(super) fn server_unit_id_for_unit(authority: &RuntimeAuthority, unit_id: Uni
     let Some(projection) = authority.session.projection.as_ref() else {
         return String::new();
     };
-    let human_owner_id = format!("account-{}", authority.session.account_id);
+    let roster=crate::gameplay::server::roster::PlayerRoster::from_projection(&projection.interface).unwrap_or_else(||authority.session.roster.clone()).for_account(authority.session.account_id);
+    let Some(human_owner_id)=roster.viewer()else{return String::new();};
     projection
         .units
         .iter()
@@ -107,11 +107,10 @@ pub(super) fn server_tile_ids_for_path(
 
 /// Applies the authenticated account id to ownership in the render-only model.
 fn apply_authority_owner_mapping(
-    authority: &RuntimeAuthority,
     state: &mut GameState,
     projection: &ServerProjection,
 ) {
-    let human_owner_id = format!("account-{}", authority.session.account_id);
+    let human_owner_id=state.roster.viewer().unwrap_or_default().to_owned();
     for server_unit in &projection.units {
         let id = UnitId::from_server_id(&server_unit.id);
         let owner = player_id_from_authority_owner(&server_unit.owner_id, &human_owner_id);

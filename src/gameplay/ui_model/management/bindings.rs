@@ -50,6 +50,7 @@ pub(super) fn binding(
         .or_else(|| super::research::binding(state, view, path)) {
         return binding;
     }
+    if let Some(intent)=super::map_filters::binding(view.kind,state,path){return enabled(intent);}
     let name = node.name.as_str();
     if let Some(binding) = governor_binding(state, view, path, name) {
         return binding;

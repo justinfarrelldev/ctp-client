@@ -108,7 +108,7 @@ pub struct ServerGameplaySession {
     pub account_id: i64,
     /// Latest viewer-safe projection returned by the server.
     pub projection: Option<ServerProjection>,
-    /// Public accepted setup order, not canonical geography or native scheduler slots.
+    /// Persisted server participant slots; frozen setup order only for legacy servers.
     pub roster:roster::PlayerRoster,
 }
 
@@ -164,6 +164,9 @@ pub struct ServerTileProjection {
     /// Observed territorial owner; empty means known neutral.
     #[serde(default)]
     pub owner_id: Option<String>,
+    /// Exact observed city-influence assignment; empty is known none, null/missing unknown.
+    #[serde(default)]
+    pub influence_city_id:Option<String>,
     /// Effective observed tile yields, not base rules.
     #[serde(default)]
     pub yields: Option<v2::TileYield>,
@@ -288,6 +291,7 @@ impl ServerGameplaySession {
     /// Applies a fresh projection returned by a command receipt.
     pub fn apply_projection(&mut self, projection: ServerProjection) {
         if projection.revision >= self.revision() {
+            if let Some(roster)=roster::PlayerRoster::from_projection(&projection.interface){self.roster=roster.for_account(self.account_id);}
             self.projection = Some(projection);
         }
     }
@@ -386,10 +390,11 @@ impl ServerClient {
             "/game/start_game",
             &json!({"session_id": login.session_id, "game_id": game_id}),
         )?;
-        let roster=roster::PlayerRoster::from_game(&started,game_id,login.account_id).unwrap_or_else(|| {
+        let mut roster=roster::PlayerRoster::from_game(&started,game_id,login.account_id).unwrap_or_else(|| {
             log::warn!("Original foreign player colors unavailable: start response lacks a complete bounded public roster");roster::PlayerRoster::default().for_account(login.account_id)
         });
         let projection = self.fetch_resync_projection(game_id, login.session_id)?;
+        if let Some(received)=roster::PlayerRoster::from_projection(&projection.interface){roster=received.for_account(login.account_id);}
         Ok(ServerGameplaySession {
             game_id,
             session_id: login.session_id,

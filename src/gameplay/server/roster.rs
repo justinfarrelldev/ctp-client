@@ -1,6 +1,11 @@
 //! Frozen public setup membership used only for client presentation, never fog/authority.
 use alloc::collections::{BTreeMap,BTreeSet};
 use serde_json::Value;
+use serde::{Deserialize,Deserializer};
+/// Validate repaired public identity metadata independently of private game facts.
+mod projection;
+/// Preserve present null as unavailable, distinct from an absent legacy field.
+pub(super) fn present<'de,D:Deserializer<'de>>(deserializer:D)->Result<Option<Value>,D::Error> {Value::deserialize(deserializer).map(Some)}
 
 /// Stable base-game display slots for the already-public accepted setup roster.
 #[derive(Debug,Clone,Default,PartialEq,Eq)]
@@ -9,16 +14,19 @@ pub struct PlayerRoster {
     slots:BTreeMap<String,u8>,
     /// Exact authenticated viewer identity, independent of its display slot.
     viewer:Option<String>,
+    /// Explicit server slots suppress every legacy guessed palette fallback.
+    authoritative:bool,
 }
 impl PlayerRoster {
     /* Released ctp2_source/ctp2_code/gfx/gfx_utils/ColorSet.cpp::GetPlayerColor
      * indexes Colors00 by player number, NOT civilization name or diplomacy.
      * $CTPSERVER/internal/game/player_endpoints.go::startGame returns Game.Players
      * (models.go) via helpers.go::{getGameWithPlayers,listGamePlayersByGameID},
-     * whose gamePlayersSelectByGameID query publishes joined_at/id
-     * membership order in the authenticated start_game response. The server has
-     * no native color-slot field: freeze that public order as CLIENT display
-     * slots1..16, reserving0 for barbarians, as an explicit integration rule.
+     * whose gamePlayersSelectByGameID query publishes joined_at/id order.
+     * Repaired visibility/player_identity.go supplies persisted zero-based
+     * participant color_index: projection::read maps it to original slots1..16,
+     * reserving0 for barbarians. Missing server slots stay unknown. Only OLD
+     * projections without either identity field retain frozen setup-order slots.
      * Do not claim these are canonical scheduler slots, derive colors from account
      * numbers or sightings, or obtain geography/private knowledge from membership.
      */
@@ -38,12 +46,19 @@ impl PlayerRoster {
         }
         result.viewer.as_ref()?;Some(result)
     }
-    /// Preserve membership only for this exact authenticated viewer; otherwise colors stay unknown.
+    /// Repaired projection metadata wins over every setup/encounter-order fallback.
+    #[must_use]
+    pub fn from_projection(interface:&super::interface::ServerInterface)->Option<Self> {projection::read(interface)}
+    /// Whether unknown slots are authoritative unknowns, not a legacy blue fallback.
+    #[must_use]
+    pub const fn uses_server_slots(&self)->bool {self.authoritative}
+    /// Explicit server viewer IDs are opaque; only legacy metadata binds an account-derived ID.
     #[must_use]
     pub fn for_account(&self,account_id:i64)->Self {
+        if self.authoritative {return self.clone();}
         if account_id<=0_i64 {return Self::default();}
         let viewer=format!("account-{account_id}");
-        if self.viewer.as_ref()==Some(&viewer) {self.clone()}else{Self {slots:BTreeMap::new(),viewer:Some(viewer)}}
+        if self.viewer.as_ref()==Some(&viewer) {self.clone()}else{Self {slots:BTreeMap::new(),viewer:Some(viewer),authoritative:false}}
     }
     /// Exact public membership's display slot; unknown owners never inherit a neighbor.
     #[must_use]

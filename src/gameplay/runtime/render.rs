@@ -251,6 +251,11 @@ mod pixel_tests;
 /// Original player palette and exact-owner native flags/city/fog rendering.
 #[cfg(test)]
 mod player_color_tests;
+/// Repaired server national territory, city influence and palette identity.
+#[cfg(test)]
+mod border_tests;
+/// Source solid/dashed borders from authoritative observed assignments.
+mod borders;
 /// Independent source-art checks for native policy sliders and percentage controls.
 #[cfg(test)]
 mod policy_tests;

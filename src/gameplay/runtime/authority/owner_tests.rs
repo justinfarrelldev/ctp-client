@@ -3,6 +3,28 @@ use super::{RuntimeAuthority,state_from_authority_projection,replace_state_from_
 use crate::gameplay::{model::{CityId,PlayerId},server::{ServerClient,ServerConfig,ServerGameplaySession,ServerProjection,roster::PlayerRoster}};
 use serde_json::json;
 
+#[test]
+fn nation_borders_receipts_keep_persisted_colors_and_filters_after_last_unit_and_reject_stale_identity() {
+    let (mut authority,mut viewer)=fixture();
+    viewer.interface.viewer_player_id=Some(json!("account-7"));viewer.interface.players=Some(json!([{"id":"account-43","nation_id":"n43","color_index":1_u8},{"id":"account-7","nation_id":"n7","color_index":4_u8},{"id":"account-42","nation_id":"n42","color_index":0_u8}]));
+    authority.session.apply_projection(viewer.clone());let mut state=state_from_authority_projection(&authority,&viewer);state.filters.political_borders=false;state.filters.city_influence=false;
+    assert_eq!(state.roster.slot("account-7"),Some(5_u8),"persisted slot supersedes setup position2");
+    let old=viewer.clone();viewer.revision=8_i64;viewer.units.clear();viewer.interface.players.as_mut().and_then(serde_json::Value::as_array_mut).expect("public identities").reverse();replace_state_from_projection(&authority,&mut state,&viewer);authority.session.apply_projection(viewer.clone());
+    assert_eq!(state.roster.slot("account-7"),Some(5_u8),"last settler consumption/reordered roster cannot turn self into foreign or change color");assert!(!state.filters.political_borders&&!state.filters.city_influence,"received state preserves independent local display settings");
+    assert_eq!(state.cities.iter().find(|city|city.id==CityId::from_server_id("c7")).expect("founded city").owner,PlayerId::Human,"self identity does not depend on units");
+    authority.session.apply_projection(old.clone());replace_state_from_projection(&authority,&mut state,&old);assert_eq!(state.viewer.as_ref().expect("current").revision,8_i64,"old founding receipt cannot roll back assignments or identity");assert_eq!(authority.session.roster.slot("account-7"),Some(5_u8),"session retains published static identities on stale replay");
+    viewer.revision=9_i64;viewer.interface.players=Some(json!([{"id":"account-7","nation_id":"n7"}]));replace_state_from_projection(&authority,&mut state,&viewer);assert_eq!(state.roster.slot("account-7"),None,"explicit legacy-save unknown index cannot revive stale/setup colors");
+}
+
+#[test]
+fn nation_borders_explicit_viewer_identity_is_opaque_not_rederived_from_account_or_units() {
+    let (mut authority,mut viewer)=fixture();viewer.interface.viewer_player_id=Some(json!("opaque-viewer"));viewer.interface.players=Some(json!([{"id":"opaque-viewer","nation_id":"nation-x","color_index":3_u8}]));
+    for unit in &mut viewer.units {if unit.owner_id=="account-7"{"opaque-viewer".clone_into(&mut unit.owner_id);}}
+    for city in &mut viewer.cities {if city.owner_id=="account-7"{"opaque-viewer".clone_into(&mut city.owner_id);}}
+    authority.session.apply_projection(viewer.clone());let state=state_from_authority_projection(&authority,&viewer);assert_eq!(state.roster.viewer(),Some("opaque-viewer"),"authenticated response defines the exact viewer ID");
+    let own=state.units.iter().find(|unit|unit.owner==PlayerId::Human).expect("exact explicit self");assert_eq!(super::server_unit_id_for_unit(&authority,own.id),"u7","wire selection uses the same opaque viewer identity");assert_eq!(PlayerId::Human.color_slot(&state.roster),Some(4_u8),"explicit persisted color, not inferred account order");
+}
+
 /// Deliberately put self second, use unrelated account suffixes, and co-locate cities.
 fn fixture()->(RuntimeAuthority,ServerProjection) {
     let roster=PlayerRoster::from_game(&json!({"id":44_i64,"players":[{"id":90_i64,"account_id":42_i64},{"id":91_i64,"account_id":7_i64},{"id":92_i64,"account_id":43_i64}]}),44_i64,7_i64).expect("public accepted roster");

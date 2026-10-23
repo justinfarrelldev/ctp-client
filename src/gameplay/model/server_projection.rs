@@ -86,8 +86,8 @@ fn unit_kind_from_server_unit(unit: &ServerUnitProjection) -> UnitKind {
 }
 
 /// Converts an authoritative server owner id into a local render owner.
-fn player_id_from_server_owner(owner_id: &str) -> PlayerId {
-    PlayerId::from_observed(owner_id)
+fn player_id_from_server_owner(owner_id: &str,roster:&super::super::server::roster::PlayerRoster) -> PlayerId {
+    roster.viewer().map_or_else(||if roster.uses_server_slots(){PlayerId::authenticated(owner_id,"")}else{PlayerId::from_observed(owner_id)},|viewer|PlayerId::authenticated(owner_id,viewer))
 }
 
 /// Creates a renderable state from an authoritative server projection.
@@ -121,6 +121,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .iter()
         .map(|tile| (tile.id.clone(), MapPoint::new(tile.x, tile.y)))
         .collect::<BTreeMap<_, _>>();
+    let roster=super::super::server::roster::PlayerRoster::from_projection(&projection.interface).unwrap_or_default();
     let units = projection
         .units
         .iter()
@@ -129,7 +130,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
             let mut converted = new_unit(
                 UnitId::from_server_id(&unit.id),
                 unit_kind_from_server_unit(unit),
-                player_id_from_server_owner(&unit.owner_id),
+                player_id_from_server_owner(&unit.owner_id,&roster),
                 position,
             );
             converted.movement_points = unit.movement;
@@ -146,7 +147,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         .filter_map(|city| {
             Some(City {
                 id: CityId(stable_id_from_text(&city.id)),
-                owner: player_id_from_server_owner(&city.owner_id),
+                owner: player_id_from_server_owner(&city.owner_id,&roster),
                 position: *tile_lookup.get(&city.tile_id)?,
                 name: city.facts["name"]
                     .as_str()
@@ -190,7 +191,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         city_build_menu: None,
         network: super::NetworkStatus::Ready,
         viewer: Some(projection.clone()),
-        roster:super::super::server::roster::PlayerRoster::default(),
+        roster,
     }
 }
 

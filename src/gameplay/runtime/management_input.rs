@@ -13,6 +13,9 @@ mod build_input;
 /// Native Build head-selection/quote requests use an isolated gateway only.
 #[cfg(test)]
 mod build_tests;
+/// Native semantic Graphics border/influence display callbacks.
+#[cfg(test)]
+mod border_tests;
 /// Source contact-details keyboard and receipt-safe related navigation.
 #[cfg(test)]
 mod diplomacy_tests;
@@ -373,6 +376,9 @@ pub(super) fn apply(
         }
         ManagerIntent::Scroll(path, delta) => {
             ui.management.scroll(&path, delta, state);
+        }
+        ManagerIntent::Select(key,value) if crate::gameplay::ui_model::management::map_filters::recognizes(&key)=>{
+            if !crate::gameplay::ui_model::management::map_filters::apply(&ui.management,state,&key,&value){"That display control is no longer current".clone_into(&mut ui.status_text);}
         }
         ManagerIntent::Select(key, id) if matches!(key.as_str(), "city" | "government") => {
             select_identity(ui, state, &key, &id);

@@ -3,15 +3,17 @@ use crate::gameplay::{
     model::MapPoint,
     server::{ServerProjection, ServerTileProjection},
 };
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap,BTreeSet};
 
-/// Indices only; no duplicate geography, hidden cells or authoritative facts.
+/// Coordinate/visible-city ID indices only; no duplicate geography or hidden facts.
 #[derive(Debug, Default)]
 pub(super) struct ObservedTiles {
     /// Revision of this session's immutable viewer snapshot.
     revision: Option<i64>,
     /// Explicit observed coordinates mapped back into that snapshot.
     indices: BTreeMap<(u16, u16), usize>,
+    /// Exact currently visible city IDs only; influence does not reveal hidden city facts.
+    influence_cities:BTreeSet<String>,
 }
 impl ObservedTiles {
     /// Rebuilds once per complete snapshot, never once per tile or pointer lookup.
@@ -23,6 +25,8 @@ impl ObservedTiles {
                 .enumerate()
                 .map(|(index, tile)| ((tile.x, tile.y), index))
                 .collect();
+            let visible_tiles:BTreeSet<_>=viewer.tiles.iter().filter(|tile|!tile.stale&&!tile.id.is_empty()).map(|tile|tile.id.as_str()).collect();
+            self.influence_cities=viewer.cities.iter().filter(|city|!city.stale&&!city.id.is_empty()&&!city.tile_id.is_empty()&&visible_tiles.contains(city.tile_id.as_str())).map(|city|city.id.clone()).collect();
             self.revision = Some(viewer.revision);
         }
     }
@@ -40,6 +44,8 @@ impl ObservedTiles {
 }
 
 impl super::GameplayTextures<'_> {
+    /// Last-observed influence IDs do not authorize hidden/current city lookups.
+    pub(in crate::gameplay::runtime) fn influence_city_visible(&self,id:&str)->bool {self.observed.influence_cities.contains(id)}
     /// Updates only coordinate indices, never copies or extrapolates tile facts.
     pub(in crate::gameplay::runtime) fn observe_tiles(&mut self, viewer: &ServerProjection) {
         self.observed.update(viewer);

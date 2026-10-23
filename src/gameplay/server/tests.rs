@@ -12,6 +12,14 @@ use super::{
     decode_chunked_body,
 };
 
+/// Current public resync metadata rides the same existing synthetic starter stream.
+fn nation_border_resync_event()->String {
+    let source=synthetic_starting_resync_event();let data=source.lines().find_map(|line|line.strip_prefix("data: ")).expect("isolated SSE payload");let mut envelope:serde_json::Value=serde_json::from_str(data).expect("existing synthetic stream");
+    envelope["event_cursor"]=json!(1_i64);envelope["snapshot"]["viewer_player_id"]=json!("account-7");envelope["snapshot"]["players"]=json!([{"id":"account-14","nation_id":"nation-account-14","color_index":1_u8},{"id":"account-7","nation_id":"nation-account-7","color_index":0_u8}]);
+    for tile in envelope["snapshot"]["tiles"].as_array_mut().expect("observed tiles") {tile["owner_id"]=json!("");tile["influence_city_id"]=json!("");}
+    format!("id: 1\nevent: resync\ndata: {envelope}\n\n")
+}
+
 #[test]
 fn endpoint_parses_localhost_with_default_port() {
     let endpoint = HttpEndpoint::parse("http://localhost").expect("endpoint should parse");
@@ -93,7 +101,7 @@ fn player_colors_bootstrap_retries_capacity_limited_setup_request_and_retains_pu
             ),
             (200_u16, json!({"id":44_i32}).to_string()),
             (200_u16, json!({"id":44_i32,"players":[{"id":91_i64,"account_id":7_i64},{"id":92_i64,"account_id":14_i64}]}).to_string()),
-            (200_u16, synthetic_starting_resync_event()),
+            (200_u16, nation_border_resync_event()),
         ];
         let mut add_ai_requests = 0_u8;
         for (status, response) in responses {
@@ -135,6 +143,8 @@ fn player_colors_bootstrap_retries_capacity_limited_setup_request_and_retains_pu
 
     assert_eq!(session.game_id, 44);
     assert_eq!(session.session_id, 11);
+    assert!(session.roster.uses_server_slots(),"bootstrap SSE persisted identities supersede setup order");
+    assert_eq!(session.projection.as_ref().expect("SSE snapshot").tiles[0_usize].influence_city_id.as_deref(),Some(""),"HTTP/SSE keeps explicit known no-influence rather than discarding it");
     assert_eq!(session.roster.slot("account-7"),Some(1_u8),"accepted public human membership");
     assert_eq!(session.roster.slot("account-14"),Some(2_u8),"accepted AI membership, not first sighting or account modulo");
     handle.join().expect("server thread should finish");

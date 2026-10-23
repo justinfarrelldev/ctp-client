@@ -3,7 +3,7 @@ use crate::gameplay::model::{FogState, GameState, MapPoint, TileFeature};
 use crate::gameplay::runtime::{Camera, textures::GameplayTextures};
 use crate::gameplay::{GameplayError, runtime_error};
 use sdl2::{
-    rect::{Point, Rect},
+    rect::Rect,
     render::Canvas,
     video::Window,
 };
@@ -70,66 +70,9 @@ pub(super) fn draw(
                     }
                 }
             }
-            if state.filters.political_borders {
-                if let Some(owner) = source.owner_id.as_deref().filter(|owner| !owner.is_empty()) {
-                    borders(canvas, textures, state, camera, point, owner)?;
-                }
+            if state.filters.political_borders||state.filters.city_influence {
+                super::borders::draw(canvas,textures,state,camera,point)?;
             }
-        }
-    }
-    Ok(())
-}
-
-/// Edges require two explicit observed owners; nearby cities confer no ownership.
-fn borders(
-    canvas: &mut Canvas<Window>,
-    textures: &GameplayTextures<'_>,
-    state: &GameState,
-    camera: &Camera,
-    point: MapPoint,
-    owner: &str,
-) -> Result<(), GameplayError> {
-    let Some(viewer) = state.viewer.as_ref() else {
-        return Ok(());
-    };
-    /* Released source under ctp2_source/ctp2_code/:
-     * gfx/tilesys/tiledraw.cpp::TiledMap::{DrawNationalBorders,
-     * GetVisibleCellOwner} uses NORMAL ColorSet::GetPlayerColor even for a
-     * remembered owner; city captions alone use its dark variant. Colors00.txt
-     * defines those runtime colors, not LDL. Frozen public setup slots supply
-     * only presentation: they never create the observed owner or make an absent
-     * neighboring owner known. Keep the existing safer observed-neighbor gate,
-     * not the original canonical-world/city lookup or full border parity.
-     */
-    let color=textures.observed_owner_color(state,owner);
-    let (x, y) = camera.tile_to_screen(point);
-    let scale = i32::try_from(camera.tile_width().div_euclid(94).max(1)).unwrap_or(1_i32);
-    for (dx, dy, start, end) in [
-        (1_i16, 0_i16, (94_i32, 48_i32), (47_i32, 72_i32)),
-        (0_i16, 1_i16, (47_i32, 72_i32), (0_i32, 48_i32)),
-        (-1_i16, 0_i16, (0_i32, 48_i32), (47_i32, 24_i32)),
-        (0_i16, -1_i16, (47_i32, 24_i32), (94_i32, 48_i32)),
-    ] {
-        let neighbor = point
-            .offset(dx, dy, state.width, state.height)
-            .and_then(|neighbor| textures.observed_tile(viewer, neighbor));
-        if neighbor
-            .and_then(|neighbor| neighbor.owner_id.as_deref())
-            .is_some_and(|other| other != owner)
-        {
-            canvas.set_draw_color(color);
-            canvas
-                .draw_line(
-                    Point::new(
-                        x.saturating_add(start.0.saturating_mul(scale)),
-                        y.saturating_add(start.1.saturating_mul(scale)),
-                    ),
-                    Point::new(
-                        x.saturating_add(end.0.saturating_mul(scale)),
-                        y.saturating_add(end.1.saturating_mul(scale)),
-                    ),
-                )
-                .map_err(runtime_error)?;
         }
     }
     Ok(())

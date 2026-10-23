@@ -45,7 +45,7 @@ fn player_colors_native_flags_heralds_city_boxes_and_fog_share_distinct_original
                 let mut observed=GameState::from_server_projection(&viewer,4_u8,1_u64);observed.roster=state.roster.clone();observed.filters.political_borders=true;
                 canvas.set_draw_color(Color::RGB(0_u8,0_u8,0_u8));canvas.clear();super::observations::draw(canvas,&mut textures,&observed,&camera,MapPoint::new(2_u16,2_u16)).map_err(|error|error.to_string())?;let pixels=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
                 if known_neighbor {
-                    let (x,y)=camera.tile_to_screen(MapPoint::new(2_u16,2_u16));let offset=usize::try_from(y.saturating_add(48_i32).saturating_mul(800_i32).saturating_add(x.saturating_add(94_i32)).saturating_mul(4_i32)).map_err(|error|error.to_string())?;let color=textures.player_color(&observed,&PlayerId::Server("account-42".to_owned()),false);
+                    let (x,y)=camera.tile_to_screen(MapPoint::new(2_u16,2_u16));let offset=usize::try_from(y.saturating_add(48_i32).saturating_mul(800_i32).saturating_add(x.saturating_add(92_i32)).saturating_mul(4_i32)).map_err(|error|error.to_string())?;let color=textures.player_color(&observed,&PlayerId::Server("account-42".to_owned()),false);
                     if pixels[offset..offset.saturating_add(3_usize)]!=[color.r,color.g,color.b]{return Err("visible/remembered political border must use original NORMAL player color".to_owned());}
                 } else if pixels.chunks_exact(4_usize).any(|pixel|pixel[..3_usize]!=[0_u8;3_usize]) {return Err("public roster fabricated a border against an unknown neighbor".to_owned());}
             }
