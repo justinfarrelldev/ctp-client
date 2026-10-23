@@ -5,6 +5,8 @@ use alloc::collections::{BTreeMap, BTreeSet};
 
 /// Bounded original U/B/W/CAP/INF file grammar.
 pub mod codec;
+/// Source local Custom authoring; never city production or filesystem effects.
+pub mod custom;
 #[cfg(test)]
 mod tests;
 
@@ -66,6 +68,8 @@ impl QueueFile {
 /// Last explicit local directory snapshot; no file I/O is performed by rendering.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QueueLibrary {
+    /// Independent local custom editor survives read-only file catalog refreshes.
+    pub custom: custom::State,
     /// Exact local keys; duplicate names in distinct sources remain distinct.
     pub files: BTreeMap<String, QueueFile>,
     /// Directory/provider failure is not a fabricated empty catalog.
@@ -84,8 +88,8 @@ pub struct QueueLibrary {
  * current pinned kinds/IDs, captures one atomic revision-bound replacement and
  * retains known funded head. No costs/private buildability/local CityData edits.
  * Failed/invalid files cannot clear a queue before open as original Load does.
- * Custom/save and destructive delete are separate unfinished local workflows;
- * neither is substituted with a raw authoritative comma/JSON editor.
+ * Local custom authoring delegates to custom; Save/destructive delete remain
+ * unfinished workflows, never a raw authoritative comma/JSON editor substitute.
  */
 /// True only for the visible original inline browser mode.
 pub(super) fn active(view: &ManagerView) -> bool {
@@ -94,11 +98,11 @@ pub(super) fn active(view: &ManagerView) -> bool {
 /// Original source controls return presentation or captured confirmed commands.
 pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
     if view.kind != ManagerKind::Build { return None; }
+    if let Some(binding) = custom::binding(ui, state, view, path) { return Some(binding); }
     match path {
         "ItemsBox.LoadSaveButton" => Some((Some(ManagerIntent::Select(MODE.to_owned(), "true".to_owned())), None)),
         "LoadBox.CancelButton" => Some((Some(ManagerIntent::Select(MODE.to_owned(), "false".to_owned())), None)),
         "LoadBox.DeleteButton" => Some(disabled("Original saved-file deletion confirmation/write backend is not implemented; no file is altered")),
-        "NormalModeButtons.CustomButton" => Some(disabled("Original local custom-queue authoring/save is not implemented; this button is not a raw authoritative queue editor")),
         "LoadBox.LoadButton" => Some(load_dialog(ui, state, view).map_or_else(|reason| disabled(&reason), |dialog| (Some(ManagerIntent::Dialog(Box::new(dialog))), None))),
         _ => None,
     }

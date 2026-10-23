@@ -275,6 +275,15 @@ pub(super) fn apply(
     authority: Option<&mut RuntimeAuthority>,
 ) {
     match intent {
+        /* Released EditQueue.cpp::{CustomButton,Add,InsertInQueue,Remove,Up,
+         * Down,ClearButton,LoadCustom} edits m_customBuildList without CityData.
+         * editqueue.ldl Custom/ItemsBox/QueueGroup descriptors share this local
+         * native/accessibility dispatcher, never submit_authoritative_command.
+         */
+        ManagerIntent::Custom(action) => {
+            if crate::gameplay::ui_model::management::saved::custom::apply(&mut ui.management, state, action) { ui.manager_press = None; }
+            else { "This local template choice is no longer current; nothing was changed".clone_into(&mut ui.status_text); }
+        }
         ManagerIntent::Dialog(dialog) => ui.operation = Some(*dialog),
         ManagerIntent::Submit(command) => {
             if !command.valid_for(state) {

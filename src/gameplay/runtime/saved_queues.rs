@@ -1,5 +1,5 @@
 //! Explicit read-only saved-queue requests, outside model/input/render execution.
-use crate::gameplay::ui_model::{InGameUiModel, management::{ManagerKind, saved::{self, QueueFile, QueueLibrary}}};
+use crate::gameplay::ui_model::{InGameUiModel, management::{ManagerKind, saved::{self, QueueFile}}};
 use alloc::collections::{BTreeMap, BTreeSet};
 use std::{fs, io::Read, path::{Path, PathBuf}};
 #[cfg(test)]
@@ -86,10 +86,10 @@ fn requested(ui: &InGameUiModel) -> bool {
 pub(super) fn service_with(ui: &mut InGameUiModel, sources: &[(String, PathBuf)], reader: &mut impl QueueReader) -> bool {
     if !requested(ui) { return false; }
     match scan(sources, reader) {
-        Ok(files) => ui.management.saved_queues = QueueLibrary { files, error: None },
+        Ok(files) => { ui.management.saved_queues.files = files; ui.management.saved_queues.error = None; },
         Err(reason) => {
             reason.clone_into(&mut ui.status_text);
-            ui.management.saved_queues = QueueLibrary { files: BTreeMap::new(), error: Some(reason) };
+            ui.management.saved_queues.files.clear();ui.management.saved_queues.error = Some(reason);
         }
     }
     if let Some(view) = ui.management.view.as_mut() { view.selections.remove(saved::REFRESH); }

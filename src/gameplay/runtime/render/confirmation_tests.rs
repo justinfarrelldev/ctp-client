@@ -82,3 +82,27 @@ fn build_saved_load_native_browser_art_rows_and_localized_query_render_without_f
     });
     assert!(result.is_ok(),"source LoadBox/QueryLoadQueue composition: {result:?}");
 }
+
+/* Released EditQueue.cpp::SetMode(CUSTOM), editqueue.ldl::BuildEditorWindow.
+ * {CustomModeButtons,ItemsBox.ModeLabel,QueueGroup.QueueLabel} provide the actual
+ * source-only control geometry/art. This in-memory composition is not a full
+ * reference frame or proof of the still-unimplemented file Save operation.
+ */
+#[test]
+fn build_custom_source_mode_buttons_labels_and_local_queue_art_render_in_memory() {
+    let result=with_canvas((800_u32,600_u32),|canvas| {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();
+        let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;
+        let projection:ServerProjection=serde_json::from_value(json!({"revision":7_i64,"turn":1_u32,"tiles":[],"cities":[],"rules":{"units":[{"id":"UNIT_SETTLER"}]}})).map_err(|error|error.to_string())?;
+        let state=GameState::from_server_projection(&projection,1_u8,1_u64);
+        let mut ui=InGameUiModel {management:ManagementUi::new(LayoutBook::load(&root).map_err(|error|error.to_string())?).map_err(|error|error.to_string())?,..InGameUiModel::default()};
+        ui.management.open(ManagerKind::Build,&state,None);
+        if !crate::gameplay::ui_model::management::saved::custom::apply(&mut ui.management,&state,crate::gameplay::ui_model::management::saved::custom::Action::Begin) {return Err("local Custom mode unavailable".to_owned());}
+        let save=ui.management.widgets(&state).into_iter().find(|widget|widget.id=="CustomModeButtons.SaveButton").ok_or_else(||"source custom Save control missing".to_owned())?;
+        if save.rect.width!=160_u32 || save.label!=ui.management.book.label("str_ldl_EditQueueSave") || save.intent.is_some() {return Err("source Save geometry/label or honest pending file-effect availability lost".to_owned());}
+        canvas.set_draw_color(Color::BLACK);canvas.clear();
+        super::management::draw_management(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;
+        Ok(())
+    });
+    assert!(result.is_ok(),"source local Custom presentation: {result:?}");
+}

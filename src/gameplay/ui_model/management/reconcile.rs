@@ -10,6 +10,11 @@ pub(super) fn apply(ui: &mut ManagementUi, state: &GameState) {
     for view in &mut ui.parents {
         view_state(view, state);
     }
+    /* Released ui/interface/EditQueue.cpp::SetMode retains oldCity, restoring
+     * only if IsValid; editqueue.ldl::SingleCityChooser is hidden in Custom.
+     * Async client reconciles this saved parent too, never reviving lost ownership.
+     */
+    if let Some(draft) = ui.saved_queues.custom.draft.as_mut() { view_state(&mut draft.parent, state); }
     while ui.view.as_ref().is_some_and(|view| {
         matches!(
             view.kind,
@@ -54,7 +59,7 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
                     })
                 })
         });
-        if !queue_valid {
+        if !queue_valid && !super::saved::custom::active(view) {
             /* Source: EditQueue.cpp::Update/ShowSelectedInfo and source
              * editqueue.ldl::QueueGroup.QueueList/ItemDescription. Async client
              * reconciliation clears only the vanished entry's description role,

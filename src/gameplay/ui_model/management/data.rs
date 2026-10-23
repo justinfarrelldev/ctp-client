@@ -98,7 +98,7 @@ pub(super) fn rows(
     if view.kind == ManagerKind::Library {
         return super::index::rows(ui, state);
     }
-    if let Some(rows) = super::saved::rows(ui, view, path) { return rows; }
+    if let Some(rows) = super::saved::custom::rows(ui, view, path).or_else(|| super::saved::rows(ui, view, path)) { return rows; }
     let Some(viewer) = state.viewer.as_ref() else {
         return Vec::new();
     };
@@ -334,7 +334,7 @@ pub(super) fn text(
      * editqueue.ldl::BuildEditorWindow.RushBuyCost; build::text documents
      * original style/position and current-quote/entry-identity differences.
      */
-    if let Some(text) = super::build::text(state, view, path) {
+    if let Some(text) = super::saved::custom::text(ui, view, path).or_else(|| super::build::text(state, view, path)) {
         return Some(text);
     }
     if let Some(text) = super::advisors::text(ui, state, view, path) {

@@ -214,6 +214,8 @@ pub struct ManagerCommand {
 /// Semantic interaction available to real SDL input and accessible automation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManagerIntent {
+    /// Original local template callback, never an authoritative city operation.
+    Custom(saved::custom::Action),
     /// Explicit revision-bound input/target dialog; opening never submits.
     Dialog(Box<super::operations::OperationDialog>),
     /// Close only the top manager, not the application or current turn.
@@ -679,6 +681,11 @@ impl ManagementUi {
 
     /// Restores a parent while cancelling native capture, composition and deferred I/O.
     fn close(&mut self) {
+        /* Released ui/interface/EditQueue.cpp::{CustomButton,SetMode} and
+         * editqueue.ldl::CustomModeButtons.CancelButton restore old mode;
+         * client ESC shares this non-executing local cancellation path.
+         */
+        if saved::custom::cancel(self) { return; }
         if self
             .view
             .as_ref()
@@ -772,6 +779,7 @@ impl ManagementUi {
                 changed
             }
             ManagerIntent::Close
+            | ManagerIntent::Custom(_)
             | ManagerIntent::Open(_)
             | ManagerIntent::ForCity(..)
             | ManagerIntent::ContactDetails(_)

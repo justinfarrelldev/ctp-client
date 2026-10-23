@@ -101,6 +101,14 @@ fn ensure(ui: &mut ManagementUi, state: &GameState, path: &str, index: usize, co
 pub(in crate::gameplay::ui_model::management) fn track(ui: &mut ManagementUi, state: &GameState) {
     let Some(view) = ui.view.as_ref().filter(|view| view.kind == ManagerKind::Build) else { return; };
     let position = view.selections.get("queue").and_then(|id| {
+        /* Released EditQueue.cpp::{Up,Down} also moves m_customBuildList and
+         * EnsureItemVisible in editqueue.ldl::QueueGroup.QueueList. Local epoch
+         * anchors are not city IDs or received production execution.
+         */
+        if super::super::saved::custom::active(view) {
+            let draft = ui.saved_queues.custom.draft.as_ref()?;
+            return Some((id.clone(), format!("custom:{}",draft.epoch), draft.entries.iter().position(|entry|entry.id==*id)?, draft.entries.len()));
+        }
         let city = data::city(state, view)?;
         let entries = city.facts["queue"].as_array()?;
         let index = entries.iter().position(|entry| entry["entry_id"].as_str() == Some(id))?;

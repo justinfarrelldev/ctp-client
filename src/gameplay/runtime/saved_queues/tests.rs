@@ -37,7 +37,11 @@ fn entry(name: &str) -> Entry {Entry {name:name.to_owned(),regular:true}}
 #[test]
 fn build_saved_reader_scans_once_on_explicit_request_and_retains_exact_cached_preview() {
     let mut ui=ui();let mut reader=Reader {entries:vec![entry("alpha")],bytes:BTreeMap::from([("alpha".to_owned(),Ok(b"U UNIT_SETTLER".to_vec()))]),..Reader::default()};
+    ui.management.view.as_mut().expect("view").selections.insert(saved::custom::MODE.to_owned(),"true".to_owned());
+    ui.management.saved_queues.custom=saved::custom::State {epoch:42_u64,draft:Some(saved::custom::Draft {epoch:42_u64,version:9_u64,next:1_u64,parent:ui.management.view.clone().expect("exact custom parent"),catalog:BTreeMap::from([("UNIT_SETTLER".to_owned(),saved::Item::Unit("UNIT_SETTLER".to_owned()))]),entries:vec![saved::custom::Entry {id:"custom:42:1".to_owned(),content:"UNIT_SETTLER".to_owned()}]})};
+    let authoring=ui.management.saved_queues.custom.clone();
     assert!(service_with(&mut ui,&sources(),&mut reader),"explicit original Load request serviced");
+    assert_eq!(ui.management.saved_queues.custom,authoring,"read-only catalog refresh cannot erase local work, parent or generation");
     assert_eq!(reader.reads,vec![PathBuf::from("/memory/queues/alpha")],"only exact safe file");
     assert_eq!(ui.management.saved_queues.files.get("memory:alpha").expect("exact source key").parsed.as_ref().expect("full preview").items.len(),1_usize,"final line intact");
     assert!(!service_with(&mut ui,&sources(),&mut reader),"unchanged frame never scans files");assert_eq!(reader.lists,1_usize,"one directory snapshot");

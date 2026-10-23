@@ -634,10 +634,16 @@ fn hidden(view: &ManagerView, path: &str) -> bool {
          */
         if path == "LoadBox" { return !super::saved::active(view); }
         if path == "ItemsBox" { return super::saved::active(view); }
+        /* Released EditQueue.cpp::SetMode(CUSTOM), editqueue.ldl::BuildEditorWindow:
+         * null CityData hides SingleCityChooser/normal controls, shows original
+         * CustomModeButtons. Right queue and category geometry do not change.
+         */
+        let custom = super::saved::custom::active(view);
+        if path == "CustomModeButtons" { return !custom; }
+        if matches!(path, "SingleCityChooser" | "NormalModeButtons") { return custom; }
         if [
             "MultiGroup",
             "MultiCityList",
-            "CustomModeButtons",
         ]
         .iter()
         .any(|name| path == *name)

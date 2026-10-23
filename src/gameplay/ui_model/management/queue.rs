@@ -43,6 +43,11 @@ pub(super) fn replacement(state:&GameState, city_id:&str, entries:&[Value])->Opt
  * stable entry identities in request(), so this cannot grant a legacy command.
  */
 /// Resolves exact typed entry content, or explicit read-only legacy content.
-pub(super) fn content<'view>(state:&'view GameState, view:&ManagerView, entry:&str)->Option<&'view str> {
+pub(super) fn content<'view>(state:&'view GameState, view:&'view ManagerView, entry:&str)->Option<&'view str> {
+    /* Released EditQueue.cpp::ShowSelectedInfo walks m_customBuildList when
+     * CityData is null; editqueue.ldl::ItemDescription/ItemImage/LibraryButton
+     * resolve its actual content. This map projects local entry identity only.
+     */
+    if super::saved::custom::active(view) { return super::saved::custom::content(view,entry); }
     data::city(state,view)?.facts["queue"].as_array()?.iter().find(|item| item["entry_id"].as_str().map_or_else(|| item["id"].as_str() == Some(entry), |id| id == entry)).and_then(|item| item["id"].as_str())
 }
