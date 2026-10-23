@@ -47,6 +47,14 @@ Detailed existing checklists: [Build/Library workflow detail](plans/great-librar
 - [ ] Continue original category/queue selection, descriptions/pictures/library, source Add/Insert/Remove/Clear/reorder confirmations, city selector/return and automatic founding/completion. Retain exact current entry IDs and queued-versus-executed outcomes; all unsupported/custom/load/suggest behavior must be explicit, never an enabled unrelated substitution.
 - [ ] Re-audit source-backed Build/City fixtures, source logical geometry/art/fonts/controls and native accessible journeys; one focused verification pass per coherent change. No scaling work now; all full-reference acceptances stay open.
 
+### Current user fix: actual research entry wiring
+
+Existing detail: [Science Manager checklist](plans/science-manager-reference-parity.md). One bounded workflow/commit, before resuming the broader UI wave.
+
+- [x] Trace released DomesticControlPanel constructor/EditResearchButtonActionCallback → SciAdvanceScreen, distinct CityControlPanel build callbacks, and keypress/screenutils/userkeymap global science/modal chain. Four causal runtime REDs reproduced wrong/no panel entry and swallowed Build shortcuts; tests enter via actual handle_event using source semantic descriptors, not direct chooser-open shortcuts.
+- [x] Exact Domestic portrait/radial now open the real chooser independently of city/current target; City portrait/radial retain exact selected-city Build. F6/client alias and original Ctrl6 leave ordinary Build for Science, preserve protected modal/dropdown/editor owners, reject repeat/Alt variants and never submit. Explicit research navigation consumes stale automatic Build presentation only. Native Toolmaking selection/one exact revision7 set-research, Cancel/queued-vs-executed/current progress and stale/pending/removed/no-session negatives covered. No server/scaling/style changes.
+- [x] Focused34 research tests GREEN, including6 new real-entry runtime workflows and1 new semantic descriptor regression; current valid LLVM81.44%/strict lint pass after extracting shared manager-open dispatch to keep apply_action bounded (no allowance). Changed modules<800 (UI root777). Source/privacy/performance review complete; FIXES/linked evidence updated. Unchanged normal hooks/native build remain the final commit gate; no reference24/full-game/live acceptance inferred.
+
 ### Science handoff — verified components, not accepted reference24
 
 Detailed source/TDD checklist: [Science Manager reference24](plans/science-manager-reference-parity.md).

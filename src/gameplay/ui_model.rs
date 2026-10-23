@@ -618,14 +618,19 @@ impl InGameUiModel {
         }
     }
 
-    /// Applies an action to pure game/UI state and returns requested sounds.
-    pub fn apply_action(
-        &mut self,
-        state: &mut GameState,
-        action: InGameAction,
-    ) -> Vec<GameplaySound> {
-        let mut sounds = Vec::new();
+    /// Opens an exact source manager, independently of gameplay/sound dispatch.
+    fn open_manager_action(&mut self,state:&mut GameState,action:InGameAction) {
         if let Some(kind) = management::kind_for_action(action) {
+            /* Released ctp2_source/ctp2_code/ui/aui_ctp2/keypress.cpp::KEY_FUNCTION_OPEN_SCIENCE_STATUS calls
+             * ctp2_source/ctp2_code/ui/interface/screenutils.cpp::close_AllScreens/open_ScienceStatus, including
+             * hiding EditQueue, before science.ldl::ScienceManagementDialog.
+             * Clear only obsolete client presentation requests/Library overlay:
+             * a deferred founding Build must not override this explicit choice.
+             * No canonical city/research fact or local Custom draft is changed.
+             */
+            if action==InGameAction::OpenScienceStatus {
+                state.city_build_menu=None;self.great_library=None;
+            }
             let city = self.selected_city.and_then(|id| {
                 state
                     .viewer
@@ -650,6 +655,16 @@ impl InGameUiModel {
                     ));
             }
         }
+    }
+
+    /// Applies an action to pure game/UI state and returns requested sounds.
+    pub fn apply_action(
+        &mut self,
+        state: &mut GameState,
+        action: InGameAction,
+    ) -> Vec<GameplaySound> {
+        let mut sounds = Vec::new();
+        self.open_manager_action(state,action);
         match action {
             InGameAction::EndTurn => {
                 state.end_turn();

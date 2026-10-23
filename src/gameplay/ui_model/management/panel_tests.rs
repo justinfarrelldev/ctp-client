@@ -23,7 +23,7 @@ fn fixture(value: serde_json::Value) -> (InGameUiModel, GameState) {
 }
 
 #[test]
-fn all_nonunit_tabs_have_source_bodies_and_empty_city_has_no_fabricated_portrait_or_name() {
+fn research_entry_nonunit_tabs_keep_source_navigation_distinct_from_commands_and_empty_city_art() {
     let (mut ui, state) = fixture(json!({"revision":1_i64,"turn":1_u32}));
     for (tab, id) in [
         (
@@ -44,8 +44,8 @@ fn all_nonunit_tabs_have_source_bodies_and_empty_city_has_no_fabricated_portrait
             widgets.iter().all(|widget| widget
                 .intent
                 .as_ref()
-                .is_none_or(|intent| matches!(intent, &super::ManagerIntent::Select(..)))),
-            "only local palette selection is enabled; painting cannot grant game commands"
+                .is_none_or(|intent| matches!(intent, &super::ManagerIntent::Select(..)) || (tab==ControlPanelTab::Domestic && matches!(intent,&super::ManagerIntent::Open(super::ManagerKind::Research))))),
+            "only local palette selection or source read-only research navigation; painting cannot grant commands"
         );
     }
     ui.active_tab = ControlPanelTab::City;
@@ -63,6 +63,19 @@ fn all_nonunit_tabs_have_source_bodies_and_empty_city_has_no_fabricated_portrait
             .is_some_and(|widget| widget.label.is_empty()),
         "empty city title"
     );
+}
+
+#[test]
+fn research_entry_semantic_descriptors_bind_only_actual_domestic_portrait_and_radial_controls() {
+    let (mut ui,state)=fixture(json!({"revision":7_i64,"turn":1_u32,"research":{"target_id":"","available":["ADVANCE_TOOLMAKING"]}}));
+    ui.active_tab=ControlPanelTab::Domestic;
+    let widgets=ui.management.panel_widgets(&state,&ui);
+    let actionable:Vec<_>=widgets.into_iter().filter(|widget|widget.id.contains("IconButton")&&widget.intent.is_some()).collect();
+    assert_eq!(actionable.len(),2_usize,"only source portrait/radial callbacks, no decorative descendant or generic city callback");
+    for widget in actionable {
+        assert!(matches!(widget.id.as_str(),"AdvanceProgress.IconBorder.IconButton"|"AdvanceProgress.IconBorder.IconButton.RadialButton"),"exact source control");
+        assert_eq!(widget.intent,Some(super::ManagerIntent::Open(super::ManagerKind::Research)),"semantic intent is independent of absent city and absent current research");
+    }
 }
 
 #[test]

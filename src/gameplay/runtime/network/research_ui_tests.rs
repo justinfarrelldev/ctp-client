@@ -1,5 +1,7 @@
 //! Native source research journeys with inert production-shaped command channels.
 //! No sockets, workers, files, service calls, or coordinate-coded target choices.
+/// Actual panel/shortcut input entry, including fresh games with no research target.
+mod entry_tests;
 use super::{Network, Outcome};
 use crate::gameplay::{
     assets::layout::LayoutBook,

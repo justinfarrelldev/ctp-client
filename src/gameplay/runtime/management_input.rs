@@ -81,6 +81,7 @@ pub(super) fn consume(
         }
         value_input::Outcome::Ignored => {}
     }
+    if science_shortcut(event,state,ui) {return true;}
     let intent = match event.clone() {
         Event::KeyDown {
             keycode: Some(Keycode::ESCAPE),
@@ -158,6 +159,30 @@ fn local_input(event: &Event, ui: &mut InGameUiModel, state: &GameState) -> valu
         return value_input::Outcome::Consumed;
     }
     build_input::key(event, state, ui)
+}
+
+/* Released ctp2_source/ctp2_code/ui/aui_ctp2/keypress.cpp handles the top
+ * window's key first, then KEY_FUNCTION_OPEN_SCIENCE_STATUS (not a game function
+ * in keypress_IsGameFunction) calls close_AllScreens/open_ScienceStatus when
+ * g_modalWindow is clear. ui/interface/screenutils.cpp::close_AllScreens hides
+ * EditQueue; open_ScienceStatus calls ScienceManagementDialog::Open.
+ * ctp/userkeymap.txt ^6 supplies the original shortcut; F6 is the client's
+ * existing alias, not a claim about the original keymap. science.ldl::
+ * ScienceManagementDialog is the destination, not the research chooser itself.
+ * Preserve dropdown/editor ownership above and operation_input's earlier modal
+ * guard: this narrowly restores Build -> Science navigation without approving
+ * queries, submitting a queue edit or discarding the separate local Custom draft.
+ */
+/// Source global science navigation is not swallowed by the ordinary Build window.
+fn science_shortcut(event:&Event,state:&mut GameState,ui:&mut InGameUiModel)->bool {
+    if ui.operation.is_some()||ui.management.view.as_ref().is_none_or(|view|view.kind!=ManagerKind::Build){return false;}
+    let Event::KeyDown {keycode:Some(code),keymod,repeat:false,..}=*event else {return false;};
+    if keymod.intersects(Mod::LALTMOD|Mod::RALTMOD|Mod::LGUIMOD|Mod::RGUIMOD|Mod::LSHIFTMOD|Mod::RSHIFTMOD){return false;}
+    let ctrl=keymod.intersects(Mod::LCTRLMOD|Mod::RCTRLMOD);
+    if !((code==Keycode::F6&&!ctrl)||(code==Keycode::NUM_6&&ctrl)){return false;}
+    ui.manager_press=None;ui.keyboard_status=true;
+    drop(ui.apply_action(state,crate::gameplay::ui_model::InGameAction::OpenScienceStatus));
+    true
 }
 
 /*
@@ -306,7 +331,17 @@ pub(super) fn apply(
                     .clone_into(&mut ui.status_text);
             }
         }
-        ManagerIntent::Open(kind) => ui.management.open_related(kind, state),
+        ManagerIntent::Open(kind) => {
+            /* Released ctp2_source/ctp2_code/ui/interface/DomesticControlPanel.cpp::
+             * EditResearchButtonActionCallback and ScienceManagementDialog.cpp::
+             * EditResearchButtonActionCallback explicitly open SciAdvanceScreen.
+             * state.city_build_menu is our deferred receipt presentation, not a
+             * source command or canonical fact: the later explicit research
+             * choice wins over that stale automatic Build request.
+             */
+            if kind==ManagerKind::Research {state.city_build_menu=None;}
+            ui.management.open_related(kind,state);
+        }
         ManagerIntent::ContactDetails(id) => {
             if !ui.management.open_contact_details(state, &id) {
                 "The selected contact is no longer known".clone_into(&mut ui.status_text);

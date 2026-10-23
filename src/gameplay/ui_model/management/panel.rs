@@ -169,7 +169,7 @@ impl Body<'_> {
                         category.control().0.to_owned(),
                     )
                 })
-                .or_else(|| city_intent(self.state, self.city, path)),
+                .or_else(|| panel_intent(self.state, self.ui.active_tab, self.city, path)),
             unavailable: None,
             selected: category == Some(self.ui.tile_category)
                 || (path.ends_with("GovernorSelect.Toggle")
@@ -229,7 +229,7 @@ impl Body<'_> {
                 label: String::new(),
                 rect,
                 node: style,
-                intent: city_intent(self.state, self.city, path),
+                intent: panel_intent(self.state, self.ui.active_tab, self.city, path),
                 unavailable: None,
                 selected: false,
             });
@@ -342,6 +342,31 @@ impl Body<'_> {
     }
 }
 
+/* Released ctp2_source/ctp2_code/ui/interface/DomesticControlPanel.cpp::
+ * DomesticControlPanel wires m_scienceIconButton AND m_scienceTurnButton to
+ * EditResearchButtonActionCallback -> sci_advancescreen_displayMyWindow
+ * (k_SCI_INCLUDE_CANCEL). ClearScience only blanks art/text: neither an absent
+ * current target nor having no cities disables choosing research for the player.
+ * CityControlPanel.cpp::{CityControlPanel,EditBuildQueueButtonActionCallback}
+ * instead opens EditQueue for the exact selected city, never the science chooser.
+ * ctp2/ctp2_data/english/uidata/layouts/controlpanel.ldl::{ControlPanel.ControlTabPanel.DomesticTab.TabPanel.AdvanceProgress,
+ * ControlPanel.ControlTabPanel.CityTab.TabPanel.BuildProgress} and inherited
+ * ctp2/ctp2_data/english/uidata/layouts/ctp_template.ldl::CTP2_PROGRESS_DISPLAY define the unchanged portrait/radial
+ * controls, art, fonts and geometry. Only those exact controls own callbacks;
+ * decorative descendants or another tab's IconButton are not build commands.
+ * Client viewer existence replaces g_player; navigation never grants research
+ * or supplies a default candidate. Selection/approval remains revision/session
+ * bound in the existing chooser; no city permission, local execution or scaling.
+ */
+/// Dispatch distinct source panel controls before any city-specific authorization.
+fn panel_intent(state:&GameState,tab:ControlPanelTab,city:Option<&ServerCityProjection>,path:&str)->Option<ManagerIntent> {
+    match tab {
+        ControlPanelTab::Domestic if state.viewer.is_some() && matches!(path,"AdvanceProgress.IconBorder.IconButton"|"AdvanceProgress.IconBorder.IconButton.RadialButton")=>Some(ManagerIntent::Open(ManagerKind::Research)),
+        ControlPanelTab::City=>city_intent(state,city,path),
+        _=>None,
+    }
+}
+
 /// Source city panel controls use the selected viewer city and exact legal payload.
 fn city_intent(
     state: &GameState,
@@ -362,7 +387,7 @@ fn city_intent(
     if path == "CitySelect.Pulldown" {
         return Some(ManagerIntent::ForCity(ManagerKind::City, city.id.clone()));
     }
-    if path.contains("IconButton") {
+    if matches!(path,"BuildProgress.IconBorder.IconButton"|"BuildProgress.IconBorder.IconButton.RadialButton") {
         return Some(ManagerIntent::ForCity(ManagerKind::Build, city.id.clone()));
     }
     if path == "RushBuyButton" {
