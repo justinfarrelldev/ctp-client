@@ -35,12 +35,14 @@ pub(super) enum Outcome {
     Recovering(String),
     /// Current read failed; input stays blocked until a later successful read.
     Failure(String),
+    /// Safe admission/validation failure persists after a successful refresh.
+    Rejected(crate::gameplay::server::rejection::Rejection),
 }
 
 /// Injectable service boundary used by pure retry/recovery tests.
 pub(super) trait Transport {
     /// Submit precisely the captured operation, without regenerating its key.
-    fn submit(&mut self, command: &PreparedCommand) -> Result<ServerProjection, String>;
+    fn submit(&mut self, command: &PreparedCommand) -> Result<ServerProjection, crate::gameplay::GameplayError>;
     /// Obtain the complete current authorized viewer model.
     fn resync(&mut self) -> Result<ServerProjection, String>;
 }
@@ -56,12 +58,8 @@ struct HttpTransport {
     stop: Arc<AtomicBool>,
 }
 impl Transport for HttpTransport {
-    fn submit(&mut self, command: &PreparedCommand) -> Result<ServerProjection, String> {
-        command
-            .execute(&self.client)
-            .map_err(|error| error.to_string())?
-            .viewer_projection
-            .ok_or_else(|| "receipt has no viewer projection".to_owned())
+    fn submit(&mut self, command: &PreparedCommand) -> Result<ServerProjection, crate::gameplay::GameplayError> {
+        command.execute(&self.client)?.viewer_projection.ok_or_else(|| crate::gameplay::runtime_error("receipt has no viewer projection".to_owned()))
     }
     fn resync(&mut self) -> Result<ServerProjection, String> {
         if !self.gate.wait(&self.stop) {
@@ -81,9 +79,10 @@ pub(super) fn execute(
 ) {
     let mut result = transport.submit(command);
     if result.as_ref().is_err_and(|error| {
-        error.contains("failed to read")
-            || error.contains("failed to write")
-            || error.contains("could not connect")
+        matches!(*error,crate::gameplay::GameplayError::Runtime { .. }) && {
+            let message=error.to_string();
+            message.contains("failed to read") || message.contains("failed to write") || message.contains("could not connect")
+        }
     }) {
         // The first execution may have committed. Reuse the exact body/key.
         result = transport.submit(command);
@@ -91,7 +90,10 @@ pub(super) fn execute(
     match result {
         Ok(snapshot) => emit(Outcome::Receipt(Box::new(snapshot))),
         Err(error) => {
-            emit(Outcome::Recovering(error));
+            match error {
+                crate::gameplay::GameplayError::Rejected { rejection } => emit(Outcome::Rejected(rejection)),
+                other => emit(Outcome::Recovering(other.to_string())),
+            }
             refresh(transport, emit);
         }
     }
@@ -115,6 +117,7 @@ fn complete(outcome: Outcome, known: &mut i64) -> Outcome {
         }
         Outcome::Recovering(error) => Outcome::Recovering(error),
         Outcome::Failure(error) => Outcome::Failure(error),
+        Outcome::Rejected(rejection) => Outcome::Rejected(rejection),
     }
 }
 /// Full current-model recovery, never a local fallback or partial event patch.

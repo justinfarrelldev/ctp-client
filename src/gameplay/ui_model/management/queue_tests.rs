@@ -4,6 +4,14 @@ use crate::gameplay::{model::GameState, server::ServerProjection};
 use alloc::collections::BTreeMap;
 use serde_json::json;
 
+/// Match the revised server's complete query, not catalog-derived authorization.
+fn bind_options(viewer:&mut ServerProjection,city_id:&str,items:&serde_json::Value) {
+    let contract=viewer.interface.contract.get_or_insert_with(crate::gameplay::server::v2::Contract::default);contract.version=2_u32;contract.features.insert("production_options".to_owned(),true);
+    viewer.interface.rules.as_mut().expect("rules")["content_hash"]=json!("test-pin");
+    let city=viewer.cities.iter_mut().find(|city|city.id==city_id).expect("city");
+    city.facts["production_options"]=json!({"revision":viewer.revision,"city_id":city_id,"content_hash":"test-pin","status":"complete","operation":"append","items":items});
+}
+
 #[test]
 fn synthetic_test_content_is_explicitly_described_not_mistaken_for_retail_unit_names() {
     let ui = ManagementUi::default();
@@ -20,9 +28,10 @@ fn synthetic_test_content_is_explicitly_described_not_mistaken_for_retail_unit_n
     }
 }
 #[test]
-fn received_retail_catalog_populates_all_three_production_categories_and_keeps_exact_authority_ids()
+fn received_complete_production_options_populate_all_three_categories_and_keep_exact_authority_ids()
 {
-    let viewer:ServerProjection=serde_json::from_value(json!({"revision":9_i64,"turn":2_u32,"contract":{"version":2_u32,"features":{"atomic_production_queue":true}},"tiles":[{"id":"tile","x":0_u16,"y":0_u16,"terrain":"TERRAIN_PLAINS"}],"cities":[{"id":"own-city","owner_id":"human","tile_id":"tile","queue":[]}],"rules":{"units":[{"id":"UNIT_SETTLER","production_cost":3_i64},{"id":"UNIT_WARRIOR","production_cost":4_i64}],"production":[{"id":"UNIT_SETTLER","kind":"unit","cost":3_i64},{"id":"IMPROVE_GRANARY","kind":"building","cost":5_i64},{"id":"WONDER_PYRAMIDS","kind":"wonder","cost":6_i64}]},"legal_actions":[{"route":"edit-production","entity_id":"own-city","fields":["city_id","entries"],"payload":{"city_id":"own-city","entries":[]}}]})).expect("actual projected catalog/action shapes with synthetic numeric test values");
+    let mut viewer:ServerProjection=serde_json::from_value(json!({"revision":9_i64,"turn":2_u32,"contract":{"version":2_u32,"features":{"atomic_production_queue":true}},"tiles":[{"id":"tile","x":0_u16,"y":0_u16,"terrain":"TERRAIN_PLAINS"}],"cities":[{"id":"own-city","owner_id":"human","tile_id":"tile","queue":[]}],"rules":{"units":[{"id":"UNIT_SETTLER","production_cost":3_i64},{"id":"UNIT_WARRIOR","production_cost":4_i64}],"production":[{"id":"UNIT_SETTLER","kind":"unit","cost":3_i64},{"id":"IMPROVE_GRANARY","kind":"building","cost":5_i64},{"id":"WONDER_PYRAMIDS","kind":"wonder","cost":6_i64}]},"legal_actions":[{"route":"edit-production","entity_id":"own-city","fields":["city_id","entries"],"payload":{"city_id":"own-city","entries":[]}}]})).expect("actual projected catalog/action shapes with synthetic numeric test values");
+    bind_options(&mut viewer,"own-city",&json!([{"id":"UNIT_SETTLER","kind":"unit","cost":3_i64},{"id":"UNIT_WARRIOR","kind":"unit","cost":4_i64},{"id":"IMPROVE_GRANARY","kind":"building","cost":5_i64},{"id":"WONDER_PYRAMIDS","kind":"wonder","cost":6_i64}]));
     let state = GameState::from_server_projection(&viewer, 1_u8, 1_u64);
     let ui = ManagementUi::default();
     let mut view = ManagerView {
@@ -66,7 +75,8 @@ fn received_retail_catalog_populates_all_three_production_categories_and_keeps_e
 
 #[test]
 fn atomic_queue_edits_keep_duplicate_units_distinct_and_never_redefine_costs() {
-    let projection:ServerProjection=serde_json::from_value(json!({"revision":9_i64,"turn":2_u32,"tiles":[{"id":"a","x":0_u16,"y":0_u16,"terrain":"plains"}],"cities":[{"id":"c","tile_id":"a","owner_id":"human","stored_production":40_i64,"queue":[{"entry_id":"c:1","id":"UNIT_WARRIOR"},{"entry_id":"c:2","id":"UNIT_WARRIOR"}]}],"rules":{"units":[{"id":"UNIT_WARRIOR"}]},"legal_actions":[{"route":"edit-production","entity_id":"c","payload":{"city_id":"c","entries":[{"entry_id":"c:1"},{"entry_id":"c:2"}]}}]})).expect("viewer");
+    let mut projection:ServerProjection=serde_json::from_value(json!({"revision":9_i64,"turn":2_u32,"tiles":[{"id":"a","x":0_u16,"y":0_u16,"terrain":"plains"}],"cities":[{"id":"c","tile_id":"a","owner_id":"human","stored_production":40_i64,"queue":[{"entry_id":"c:1","id":"UNIT_WARRIOR"},{"entry_id":"c:2","id":"UNIT_WARRIOR"}]}],"rules":{"units":[{"id":"UNIT_WARRIOR"}]},"legal_actions":[{"route":"edit-production","entity_id":"c","payload":{"city_id":"c","entries":[{"entry_id":"c:1"},{"entry_id":"c:2"}]}}]})).expect("viewer");
+    bind_options(&mut projection,"c",&json!([{"id":"UNIT_WARRIOR","kind":"unit","cost":100_i64}]));
     let state = GameState::from_server_projection(&projection, 1, 1);
     let view = ManagerView {
         kind: ManagerKind::Build,

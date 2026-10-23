@@ -228,7 +228,25 @@ fn buildables(
         _ => return Vec::new(),
     };
     let mut records = BTreeMap::new();
-    if state
+    /* Released EditQueue.cpp::UpdateChoiceLists calls CityData::CanBuildUnit/
+     * CanBuildBuilding/CanBuildWonder for city mode, but the no-city Custom
+     * branch lists public template content. editqueue.ldl::ItemsBox lists retain
+     * their original geometry. Server docs/server-contract-repairs.md replaces
+     * private CityData eligibility with exact complete append options, including
+     * nonempty queues. Missing/complete-empty is not catalog permission. Insert
+     * still submits a whole-edit validation, not a claimed append guarantee.
+     */
+    if !super::saved::custom::active(view) {
+        if let Some(viewer)=state.viewer.as_ref() {
+            if viewer.interface.supports("production_options") {
+                if let Some(items)=city(state,view).and_then(|city|crate::gameplay::server::production::items(viewer,city)) {
+                    for item in items { if item["kind"].as_str()==Some(kind) { if let Some(id)=item["id"].as_str(){records.insert(id.to_owned(),label(ui,id));} } }
+                }
+                let mut rows:Vec<_>=records.into_iter().collect();rows.sort_by(|left,right|left.1.cmp(&right.1));return rows;
+            }
+        }
+    }
+    if super::saved::custom::active(view) && state
         .viewer
         .as_ref()
         .is_some_and(|viewer| viewer.interface.supports("atomic_production_queue"))
@@ -259,15 +277,6 @@ fn buildables(
     for action in city_actions(state, view, "queue-production") {
         if action.payload["item"]["kind"].as_str() == Some(kind) {
             records.insert(action.target_id.clone(), label(ui, &action.target_id));
-        }
-    }
-    if let Some(queue) = city(state, view).and_then(|city| city.facts["queue"].as_array()) {
-        for item in queue {
-            if item["kind"].as_str() == Some(kind) {
-                if let Some(id) = item["id"].as_str() {
-                    records.insert(id.to_owned(), label(ui, id));
-                }
-            }
         }
     }
     let mut rows: Vec<_> = records.into_iter().collect();

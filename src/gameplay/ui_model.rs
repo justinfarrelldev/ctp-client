@@ -359,6 +359,8 @@ pub struct InGameUiModel {
     pub great_library: Option<GreatLibraryView>,
     /// Status bar text.
     pub status_text: String,
+    /// Persistent safe command rejection; a routine refresh is not acknowledgement.
+    pub command_rejection: Option<crate::gameplay::server::rejection::Rejection>,
     /// Keyboard focus, rather than pointer hover, currently owns source descriptions.
     pub keyboard_status: bool,
     /// Measured original menu labels/shortcuts, shared by rendering and hit tests.
@@ -397,6 +399,7 @@ impl Default for InGameUiModel {
             open_menu: None,
             great_library: None,
             status_text: String::new(),
+            command_rejection: None,
             keyboard_status: false,
             menu_text_widths: Vec::new(),
             hovered_tile: None,

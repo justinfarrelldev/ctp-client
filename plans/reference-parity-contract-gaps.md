@@ -2,6 +2,12 @@
 
 Client-only findings while continuing `full-screen-reference-parity.md`. Server inspected read-only at `15ada0164180b8e6b8c280029ba55ef5cac88168`. These are specific display gaps, not permission to stop unblocked client work, change the server, or check off complete screenshots.
 
+## Repaired production integration (server a27b65a)
+
+`$CTPSERVER/known-server-issue.md` is the actual singular report filename. Game58/revision16 cause reproduced offline from a read-only snapshot: 72 units, 68 missing discoveries, 3 CantBuild city entities, Settler insufficient population1; in-memory Toolmaking alone permits Warrior. No live order or private client simulation.
+
+City Build now consumes complete `production_options` bound to revision/city/hash/append, never the catalog or old queued types. Complete-empty/unavailable/missing/mismatched facts do not unlock choices. Explicit legacy actions provide only a limited compatibility subset; Custom/Library remain public authoring/reference. Insert/templates/reorder remain whole-edit validation, not append guarantees. Typed bounded safe rejection code/message/correlation reaches UI independently of refresh, survives an unchanged successful snapshot and cannot become an automatic retry/rebase. Nine focused repaired tests, affected46 confirmation cases, current81.29% LLVM/strict lint pass; unchanged hooks required. No screen/live acceptance claimed. River/context/cursor/provenance integration follows before returning to the UI wave; other gaps below remain unless explicitly superseded.
+
 ## Client-only map input mismatch (not a server contract blocker)
 
 The complete local original call chain is `ArmyContextClick -> SelectArmyClick -> ActivateSelectedInfo -> BuildList -> contextMenu.Open`: the popup is real. **Correction:** c2f748e's initial audit wrongly inferred panel-only/no-popup behavior; see [main completed call-chain ledger](../PLAN.md#completed-implementation-ledger),fbeb093. Exact moving-body popup now uses the received actor ID, unit-before-known-city rows and one final Map Info; unselected explicitly sheltered city garrison does not invent an active army, while a selected member stays explicit.1286 executions/85.62% LLVM. Selected local army in installed default LEFT mode still needs right-click deselection; full Unit/City/None selection, alternate preference and remaining row/style fidelity are unfinished **client work**, not server blockers or proof of complete parity. Preserve accessible exact legal command workflows. Every33 complete-reference acceptance remains open.

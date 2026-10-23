@@ -98,6 +98,7 @@ fn self_event_revisions_and_idle_stream_do_not_refetch_current_or_enter_a_429_lo
             match outcome {
                 Outcome::Receipt(snapshot) => acknowledged = snapshot.revision == 6_i64,
                 Outcome::Failure(error) | Outcome::Recovering(error) => failures.push(error),
+                Outcome::Rejected(rejection) => failures.push(rejection.label()),
                 Outcome::Snapshot(_) => {
                     failures.push("unnecessary current-read response".to_owned());
                 }

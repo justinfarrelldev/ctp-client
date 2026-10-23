@@ -66,6 +66,10 @@ pub(super) fn text(state: &GameState, view: &ManagerView, path: &str) -> Option<
 /// A selected head/quote does not grant authority to choose a different city/order.
 pub(super) fn binding(ui: &ManagementUi, state: &GameState, view: &ManagerView, path: &str) -> Option<(Option<ManagerIntent>, Option<String>)> {
     if view.kind != ManagerKind::Build { return None; }
+    if matches!(path,"ItemsBox.AddButton"|"ItemsBox.InsertButton") && !super::saved::custom::active(view) {
+        let eligible=state.viewer.as_ref().zip(data::city(state,view)).zip(view.selections.get("buildable")).is_some_and(|((viewer,city),id)|crate::gameplay::server::production::permits(viewer,city,id));
+        if !eligible { return Some(disabled("Select a currently advertised city production choice; a complete-empty or unavailable query does not unlock catalog items")); }
+    }
     if let Some(reason) = editing_reason(state, view, path) { return Some((None, Some(reason))); }
     if path == "QueueGroup.ClearButton" {
         let dialog = clear_request(state, view).and_then(|command| super::confirmation::dialog(ui, state, command));

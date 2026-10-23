@@ -16,7 +16,7 @@ pub(super) fn request(state:&GameState, view:&ManagerView, path:&str)->Option<Ma
     match path {
         "ItemsBox.AddButton" | "ItemsBox.InsertButton" => {
             let id=view.selections.get("buildable")?;
-            if !crate::gameplay::server::commands::known_content(viewer,id) || entries.len() >= 256 { return None; }
+            if !crate::gameplay::server::production::permits(viewer,city,id) || entries.len() >= 256 { return None; }
             let index=if path == "ItemsBox.InsertButton" { selected? } else { entries.len() };
             entries.insert(index,json!({"item_id":id}));
         }

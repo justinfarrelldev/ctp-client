@@ -11,6 +11,10 @@ mod delete_tests;
 mod overwrite_tests;
 /// Released source queue-first descriptions/Library and explicit empty-pane deselection.
 mod description_tests;
+/// Repaired complete city append contract, separate from local Custom authoring.
+mod production_tests;
+/// Safe rejection and subsequent successful replication remain distinct facts.
+mod rejection_tests;
 use super::{Network, Outcome};
 use crate::gameplay::{assets::layout::LayoutBook, model::{GameState, NetworkStatus}, runtime::{MovementInputState, RuntimeAuthority, authority::state_from_authority_projection, management_input, operation_input, sync}, server::{ServerClient, ServerConfig, ServerGameplaySession, envelope::PreparedCommand}, ui_model::{InGameUiModel, management::{ManagementUi, ManagerKind}}};
 use alloc::sync::Arc;
@@ -196,8 +200,11 @@ fn build_queue_edit_native_funded_guard_does_not_fallthrough_or_mutate_queue_on_
 fn buildable_fixture() -> Harness {
     let mut harness=fixture();
     let interface=&mut harness.state.viewer.as_mut().expect("viewer").interface;
-    interface.rules=Some(json!({"units":[{"id":"UNIT_WARRIOR","production_cost":50_i64},{"id":"UNIT_SETTLER","production_cost":330_i64}]}));
+    interface.rules=Some(json!({"units":[{"id":"UNIT_WARRIOR","production_cost":50_i64},{"id":"UNIT_SETTLER","production_cost":330_i64},{"id":"UNIT_HOPLITE","production_cost":100_i64}]}));
     interface.contract.as_mut().expect("v2 opt-in").features.insert("atomic_production_queue".to_owned(),true);
+    for id in ["UNIT_WARRIOR","UNIT_SETTLER","UNIT_HOPLITE"] {
+        interface.legal_actions.push(crate::gameplay::server::interface::LegalAction { route:"queue-production".to_owned(),entity_id:"c2".to_owned(),target_id:id.to_owned(),payload:json!({"city_id":"c2","item":{"id":id,"kind":"unit","cost":50_i64}}),..crate::gameplay::server::interface::LegalAction::default() });
+    }
     harness.authority.session.projection=harness.state.viewer.clone();
     harness
 }
@@ -327,6 +334,7 @@ fn build_double_click_interrupted_by_receipt_row_shift_city_focus_or_keyboard_ne
         let mut harness=buildable_fixture();
         if mode==2_u8 {
             harness.state.viewer.as_mut().expect("viewer").interface.legal_actions.push(serde_json::from_value(json!({"route":"edit-production","entity_id":"c1","fields":["city_id","entries"],"payload":{"city_id":"c1","entries":[]}})).expect("other owned city permission"));
+            harness.state.viewer.as_mut().expect("viewer").interface.legal_actions.push(serde_json::from_value(json!({"route":"queue-production","entity_id":"c1","target_id":"UNIT_SETTLER","payload":{"city_id":"c1","item":{"id":"UNIT_SETTLER","kind":"unit","cost":330_i64}}})).expect("other city candidate authority"));
             harness.authority.session.projection=harness.state.viewer.clone();
         }
         let first=if mode==1_u8 {"QueueGroup.QueueList/c2:head"} else if mode==2_u8 {"ItemsBox.UnitsList/UNIT_SETTLER"} else {"QueueGroup.QueueList/c2:future"};

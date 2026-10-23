@@ -101,7 +101,9 @@ pub(super) fn apply(
                 state.network = NetworkStatus::Pending;
             }
             ui.context = None;
-            if recovering {
+            if let Some(rejection)=ui.command_rejection.as_ref() {
+                ui.status_text=rejection.label();
+            } else if recovering {
                 "State resynchronized.".clone_into(&mut ui.status_text);
             } else if ui.status_text != "State resynchronized." {
                 ui.status_text.clear();
@@ -117,6 +119,7 @@ pub(super) fn apply(
                 ui.management.reconcile(state);
             }
             state.network = NetworkStatus::Ready;
+            ui.command_rejection=None;
             ui.context = None;
             ui.status_text = if state
                 .viewer
@@ -128,6 +131,17 @@ pub(super) fn apply(
                 String::new()
             };
             movement.retain_selectable(state);
+        }
+        /* Original EditQueue.cpp::Add/InsertInQueue calls CityData directly;
+         * editqueue.ldl has no HTTP-failure widget. This persistent HUD status is
+         * an explicit server-authoritative integration difference, not retail UI.
+         * docs/server-contract-repairs.md keeps rejection separate from refresh:
+         * neither can authorize local execution or silently rebase an old order.
+         */
+        Outcome::Rejected(rejection) => {
+            ui.status_text=rejection.label();ui.command_rejection=Some(rejection);
+            state.network=NetworkStatus::Resynchronizing;
+            movement.cancel_drag();movement.actors.rollback();
         }
         Outcome::Recovering(error) | Outcome::Failure(error) => {
             state.network = NetworkStatus::Resynchronizing;

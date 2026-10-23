@@ -30,6 +30,11 @@ pub mod ui_model;
 /// Errors raised while launching or running the in-game session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GameplayError {
+    /// Authoritative rejection, not a lost response or a successful refresh.
+    Rejected {
+        /// Bounded public reason and safe diagnostics correlation.
+        rejection: server::rejection::Rejection,
+    },
     /// SDL/video/audio runtime failed.
     Runtime {
         /// Human-readable error details.
@@ -49,6 +54,7 @@ impl Display for GameplayError {
     )]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            Self::Rejected { rejection } => write!(f,"{}",rejection.label()),
             Self::Runtime { message } => write!(f, "gameplay runtime failed: {message}"),
             Self::Asset { message } => write!(f, "gameplay asset failed: {message}"),
         }

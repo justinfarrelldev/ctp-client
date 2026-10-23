@@ -25,6 +25,10 @@ pub mod interface;
 mod interface_tests;
 /// Viewer snapshot envelope and Go nil-slice decoding.
 mod projection;
+/// Complete revision/city/pin-bound append eligibility, never private client rules.
+pub(in crate::gameplay) mod production;
+/// Public bounded command rejections, distinct from transport uncertainty.
+pub mod rejection;
 use projection::deserialize_nullable_vec;
 
 /// Default local server endpoint.
@@ -464,10 +468,7 @@ impl ServerClient {
             .map_err(|error| asset_error(format!("failed to encode server request: {error}")))?;
         let response = self.request_json_with_capacity_retry(path, &body_text)?;
         if !(200..300).contains(&response.status) {
-            return Err(runtime_error(format!(
-                "server request {path} failed with HTTP {}: {}",
-                response.status, response.body
-            )));
+            return Err(GameplayError::Rejected { rejection:rejection::Rejection::decode(response.status,&response.body) });
         }
         serde_json::from_str(&response.body).map_err(|error| {
             if error.is_eof() {
