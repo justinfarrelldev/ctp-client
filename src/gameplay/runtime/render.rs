@@ -78,7 +78,7 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         draw_tile_diamond(canvas, camera, x, y, Color::RGB(255, 255, 0))?;
     }
     movement::draw_planned_path(canvas, input, state, camera, font)?;
-    cities::draw_labels(canvas, state, ui, camera, font)?;
+    cities::draw_labels(canvas, textures, state, ui, camera, font)?;
     panel::draw_panel(canvas, textures, state, ui, fonts)?;
     if state.filters.radar {
         radar::draw_radar(canvas, textures, state)?;
@@ -248,6 +248,9 @@ mod option_tests;
 mod panel_tests;
 #[cfg(test)]
 mod pixel_tests;
+/// Original player palette and exact-owner native flags/city/fog rendering.
+#[cfg(test)]
+mod player_color_tests;
 /// Independent source-art checks for native policy sliders and percentage controls.
 #[cfg(test)]
 mod policy_tests;

@@ -107,6 +107,7 @@ pub(super) fn draw_cities(
 /// City captions paint above actors and paths, as in the supplied release captures.
 pub(super) fn draw_labels(
     canvas: &mut Canvas<Window>,
+    textures:&GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
     camera: &Camera,
@@ -137,8 +138,18 @@ pub(super) fn draw_labels(
         let height = u32::try_from(font.map_or(12_i32, Font::height))
             .unwrap_or(12_u32)
             .max(10_u32);
-        let color = owner_color(
-            city.owner,
+        /* Released source under ctp2_source/ctp2_code/:
+         * gfx/tilesys/tiledraw.cpp::TiledMap::DrawCityNames selects
+         * ColorSet::{GetPlayerColor,GetDarkPlayerColor} for name frames and
+         * population backgrounds from the observed city's owner (also unseen
+         * city memories), using Colors00.txt rather than an LDL color node.
+         * Restore that shared normal/packed-dark owner palette here; retain
+         * existing caption geometry, not full city-caption/reference parity.
+         * Exact city identity is bound upstream; a co-located observation may
+         * not overwrite another city's owner or reveal current hidden facts.
+         */
+        let color = textures.player_color(
+            state,&city.owner,
             state
                 .tile(city.position)
                 .is_some_and(|tile| tile.fog == FogState::Explored),
@@ -234,14 +245,4 @@ fn text_width(font: Option<&Font<'_, '_>>, text: &str) -> u32 {
         },
         |size| size.0,
     )
-}
-
-/// Static owner colours never imply territorial ownership of unknown tiles.
-const fn owner_color(owner: PlayerId, explored: bool) -> Color {
-    let channel = if explored { 123_u8 } else { 255_u8 };
-    match owner {
-        PlayerId::Human => Color::RGB(0_u8, 0_u8, channel),
-        PlayerId::Empire(_) => Color::RGB(channel, 0_u8, 0_u8),
-        PlayerId::Barbarians => Color::RGB(120_u8, 48_u8, 48_u8),
-    }
 }

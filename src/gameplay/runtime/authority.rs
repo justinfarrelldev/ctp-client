@@ -31,6 +31,7 @@ pub(super) fn state_from_authority_projection(
     let mut state =
         GameState::from_server_projection(projection, authority.empire_count, authority.seed);
     apply_authority_owner_mapping(authority, &mut state, projection);
+    state.roster=authority.session.roster.for_account(authority.session.account_id);
     state
 }
 
@@ -123,16 +124,9 @@ fn apply_authority_owner_mapping(
         }
     }
     for server_city in &projection.cities {
-        let Some(tile) = projection
-            .tiles
-            .iter()
-            .find(|tile| tile.id == server_city.tile_id)
-        else {
-            continue;
-        };
-        let point = MapPoint::new(tile.x, tile.y);
         let owner = player_id_from_authority_owner(&server_city.owner_id, &human_owner_id);
-        if let Some(city) = state.cities.iter_mut().find(|city| city.position == point) {
+        let id=super::super::model::CityId::from_server_id(&server_city.id);
+        if let Some(city) = state.cities.iter_mut().find(|city| city.id == id) {
             city.owner = owner;
         }
     }
@@ -145,14 +139,7 @@ fn apply_authority_owner_mapping(
 
 /// Converts a server owner id into the local owner id for the authenticated account.
 fn player_id_from_authority_owner(owner_id: &str, human_owner_id: &str) -> PlayerId {
-    let lowered = owner_id.to_ascii_lowercase();
-    if owner_id == human_owner_id {
-        PlayerId::Human
-    } else if lowered.contains("barbarian") {
-        PlayerId::Barbarians
-    } else {
-        PlayerId::Empire(1)
-    }
+    PlayerId::authenticated(owner_id,human_owner_id)
 }
 
 /// Returns the server tile id for a local map point.
@@ -167,6 +154,9 @@ fn server_tile_id(projection: Option<&ServerProjection>, point: MapPoint) -> Str
         .map_or_else(String::new, |tile| tile.id.clone())
 }
 
+/// Exact owner/roster/receipt regressions with no services or file effects.
+#[cfg(test)]
+mod owner_tests;
 #[cfg(test)]
 mod tests {
     //! Authoritative projection tile-id conversion tests.

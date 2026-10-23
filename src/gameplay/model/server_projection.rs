@@ -87,14 +87,7 @@ fn unit_kind_from_server_unit(unit: &ServerUnitProjection) -> UnitKind {
 
 /// Converts an authoritative server owner id into a local render owner.
 fn player_id_from_server_owner(owner_id: &str) -> PlayerId {
-    let lowered = owner_id.to_ascii_lowercase();
-    if lowered.contains("barbarian") {
-        PlayerId::Barbarians
-    } else if lowered.ends_with('1') || lowered.contains("human") || lowered.contains("player-1") {
-        PlayerId::Human
-    } else {
-        PlayerId::Empire(1)
-    }
+    PlayerId::from_observed(owner_id)
 }
 
 /// Creates a renderable state from an authoritative server projection.
@@ -197,6 +190,7 @@ pub(in crate::gameplay::model) fn game_state_from_server_projection(
         city_build_menu: None,
         network: super::NetworkStatus::Ready,
         viewer: Some(projection.clone()),
+        roster:super::super::server::roster::PlayerRoster::default(),
     }
 }
 

@@ -70,7 +70,7 @@ fn health_check_hits_local_server() {
 }
 
 #[test]
-fn bootstrap_retries_capacity_limited_setup_request() {
+fn player_colors_bootstrap_retries_capacity_limited_setup_request_and_retains_public_start_roster() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
     let port = listener
         .local_addr()
@@ -92,7 +92,7 @@ fn bootstrap_retries_capacity_limited_setup_request() {
                     .to_string(),
             ),
             (200_u16, json!({"id":44_i32}).to_string()),
-            (200_u16, json!({"id":44_i32}).to_string()),
+            (200_u16, json!({"id":44_i32,"players":[{"id":91_i64,"account_id":7_i64},{"id":92_i64,"account_id":14_i64}]}).to_string()),
             (200_u16, synthetic_starting_resync_event()),
         ];
         let mut add_ai_requests = 0_u8;
@@ -135,6 +135,8 @@ fn bootstrap_retries_capacity_limited_setup_request() {
 
     assert_eq!(session.game_id, 44);
     assert_eq!(session.session_id, 11);
+    assert_eq!(session.roster.slot("account-7"),Some(1_u8),"accepted public human membership");
+    assert_eq!(session.roster.slot("account-14"),Some(2_u8),"accepted AI membership, not first sighting or account modulo");
     handle.join().expect("server thread should finish");
 }
 
@@ -285,6 +287,7 @@ fn submit_command_posts_authoritative_command_envelope() {
     })
     .expect("client should parse config");
     let session = ServerGameplaySession {
+        roster:crate::gameplay::server::roster::PlayerRoster::default(),
         game_id: 44,
         session_id: 11,
         account_id: 7,

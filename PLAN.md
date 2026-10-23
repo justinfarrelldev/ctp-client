@@ -47,6 +47,14 @@ Detailed existing checklists: [Build/Library workflow detail](plans/great-librar
 - [ ] Continue original category/queue selection, descriptions/pictures/library, source Add/Insert/Remove/Clear/reorder confirmations, city selector/return and automatic founding/completion. Retain exact current entry IDs and queued-versus-executed outcomes; all unsupported/custom/load/suggest behavior must be explicit, never an enabled unrelated substitution.
 - [ ] Re-audit source-backed Build/City fixtures, source logical geometry/art/fonts/controls and native accessible journeys; one focused verification pass per coherent change. No scaling work now; all full-reference acceptances stay open.
 
+### Current user fix: distinct owners and original player colors
+
+Existing detail: [source interaction ledger](plans/reference-interaction-fidelity.md) and [authority/color evidence](plans/reference-parity-contract-gaps.md). One complete identity/roster/palette/render workflow, not per-file commits.
+
+- [x] Audit released ColorSet/Colors00, UnitActor heralds and TiledMap normal/dark city colors/normal national borders. Causal RED reproduced collapsed foreign identities; preserve exact owner strings/session self/city IDs, not suffix/substring guesses or coordinate rebinding. Native/pure regressions cover multiple peers, misleading IDs, shared positions, reorder/hidden/reveal/capture and viewer slot2.
+- [x] Consume the already-returned authenticated start-game public roster in its documented membership order for stable client presentation slots (barbarian0 reserved), never encounter order, ID hashing or civilization-name guesses. This is a documented client display assignment, not a new canonical slot/knowledge claim; missing/invalid/overflow roster stays unavailable. Load original Colors00 read-only, no embedded/copied palette table. Route flags/shields/cities/borders through one palette with original packed-channel remembered shading.
+- [x] Nine focused native/pure/isolated-bootstrap cases GREEN, final strict lint and valid LLVM85.54%>=80%; fresh full library793 baseline passed for cross-cutting non-Copy owner/session integration, then only affected tests rerun for final refinements. Palette is bounded/startup-only; borrowed roster lookup removes per-border owner allocations/scans, and authenticated self remains exact even when roster unavailable. Source/privacy/performance review complete; linked evidence/FIXES updated, all changed modules<800. Unchanged normal hooks provide final full tests/native build at commit. No server/asset/scaling modifications, file-writing/live-service tests, reference/full-frame or Windows certification.
+
 ### Current user fix: actual research entry wiring
 
 Existing detail: [Science Manager checklist](plans/science-manager-reference-parity.md). One bounded workflow/commit, before resuming the broader UI wave.

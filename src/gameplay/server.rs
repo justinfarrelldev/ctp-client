@@ -31,6 +31,8 @@ pub(in crate::gameplay) mod production;
 pub mod rejection;
 /// Observed art geometry, committed actor context and exact pinned provenance.
 pub mod observations;
+/// Frozen public setup membership for client-owned original display-slot assignment.
+pub mod roster;
 /// Bounded public Server-Timing/read-mode metrics, never raw response headers.
 mod telemetry;
 /// Repaired metadata/cursor compatibility and privacy regressions.
@@ -106,6 +108,8 @@ pub struct ServerGameplaySession {
     pub account_id: i64,
     /// Latest viewer-safe projection returned by the server.
     pub projection: Option<ServerProjection>,
+    /// Public accepted setup order, not canonical geography or native scheduler slots.
+    pub roster:roster::PlayerRoster,
 }
 
 /// Minimal viewer-safe server projection needed by the renderer.
@@ -378,16 +382,20 @@ impl ServerClient {
                 }),
             )?;
         }
-        let _started = self.post_json(
+        let started = self.post_json(
             "/game/start_game",
             &json!({"session_id": login.session_id, "game_id": game_id}),
         )?;
+        let roster=roster::PlayerRoster::from_game(&started,game_id,login.account_id).unwrap_or_else(|| {
+            log::warn!("Original foreign player colors unavailable: start response lacks a complete bounded public roster");roster::PlayerRoster::default().for_account(login.account_id)
+        });
         let projection = self.fetch_resync_projection(game_id, login.session_id)?;
         Ok(ServerGameplaySession {
             game_id,
             session_id: login.session_id,
             account_id: login.account_id,
             projection: Some(projection),
+            roster,
         })
     }
 

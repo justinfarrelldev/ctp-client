@@ -19,6 +19,7 @@ fn fixture() -> RuntimeAuthority {
         })
         .expect("parse only; no network"),
         session: ServerGameplaySession {
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
             game_id: 1,
             session_id: 2,
             account_id: 3,

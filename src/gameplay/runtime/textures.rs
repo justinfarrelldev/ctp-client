@@ -73,6 +73,8 @@ pub(super) struct GameplayTextures<'texture> {
     creator: Option<&'texture TextureCreator<WindowContext>>,
     /// Parsed transitions, transform rules, raw bases and terrain hats.
     tiles: Option<TileSet>,
+    /// Original installed player-slot palette, loaded once and never copied into sources.
+    palette:Option<crate::gameplay::assets::player_colors::PlayerPalette>,
     /// Cached composed terrain, keyed by chosen variant and four neighbors.
     terrain: BTreeMap<TerrainTextureKey, Texture<'texture>>,
     /// UI chrome keyed by original asset name.
@@ -118,6 +120,7 @@ impl<'texture> GameplayTextures<'texture> {
         Self {
             creator: None,
             tiles: None,
+            palette:None,
             terrain: BTreeMap::new(),
             ui: Vec::new(),
             icons: BTreeMap::new(),
@@ -153,6 +156,9 @@ impl<'texture> GameplayTextures<'texture> {
         let mut textures = Self {
             creator: Some(creator),
             tiles,
+            palette:match crate::gameplay::assets::player_colors::PlayerPalette::load(root) {
+                Ok(palette)=>Some(palette),Err(error) if strict=>return Err(error),Err(_)=>None,
+            },
             terrain: BTreeMap::new(),
             ui: Vec::new(),
             icons: BTreeMap::new(),
@@ -227,6 +233,31 @@ impl<'texture> GameplayTextures<'texture> {
         }
         textures.units = units::UnitTextures::load(root, strict)?;
         Ok(textures)
+    }
+
+    /* Released source under ctp2_source/ctp2_code/:
+     * gfx/gfx_utils/ColorSet.cpp::{GetPlayerColor,GetDarkPlayerColor},
+     * gfx/spritesys/UnitActor.cpp::{DrawHerald,DrawStackingIndicator} and
+     * gfx/tilesys/tiledraw.cpp::TiledMap::{DrawCityNames,DrawNationalBorders}
+     * share one player palette. See installed
+     * Colors00.txt and assets/player_colors.rs for the exact packed-channel rule.
+     * Public setup membership gives CLIENT display slots; unknown foreign owners
+     * use an explicit neutral fallback, never the first empire/red or an ID hash.
+     * These colors confer no ownership/knowledge/action permission or culture.
+     */
+    /// One color lookup for unit flags/heralds, panel shields, city labels and borders.
+    pub(in crate::gameplay::runtime) fn player_color(&self,state:&GameState,owner:&crate::gameplay::model::PlayerId,explored:bool)->Color {
+        self.slot_color(owner.color_slot(&state.roster),explored)
+    }
+    /// Shared packed-color expansion and explicit neutral fallback, without frame-time I/O.
+    fn slot_color(&self,slot:Option<u8>,explored:bool)->Color {
+        let format=self.tiles.as_ref().map_or(crate::gameplay::assets::tile::PixelFormat::Rgb565,|tiles|tiles.format);
+        let color=slot.and_then(|slot|self.palette.as_ref()?.color(slot,format,explored));
+        let [red,green,blue]=color.unwrap_or(if explored {[64_u8;3_usize]}else{[128_u8;3_usize]});Color::RGB(red,green,blue)
+    }
+    /// Received territorial owner shares the same frozen identity/palette as actors.
+    pub(in crate::gameplay::runtime) fn observed_owner_color(&self,state:&GameState,id:&str)->Color {
+        self.slot_color(crate::gameplay::model::PlayerId::observed_color_slot(id,&state.roster),false)
     }
 
     /// Returns a cached terrain texture using the release neighborhood rules.

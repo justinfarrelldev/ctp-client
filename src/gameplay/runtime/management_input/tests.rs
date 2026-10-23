@@ -52,6 +52,7 @@ pub(super) fn authority(port: u16, value: Value) -> RuntimeAuthority {
         })
         .expect("stub endpoint"),
         session: ServerGameplaySession {
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
             game_id: 44_i64,
             session_id: 71_i64,
             account_id: 7_i64,

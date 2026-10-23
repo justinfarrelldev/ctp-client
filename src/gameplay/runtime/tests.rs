@@ -326,6 +326,7 @@ fn plain_left_click_with_authority_does_not_submit_move_request() {
         io: None,
         client,
         session: ServerGameplaySession {
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
             game_id: 44,
             session_id: 11,
             account_id: 7,

@@ -1,9 +1,8 @@
 //! Observed overlays and political boundaries; never query an undiscovered tile.
-use crate::gameplay::model::{FogState, GameState, MapPoint, PlayerId, TileFeature, UnitId};
+use crate::gameplay::model::{FogState, GameState, MapPoint, TileFeature};
 use crate::gameplay::runtime::{Camera, textures::GameplayTextures};
 use crate::gameplay::{GameplayError, runtime_error};
 use sdl2::{
-    pixels::Color,
     rect::{Point, Rect},
     render::Canvas,
     video::Window,
@@ -73,7 +72,7 @@ pub(super) fn draw(
             }
             if state.filters.political_borders {
                 if let Some(owner) = source.owner_id.as_deref().filter(|owner| !owner.is_empty()) {
-                    borders(canvas, textures, state, camera, point, owner, explored)?;
+                    borders(canvas, textures, state, camera, point, owner)?;
                 }
             }
         }
@@ -89,33 +88,20 @@ fn borders(
     camera: &Camera,
     point: MapPoint,
     owner: &str,
-    explored: bool,
 ) -> Result<(), GameplayError> {
     let Some(viewer) = state.viewer.as_ref() else {
         return Ok(());
     };
-    let human = viewer.units.iter().any(|actor| {
-        actor.owner_id == owner
-            && state.units.iter().any(|unit| {
-                unit.owner == PlayerId::Human && unit.id == UnitId::from_server_id(&actor.id)
-            })
-    });
-    // Existing explicit viewer identity selects only the fallback palette, never
-    // territorial ownership or a civilization's unprovided architectural culture.
-    let color = if human {
-        Color::RGB(0, 100, 255)
-    } else {
-        Color::RGB(180, 90, 40)
-    };
-    let color = if explored {
-        Color::RGB(
-            color.r.div_euclid(2),
-            color.g.div_euclid(2),
-            color.b.div_euclid(2),
-        )
-    } else {
-        color
-    };
+    /* Released source under ctp2_source/ctp2_code/:
+     * gfx/tilesys/tiledraw.cpp::TiledMap::{DrawNationalBorders,
+     * GetVisibleCellOwner} uses NORMAL ColorSet::GetPlayerColor even for a
+     * remembered owner; city captions alone use its dark variant. Colors00.txt
+     * defines those runtime colors, not LDL. Frozen public setup slots supply
+     * only presentation: they never create the observed owner or make an absent
+     * neighboring owner known. Keep the existing safer observed-neighbor gate,
+     * not the original canonical-world/city lookup or full border parity.
+     */
+    let color=textures.observed_owner_color(state,owner);
     let (x, y) = camera.tile_to_screen(point);
     let scale = i32::try_from(camera.tile_width().div_euclid(94).max(1)).unwrap_or(1_i32);
     for (dx, dy, start, end) in [

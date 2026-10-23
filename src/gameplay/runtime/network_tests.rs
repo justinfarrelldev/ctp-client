@@ -21,7 +21,7 @@ impl Transport for Fake {
 
 #[test]
 fn async_retry_keeps_exact_envelope_and_reconciles_without_local_mutation() {
-    let session=ServerGameplaySession {game_id:1,session_id:2,account_id:3,projection:Some(ServerProjection {revision:4,turn:1,..ServerProjection::default()})};
+    let session=ServerGameplaySession {roster:crate::gameplay::server::roster::PlayerRoster::default(),game_id:1,session_id:2,account_id:3,projection:Some(ServerProjection {revision:4,turn:1,..ServerProjection::default()})};
     let request=PreparedCommand::new(&session,"pass",json!({})).expect("capture envelope");
     let mut fake=Fake {attempts:Vec::new(),revision:5};
     let mut outcomes=Vec::new();
@@ -41,7 +41,7 @@ impl Transport for RejectedTransport {
 }
 #[test]
 fn repaired_rejection_is_emitted_separately_from_refresh_and_never_retried_as_transport_loss() {
-    let session=ServerGameplaySession {game_id:1_i64,session_id:2_i64,account_id:3_i64,projection:Some(ServerProjection {revision:4_i64,turn:1_u32,..ServerProjection::default()})};
+    let session=ServerGameplaySession {roster:crate::gameplay::server::roster::PlayerRoster::default(),game_id:1_i64,session_id:2_i64,account_id:3_i64,projection:Some(ServerProjection {revision:4_i64,turn:1_u32,..ServerProjection::default()})};
     let command=PreparedCommand::new(&session,"edit-production",json!({"city_id":"city","entries":[{"item_id":"UNIT_WARRIOR"}]})).expect("immutable request");
     let mut transport=RejectedTransport{attempts:0_u32};let mut outcomes=Vec::new();execute(&mut transport,&command,&mut |outcome|outcomes.push(outcome));
     assert_eq!(transport.attempts,1_u32,"authoritative rejection cannot become another order or automatic rebase");
@@ -50,7 +50,7 @@ fn repaired_rejection_is_emitted_separately_from_refresh_and_never_retried_as_tr
 
 #[test]
 fn asynchronous_reconciliation_never_regresses_the_session_revision() {
-    let mut session=ServerGameplaySession {game_id:1,session_id:2,account_id:3,projection:Some(ServerProjection {revision:9,turn:3,..ServerProjection::default()})};
+    let mut session=ServerGameplaySession {roster:crate::gameplay::server::roster::PlayerRoster::default(),game_id:1,session_id:2,account_id:3,projection:Some(ServerProjection {revision:9,turn:3,..ServerProjection::default()})};
     session.apply_projection(ServerProjection {revision:8,turn:2,..ServerProjection::default()});
     assert_eq!(session.revision(),9,"older idempotent receipts cannot replace newer state");
 }

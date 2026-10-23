@@ -44,6 +44,7 @@ impl GameState {
             city_build_menu: None,
             network: super::NetworkStatus::Ready,
             viewer: None,
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
         };
         state.place_initial_actors(empire_count);
         state.refresh_fog();
@@ -371,7 +372,7 @@ impl GameState {
                 break;
             }
             if let Some(defender_index) =
-                self.enemy_unit_index_at(next, self.units[unit_index].owner)
+                self.enemy_unit_index_at(next, &self.units[unit_index].owner)
             {
                 events.extend(self.resolve_combat(unit_index, defender_index));
                 self.pop_unit_path_front(unit_id);
@@ -471,7 +472,7 @@ impl GameState {
             .iter()
             .filter(|unit| unit.alive && unit.owner != PlayerId::Human && unit.owner.is_empire())
             .filter(|unit| unit.position.tile_distance(position) <= 2)
-            .map(|unit| unit.owner)
+            .map(|unit| unit.owner.clone())
             .collect();
         for owner in owners {
             if let Some(contact) = self
@@ -523,7 +524,7 @@ impl GameState {
             let Some(barb_index) = self.unit_index(id) else {
                 continue;
             };
-            if let Some(defender_index) = self.enemy_unit_index_at(next, PlayerId::Barbarians) {
+            if let Some(defender_index) = self.enemy_unit_index_at(next, &PlayerId::Barbarians) {
                 events.extend(self.resolve_combat(barb_index, defender_index));
             } else {
                 self.units[barb_index].position = next;
@@ -547,7 +548,7 @@ impl GameState {
             };
             if self.units[index].kind == UnitKind::Settler && self.turn > 2 {
                 let city_id = CityId(next_id_from_len(self.cities.len()));
-                let owner = self.units[index].owner;
+                let owner = self.units[index].owner.clone();
                 let position = self.units[index].position;
                 self.cities.push(City {
                     id: city_id,
@@ -738,9 +739,9 @@ impl GameState {
     }
 
     /// Returns an enemy unit at a point.
-    fn enemy_unit_index_at(&self, point: MapPoint, owner: PlayerId) -> Option<usize> {
+    fn enemy_unit_index_at(&self, point: MapPoint, owner: &PlayerId) -> Option<usize> {
         self.units.iter().position(|unit| {
-            unit.alive && unit.position == point && owners_are_enemies(unit.owner, owner)
+            unit.alive && unit.position == point && owners_are_enemies(&unit.owner, owner)
         })
     }
 

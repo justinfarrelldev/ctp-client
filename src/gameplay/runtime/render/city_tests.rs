@@ -79,13 +79,14 @@ fn authoritative_city_captions_use_viewer_names_not_outdated_render_cache_string
         let projection:ServerProjection=serde_json::from_value(json!({"revision":1_i64,"turn":1_u32,"tiles":[{"id":"a","x":2_u16,"y":2_u16,"terrain":"TERRAIN_PLAINS"}],"cities":[{"id":"city-a","owner_id":"human","tile_id":"a","population":1_u32,"name":"Rome"}]})).map_err(|error|error.to_string())?;
         let mut state=GameState::from_server_projection(&projection,1_u8,1_u64);
         let ui=crate::gameplay::ui_model::InGameUiModel::default();
+        let textures=crate::gameplay::runtime::textures::GameplayTextures::without_assets_for_test();
         canvas.set_draw_color(Color::RGB(0_u8,0_u8,0_u8));canvas.clear();
-        super::cities::draw_labels(canvas,&state,&ui,&Camera::for_test_identity(),None).map_err(|error|error.to_string())?;
+        super::cities::draw_labels(canvas,&textures,&state,&ui,&Camera::for_test_identity(),None).map_err(|error|error.to_string())?;
         let expected=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
         state.cities.first_mut().ok_or_else(||"city".to_owned())?.name="WRONG CACHED MACHINE ID".to_owned();
         canvas.set_draw_color(Color::RGB(0_u8,0_u8,0_u8));
         canvas.clear();
-        super::cities::draw_labels(canvas,&state,&ui,&Camera::for_test_identity(),None).map_err(|error|error.to_string())?;
+        super::cities::draw_labels(canvas,&textures,&state,&ui,&Camera::for_test_identity(),None).map_err(|error|error.to_string())?;
         if canvas.read_pixels(None,PixelFormatEnum::RGBA32)?!=expected {return Err("map caption used a stale render-cache name instead of the viewer's authoritative name".to_owned());}
         Ok(())
     });

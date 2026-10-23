@@ -8,6 +8,13 @@ Review every image in `images/ctp2_references` using its full filename as contex
 
 The user explicitly requested completion of every remaining checklist item after `ea98904`. Execute [full-screen-reference-parity.md](full-screen-reference-parity.md) alongside this parent, using TDD and atomic commits. No prior component/protocol milestone certifies full-frame parity. Do not stop at another partial implementation report or check off unverified/blocked acceptance.
 
+## Distinct owner/player-color repair
+
+- [x] Reproduce collapsed foreign owners as a causal RED; retain exact opaque owner strings, exact authenticated self and city identity rather than suffix/substring/coordinate guesses. Cover separate peers, misleading IDs, co-located cities, reorder, hidden/reveal and received capture.
+- [x] Audit released `ColorSet.cpp`, `colorset.h`, `pixelutils.h`, `UnitActor::{DrawHerald,DrawStackingIndicator}`, `TiledMap::{DrawCityNames,DrawNationalBorders,GetVisibleCellOwner}` and original `Colors00.txt`. Read the installed table once, never copy/embed assets; share packed-format normal/dark colors across map actors/flags, panel herald, cities and observed borders. Original remembered borders stay normal, city colors darken.
+- [x] Keep the already-returned authenticated start-game public membership order as frozen **client display** slots1–16, barbarian0; absent/invalid/overflow stays unknown/neutral. No ID hash/modulo, country/encounter ordering, canonical slots, hidden knowledge or extra HTTP reads. Nine pure/native/mock cases cover the workflow; native readback checks three foreign actor colors, city/fog boxes and known-only political edges. See [authority/color evidence](reference-parity-contract-gaps.md#distinct-observed-owners-and-original-player-palette--client-repair).
+- [ ] Native canonical slot/Science and other manager-header knowledge integration, alive-player progress, complete caption/extra-map-flag/HUD-herald styling and all33 full frames remain unaccepted. This color repair does not certify those unrelated screens or Windows/live gameplay.
+
 ## Current server contract integration
 
 The server has independently implemented contract v2, including retained destinations, ruin rewards and city production governors. The completed client-only contract integration is in [PLAN.md's implementation ledger](../PLAN.md#completed-implementation-ledger); current outstanding scope/priorities are owned by that main plan. Earlier blocker notes below are historical, not the current server feature status. Do not modify the server.

@@ -74,6 +74,7 @@ fn self_event_revisions_and_idle_stream_do_not_refetch_current_or_enter_a_429_lo
     })
     .expect("fake only");
     let session = ServerGameplaySession {
+        roster:crate::gameplay::server::roster::PlayerRoster::default(),
         game_id: 44_i64,
         session_id: 71_i64,
         account_id: 7_i64,
@@ -140,6 +141,7 @@ fn check_lost_receipt(prefix: &'static str) {
     })
     .expect("mock URL");
     let session = ServerGameplaySession {
+        roster:crate::gameplay::server::roster::PlayerRoster::default(),
         game_id: 44,
         session_id: 71,
         account_id: 7,

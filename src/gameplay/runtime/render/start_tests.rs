@@ -38,6 +38,7 @@ fn decoded_starting_snapshot_selects_and_renders_settler_terrain_and_minimap() {
                 client: ServerClient::from_config(&ServerConfig::disabled_for_test())
                     .map_err(|error| error.to_string())?,
                 session: ServerGameplaySession {
+                    roster:crate::gameplay::server::roster::PlayerRoster::default(),
                     game_id: 44_i64,
                     session_id: 11_i64,
                     account_id: 7_i64,

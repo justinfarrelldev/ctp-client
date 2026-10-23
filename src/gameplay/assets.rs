@@ -28,6 +28,8 @@ mod library_tests;
 pub mod observed_art;
 #[cfg(test)]
 mod observed_art_tests;
+/// Original installed player-slot colors, shared by actors/cities/borders.
+pub mod player_colors;
 /// Original channel expansion shared by terrain, actors and UI art.
 pub(crate) mod pixel;
 /// RIM/ZFS image loading for CTP2 UI art.

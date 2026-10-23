@@ -184,12 +184,12 @@ pub(in crate::gameplay::model) fn step_toward(
 }
 
 /// Returns whether two owners are enemies for local gameplay.
-pub(in crate::gameplay::model) fn owners_are_enemies(left: PlayerId, right: PlayerId) -> bool {
+pub(in crate::gameplay::model) fn owners_are_enemies(left: &PlayerId, right: &PlayerId) -> bool {
     left != right
-        && (left == PlayerId::Barbarians
-            || right == PlayerId::Barbarians
-            || left == PlayerId::Human
-            || right == PlayerId::Human)
+        && (left == &PlayerId::Barbarians
+            || right == &PlayerId::Barbarians
+            || left == &PlayerId::Human
+            || right == &PlayerId::Human)
 }
 
 /// Computes a deterministic ruin outcome.

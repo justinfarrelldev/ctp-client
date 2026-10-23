@@ -146,28 +146,16 @@ pub struct MapTile {
 }
 
 /// Owner of a unit or city.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PlayerId {
     /// Human player.
     Human,
     /// Normal non-barbarian empire, counted in empire totals.
     Empire(u8),
+    /// Exact opaque foreign identity from an authoritative viewer projection.
+    Server(String),
     /// Barbarian faction, never counted as an empire.
     Barbarians,
-}
-
-impl PlayerId {
-    /// Returns whether this owner is a normal empire.
-    #[must_use]
-    pub const fn is_empire(self) -> bool {
-        matches!(self, Self::Human | Self::Empire(_))
-    }
-
-    /// Returns whether this owner is barbarian.
-    #[must_use]
-    pub const fn is_barbarian(self) -> bool {
-        matches!(self, Self::Barbarians)
-    }
 }
 
 /// Stable unit identifier.
@@ -448,6 +436,8 @@ pub struct GameState {
     pub network: NetworkStatus,
     /// Exact viewer-safe source facts used by management UI and legal orders.
     pub viewer: Option<super::server::ServerProjection>,
+    /// Frozen public setup membership used only for stable presentation colors.
+    pub roster:super::server::roster::PlayerRoster,
 }
 
 /// Game-state actions, turn processing, fog, combat, and generation helpers.
@@ -460,9 +450,14 @@ mod movement_orders;
 pub mod planning;
 /// Server projection conversion helpers.
 mod server_projection;
+/// Exact owner classification and source display-slot lookup.
+mod players;
 
 #[cfg(test)]
 mod terrain_tests;
+/// Exact owner identities must remain distinct across viewer conversions.
+#[cfg(test)]
+mod player_tests;
 /// Viewer-safe original city caption and queue projection regressions.
 #[cfg(test)]
 mod city_tests;

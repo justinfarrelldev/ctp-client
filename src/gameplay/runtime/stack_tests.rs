@@ -68,6 +68,7 @@ fn stacked_authority() -> RuntimeAuthority {
         client: ServerClient::from_config(&ServerConfig::disabled_for_test())
             .expect("constructing a client only parses the URL"),
         session: ServerGameplaySession {
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
             game_id: 44_i64,
             session_id: 88_i64,
             account_id: 42_i64,

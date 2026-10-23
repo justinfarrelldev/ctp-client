@@ -264,13 +264,22 @@ fn draw_unit_panel(
             .filter(|candidate| candidate.alive && candidate.position == unit.position)
             .count();
         let shield = panel_rect(283, 80, 16, 20);
+        /* Released source under ctp2_source/ctp2_code/:
+         * ui/interface/UnitControlPanel.cpp::UpdateSingleSelectionDisplay and
+         * ctp2/ctp2_data/english/uidata/layouts/controlpanel.ldl
+         * UnitTab.TabPanel.UnitSelectionDisplay.SingleSelect own the selected portrait.
+         * Its existing client-added map herald is not a retail HUD parity claim;
+         * restore only gfx/spritesys/UnitActor.cpp::DrawStackingIndicator's player-color rule
+         * from Colors00.txt here, shared with the map, without moving controls.
+         */
+        let color=textures.player_color(state,&unit.owner,false);
         draw_stack_shield(
             canvas,
             textures,
             count,
             shield.x(),
             shield.y(),
-            unit.owner,
+            color,
             false,
         )?;
     }

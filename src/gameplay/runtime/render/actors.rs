@@ -150,7 +150,7 @@ pub(super) fn draw_units(
                 .map_err(runtime_error)?;
             actor.frame.shield
         } else {
-            canvas.set_draw_color(owner_color(unit.owner));
+            canvas.set_draw_color(textures.player_color(state,&unit.owner,false));
             canvas
                 .fill_rect(hits::fallback_bounds(pose))
                 .map_err(runtime_error)?;
@@ -159,10 +159,18 @@ pub(super) fn draw_units(
         let stack = presented.count;
         let shield_x = x.saturating_add(shield.0.saturating_mul(zoom));
         let shield_y = y.saturating_add(shield.1.saturating_mul(zoom));
-        draw_stack_shield(
-            canvas, textures, stack, shield_x, shield_y, unit.owner, true,
-        )?;
-        draw_flag(canvas, textures, unit.owner, shield_x, shield_y)?;
+        /* Released source under ctp2_source/ctp2_code/:
+         * gfx/spritesys/UnitActor.cpp::{DrawHerald,DrawStackingIndicator}
+         * tint runtime MAPICON_HERALD silhouettes with ColorSet::GetPlayerColor.
+         * Colors00.txt supplies the table; tilesys/tileset.h supplies icon IDs,
+         * not LDL. The same color now feeds the existing client MAPICON_FLAG
+         * overlay; that extra overlay/placement is not certified retail behavior
+         * (retail tiledmap.cpp::DrawStartingLocations uses flags for the editor).
+         * This change restores identity/color only, without changing geometry.
+         */
+        let color=textures.player_color(state,&unit.owner,false);
+        draw_stack_shield(canvas,textures,stack,shield_x,shield_y,color,true)?;
+        draw_flag(canvas,textures,color,shield_x,shield_y)?;
         if Some(unit.id) == input.active_unit() || Some(unit.id) == state.selected_unit {
             draw_selection(
                 canvas,
@@ -180,11 +188,11 @@ pub(super) fn draw_units(
 fn draw_flag(
     canvas: &mut Canvas<Window>,
     textures: &mut GameplayTextures<'_>,
-    owner: PlayerId,
+    color: Color,
     x: i32,
     y: i32,
 ) -> Result<(), GameplayError> {
-    if let Some(flag) = textures.map_icon(23, owner_color(owner))? {
+    if let Some(flag) = textures.map_icon(23, color)? {
         let size = flag.query();
         let top = y
             .saturating_sub(i32::try_from(size.height).unwrap_or(0_i32))
@@ -261,7 +269,7 @@ pub(super) fn draw_stack_shield(
     count: usize,
     x: i32,
     y: i32,
-    owner: PlayerId,
+    color: Color,
     health_bar: bool,
 ) -> Result<(), GameplayError> {
     let index = if count <= 1_usize {
@@ -269,7 +277,7 @@ pub(super) fn draw_stack_shield(
     } else {
         10_u16.saturating_add(u16::try_from(count.min(9_usize)).map_or(2_u16, |v| v))
     };
-    if let Some(icon) = textures.map_icon(index, owner_color(owner))? {
+    if let Some(icon) = textures.map_icon(index, color)? {
         let size = icon.query();
         canvas
             .copy(icon, None, Rect::new(x, y, size.width, size.height))
@@ -337,13 +345,4 @@ fn draw_selection(
             .map_err(runtime_error)?;
     }
     Ok(())
-}
-
-/// Quantized original player palette, shared by map and portrait heralds.
-const fn owner_color(owner: PlayerId) -> Color {
-    match owner {
-        PlayerId::Human => Color::RGB(0, 0, 255),
-        PlayerId::Empire(_) => Color::RGB(255, 0, 0),
-        PlayerId::Barbarians => Color::RGB(120, 48, 48),
-    }
 }

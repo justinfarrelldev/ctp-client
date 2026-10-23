@@ -50,6 +50,7 @@ fn fixture() -> Harness {
         })
         .expect("parse unused endpoint only"),
         session: ServerGameplaySession {
+            roster:crate::gameplay::server::roster::PlayerRoster::default(),
             game_id: 1_i64,
             session_id: 2_i64,
             account_id: 3_i64,
