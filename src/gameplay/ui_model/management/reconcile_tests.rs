@@ -37,8 +37,5 @@ fn receipts_drop_removed_entry_selection_but_preserve_independent_buildable_and_
         !view.selections.contains_key("queue"),
         "removed entry does not select c:2"
     );
-    assert!(
-        !view.selections.contains_key("description"),
-        "removed entry cannot become a library topic"
-    );
+    assert_eq!(view.selections.get("description").map(String::as_str),Some("UNIT_WARRIOR"),"released ShowSelectedInfo falls back only to independent explicit left content, never removed c:1 or neighboring c:2 entry identity");
 }

@@ -9,6 +9,8 @@ mod save_tests;
 mod delete_tests;
 /// Original exact-name Overwrite from Save-name, using only fake profile storage.
 mod overwrite_tests;
+/// Released source queue-first descriptions/Library and explicit empty-pane deselection.
+mod description_tests;
 use super::{Network, Outcome};
 use crate::gameplay::{assets::layout::LayoutBook, model::{GameState, NetworkStatus}, runtime::{MovementInputState, RuntimeAuthority, authority::state_from_authority_projection, management_input, operation_input, sync}, server::{ServerClient, ServerConfig, ServerGameplaySession, envelope::PreparedCommand}, ui_model::{InGameUiModel, management::{ManagementUi, ManagerKind}}};
 use alloc::sync::Arc;
@@ -290,7 +292,7 @@ fn build_double_click_queue_removes_exact_duplicate_future_but_never_funded_or_u
             let quote=current.rush_buy_quote.as_mut().expect("quote");quote.revision=8_i64;quote.status="available".to_owned();quote.cost=Some(30_i64);
             sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Receipt(Box::new(received)));
             let view=harness.ui.management.view.as_ref().expect("same parent");
-            assert!(!view.selections.contains_key("queue") && !view.selections.contains_key("description"),"actual removal clears exact vanished identity, never auto-selects new first/head");
+            assert!(!view.selections.contains_key("queue") && view.selections.get("description").is_some_and(|id|id=="UNIT_SETTLER"),"removed queue identity never selects first/head; source falls back only to already explicit left choice");
             assert_eq!(view.selections.get("buildable").map(String::as_str),Some("UNIT_SETTLER"),"independent left choice survives actual removal");
             let third=row_event(&harness,"QueueGroup.QueueList/c2:head",3_u8,true);manager_event(&mut harness,&third);
             assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"higher click count must not cascade into now-first unlocked head");
@@ -365,7 +367,7 @@ fn build_double_click_interrupted_by_receipt_row_shift_city_focus_or_keyboard_ne
 #[test]
 fn build_lifecycle_native_library_receipt_return_and_category_switch_preserve_exact_description_and_clamp_source_scroll() {
     let mut harness=buildable_fixture();
-    for (id,lines) in [("UNIT_SETTLER",40_usize),("UNIT_HOPLITE",1_usize)] {
+    for (id,lines) in [("UNIT_SETTLER",40_usize),("UNIT_HOPLITE",40_usize)] {
         if let Some(art)=harness.ui.management.library.catalog.art.get_mut(id) {art.summary=None;}
         let text=core::iter::repeat_n("Synthetic summary line.\n",lines).collect::<String>();
         harness.ui.management.library.catalog.articles.entry(id.to_owned()).or_default().sections.insert(crate::gameplay::assets::library::LibrarySection::Summary,crate::gameplay::assets::library::LibraryDocument::parse(&text));
@@ -383,7 +385,7 @@ fn build_lifecycle_native_library_receipt_return_and_category_switch_preserve_ex
     }
     harness.ui.management.focused=Some("LibraryButton".to_owned());manager_event(&mut harness,&key(Keycode::RETURN));
     assert_eq!(harness.ui.management.view.as_ref().map(|view|view.kind),Some(ManagerKind::Library),"source Library button opens related window");
-    assert_eq!(harness.ui.management.library.current.as_deref(),Some("UNIT_SETTLER"),"exact last active content article, not unrelated selected queue");
+    assert_eq!(harness.ui.management.library.current.as_deref(),Some("UNIT_HOPLITE"),"released queue-first actual content, not last-focused left choice");
     let mut snapshot=harness.authority.session.projection.clone().expect("current full snapshot");snapshot.revision=8_i64;
     let city=snapshot.cities.iter_mut().find(|city|city.id=="c2").expect("same city");city.facts["queue"].as_array_mut().expect("queue").remove(0_usize);city.rush_buy_quote.as_mut().expect("quote").revision=8_i64;
     sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(snapshot)));

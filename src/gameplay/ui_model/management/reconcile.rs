@@ -88,4 +88,5 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
             view.selections.remove("unit-type");
         }
     }
+    super::build::description::sync(view);
 }

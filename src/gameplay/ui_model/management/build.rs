@@ -2,6 +2,8 @@
 use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
 /// Source focused list keyboard selection and actual received-position visibility.
 pub(super) mod navigation;
+/// Released queue-first content and explicit blank-pane presentation selection.
+pub(super) mod description;
 use crate::gameplay::{model::GameState, server::{ServerCityProjection, v2::Quote}};
 use serde_json::json;
 
@@ -195,8 +197,8 @@ pub(super) fn load_replacement(state: &GameState, view: &ManagerView, items: &[S
  * ItemsBox.{UnitsButton,BuildingsButton,WondersButton,UnitsList,BuildingList,
  * WonderList} supplies unchanged source styles/positions. ShowSelectedInfo and
  * citywindow.cpp::CityWindow::SetItemDescription resolve content before Library.
- * Client's existing last-interacted/reference pane interpretation is retained,
- * not claimed identical to released ShowSelectedInfo's queue-first priority.
+ * Released ShowSelectedInfo's queue-first priority is restored; a blank queue
+ * pane explicitly deselects it, rather than guessing focus clears selection.
  * Explicit role disambiguates opaque entry IDs from identical content IDs;
  * category navigation cannot retain a hidden executable choice. No local rules.
  */
@@ -204,6 +206,7 @@ pub(super) fn load_replacement(state: &GameState, view: &ManagerView, items: &[S
 pub(super) fn select(view: &mut ManagerView, key: &str, value: &str) -> Option<bool> {
     if view.kind != ManagerKind::Build { return None; }
     match key {
+        "queue-deselect" => return Some(description::deselect(view,value)),
         super::saved::MODE => {
             if !matches!(value, "true" | "false") { return Some(false); }
             if value == "true" {
@@ -238,11 +241,10 @@ pub(super) fn select(view: &mut ManagerView, key: &str, value: &str) -> Option<b
         }
         "buildable" | "queue" => {
             view.selections.insert(key.to_owned(), value.to_owned());
-            view.selections.insert("description".to_owned(), value.to_owned());
-            view.selections.insert("description-source".to_owned(), key.to_owned());
         }
         _ => return None,
     }
+    description::sync(view);
     Some(true)
 }
 

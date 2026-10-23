@@ -233,7 +233,7 @@ fn library_uses_a_real_edit_field_and_never_draws_obsolete_search_or_missing_tit
 }
 
 #[test]
-fn selected_queue_description_follows_last_interaction_without_losing_buildable_selection() {
+fn selected_queue_description_has_released_priority_without_losing_independent_buildable_selection() {
     let state = fixture();
     let mut management = ui();
     management.open(ManagerKind::Build, &state, Some("city-a"));
@@ -245,6 +245,7 @@ fn selected_queue_description_follows_last_interaction_without_losing_buildable_
         .activate_id("QueueGroup.QueueList/UNIT_HOPLITE", &state)
         .expect("queue");
     assert!(management.apply_local(queue), "select queue");
+    assert!(management.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"left focus doesn't clear source queue selection or priority");
     let view = management.view.as_ref().expect("view");
     assert_eq!(
         view.selections.get("description").map(String::as_str),

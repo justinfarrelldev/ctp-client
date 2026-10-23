@@ -572,6 +572,7 @@ fn project(view: &mut ManagerView, draft: &Draft) {
             }
         }
     }
+    super::super::build::description::sync(view);
 }
 /// File-format projection keeps category semantics; duplicate units stay ordered.
 #[must_use]

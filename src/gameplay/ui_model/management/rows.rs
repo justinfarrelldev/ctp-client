@@ -107,6 +107,11 @@ impl Row<'_> {
 
     /// Numeric fields use verified runtime semantics; unknown scales/rates stay unknown.
     fn value(&self, name: &str) -> String {
+        /* Released EditQueue.cpp::AddChoiceItem(-1)/UpdateQueueList explicitly
+         * blanks Custom Time/Turns in editqueue.ldl::eq_UnitItem/eq_BuildingWonderItem/
+         * eq_QueueListItem. No city ETA is applicable to an independent template.
+         */
+        if let Some(text)=super::build::description::time(self.view,name){return text;}
         /* Original EditQueue.cpp::{UpdateFileLists,DisplayQueueContents} creates
          * eq_LoadListItem/eq_ContentsItem (editqueue.ldl). Their lowercase label
          * is actual filename/preview content, never a guessed library identity.

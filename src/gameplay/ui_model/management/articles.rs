@@ -237,30 +237,15 @@ fn document<'catalog>(
     Some((ui.library.catalog.article(&id)?.sections.get(&section)?, id))
 }
 
-/// Last interacted list controls the description without discarding either selection.
-pub(super) fn selected_description<'view>(
-    view: &'view ManagerView,
-    state: &'view GameState,
-) -> Option<&'view str> {
-    let selected = view
-        .selections
-        .get("description")
-        .or_else(|| view.selections.get("buildable"))
-        .or_else(|| view.selections.get("queue"))
-        .map(String::as_str)?;
-    /* Source: EditQueue.cpp::ShowSelectedInfo/Library and citywindow.cpp::
-     * CityWindow::SetItemDescription under ctp2_source/ctp2_code/ui/interface/;
-     * editqueue.ldl::{ItemDescription,ItemImage,LibraryButton} uses actual content.
-     * Client explicit source role preserves existing last-interacted behavior
-     * without guessing that an opaque queue entry is a content/library identity.
-     * Legacy fixture views without a role retain their prior lookup contract.
+/// Released queue-first content/Library identity; explicit left choice only without queue.
+pub(super) fn selected_description<'view>(view:&'view ManagerView,state:&'view GameState)->Option<&'view str>{
+    /* Released EditQueue.cpp::ShowSelectedInfo/Library and CityWindow::SetItemDescription
+     * (ui/interface) use actual queue content before the visible left candidate;
+     * editqueue.ldl::ItemDescription/ItemImage/LibraryButton retain source geometry.
+     * build::description documents the complete AUI/CTP2 selection chain, exact
+     * entry/content namespaces, source Custom info-shadow fix and client differences.
      */
-    match view.selections.get("description-source").map(String::as_str) {
-        Some("buildable") => view.selections.get("buildable").filter(|id| id.as_str() == selected).map(String::as_str),
-        Some("queue") => view.selections.get("queue").filter(|id| id.as_str() == selected).and_then(|entry| super::queue::content(state, view, entry)),
-        Some(_) => None,
-        None => Some(super::queue::content(state, view, selected).unwrap_or(selected)),
-    }
+    super::build::description::selected(view,state)
 }
 
 /// Visible article title/index/search text, not client-authored game facts.

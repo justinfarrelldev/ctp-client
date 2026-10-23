@@ -24,7 +24,7 @@ const ANCHOR: [&str; 3] = ["queue-viewport-entry", "queue-viewport-city", "queue
 fn role_path(view: &ManagerView, role: &str) -> Option<&'static str> {
     if view.kind != ManagerKind::Build { return None; }
     match role {
-        "queue" => Some(PATHS[3_usize]),
+        "queue" | "queue-deselect" => Some(PATHS[3_usize]),
         "saved-queue" if super::super::saved::active(view) => Some(PATHS[4_usize]),
         "saved-preview" if super::super::saved::active(view) => Some(PATHS[5_usize]),
         "buildable" => match view.selections.get("build-category").map_or("Units", String::as_str) {

@@ -499,6 +499,8 @@ impl Walker<'_> {
                     .insert("row-container".to_owned(), "true".to_owned());
             }
         }
+        let used=u32::try_from(rows.len().saturating_sub(offset).min(visible)).unwrap_or(u32::MAX).saturating_mul(u32::try_from(height).unwrap_or(0_u32));
+        if let Some(blank)=super::build::description::blank(self.view,path,rect,used){self.widgets.push(blank);}
         scrollbar::append(
             self.ui,
             self.state,

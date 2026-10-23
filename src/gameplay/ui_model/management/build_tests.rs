@@ -334,7 +334,10 @@ fn build_lifecycle_description_role_prevents_content_id_matching_opaque_queue_en
     select(&mut ui,&state,"UNIT_SETTLER");
     assert_eq!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state),Some("UNIT_HOPLITE"),"entry namespace resolves its actual content");
     assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"independent content namespace");
-    assert_eq!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state),Some("UNIT_SETTLER"),"left content must not resolve a coincident queue entry ID");
+    assert_eq!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state),Some("UNIT_HOPLITE"),"released queue-first resolves actual entry content even with coincident left ID");
+    let mut deselected=ui.view.clone().expect("view");
+    assert!(super::build::description::deselect(&mut deselected,"UNIT_SETTLER"),"explicit empty-pane deselection by exact entry identity");
+    assert_eq!(super::articles::selected_description(&deselected,&state),Some("UNIT_SETTLER"),"after deselection, left content cannot resolve a coincident queue entry namespace");
     city(&mut state).facts["queue"]=json!([]);state.viewer.as_mut().expect("viewer").revision=8_i64;
     ui.reconcile(&state);
     let view=ui.view.as_ref().expect("view");
@@ -364,6 +367,7 @@ fn build_lifecycle_description_receipts_preserve_then_clamp_stored_source_ranger
     assert_eq!(clamped.scroll.get("ItemDescription").copied(),Some(0_usize),"short document clamps stored value, not only painted thumb/text");
     assert_eq!(clamped.scroll.get("QueueGroup.QueueList").copied(),Some(1_usize),"independent queue offset untouched");
     assert_eq!(clamped.scroll.get("ItemsBox.UnitsList").copied(),Some(3_usize),"independent buildable offset untouched");
-    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"long article returns");ui.reconcile(&state);
+    assert!(ui.apply_local(ManagerIntent::Select("queue-deselect".to_owned(),"c2:head".to_owned())),"source explicit blank-pane deselection");
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"long explicit left article returns only without selected queue");ui.reconcile(&state);
     assert_eq!(ui.view.as_ref().and_then(|view|view.scroll.get("ItemDescription")).copied(),Some(0_usize),"obsolete pre-clamp offset cannot resurrect");
 }
