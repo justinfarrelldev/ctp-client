@@ -310,6 +310,29 @@ pub struct GreatLibraryView {
     pub body: String,
 }
 
+/*
+ * Source: ctp2_source/ctp2_code/ui/aui_common/aui_listbox.cpp::
+ * MouseLDoubleClickInside and ui/interface/EditQueue.cpp::{ListCallback,
+ * QueueListCallback} assume the first click selected the intended row.
+ * Client safety: retain only presentation identity/city and received revision,
+ * so an asynchronous snapshot cannot reinterpret the second press as another
+ * row/city or silently rebase a command. No layout/style/scaling is changed.
+ */
+/// First source Build row press; never a command or local queue execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagerRowPress {
+    /// Exact revision visible when the first native press selected this row.
+    pub revision: i64,
+    /// Source manager identity.
+    pub kind: management::ManagerKind,
+    /// Explicit effective city; identical content in another city isn't a match.
+    pub city_id: Option<String>,
+    /// Independent source selection role, such as queue versus buildable.
+    pub key: String,
+    /// Canonical current entry/content ID, never the row's ordinal or label.
+    pub id: String,
+}
+
 /// Full in-game UI model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InGameUiModel {
@@ -346,6 +369,8 @@ pub struct InGameUiModel {
     pub tile_category: TileCategory,
     /// Source-layout management windows, independent of the lower panel tabs.
     pub management: management::ManagementUi,
+    /// Source row press canceled by revision/scope mismatch or modal/focus changes.
+    pub manager_press: Option<ManagerRowPress>,
     /// Explicit original-style input/target form above any manager.
     pub operation: Option<operations::OperationDialog>,
     /// Viewer-authorized message window, never a local reward executor.
@@ -371,6 +396,7 @@ impl Default for InGameUiModel {
             stack_expanded: false,
             tile_category: TileCategory::Land,
             management: management::ManagementUi::default(),
+            manager_press: None,
             operation: None,
             messages: messages::MessageLog::default(),
         }

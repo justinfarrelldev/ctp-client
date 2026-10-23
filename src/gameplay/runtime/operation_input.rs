@@ -23,6 +23,11 @@ pub(super) fn consume(
     let Some(dialog) = ui.operation.as_mut() else {
         return false;
     };
+    /* Source: ctp2_source/ctp2_code/ui/interface/MessageBoxDialog.cpp::
+     * MessageBoxDialog owns strong modality. Client async safety discards an
+     * underlying list's first press; canceling a modal cannot resume that order.
+     */
+    ui.manager_press = None;
     let (close, selected) = match event.clone() {
         Event::Quit { .. } => return false,
         Event::TextInput { text, .. } if dialog.input.is_some() => {

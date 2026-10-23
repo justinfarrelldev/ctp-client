@@ -64,6 +64,7 @@ pub(super) fn consume(
     authority: Option<&mut RuntimeAuthority>,
 ) -> bool {
     if ui.management.view.is_none() || !state.popups.is_empty() {
+        ui.manager_press = None;
         return false;
     }
     if window_event(event, ui, state) {
@@ -156,19 +157,48 @@ pub(super) fn consume(
     true
 }
 
-/// Original research double-click first selects its exact presented row and then
-/// uses the same current confirmation as OK. Other manager rows remain selection.
+/*
+ * Source: ctp2_source/ctp2_code/ui/aui_common/aui_listbox.cpp::
+ * aui_ListBox::MouseLDoubleClickInside sends DOUBLECLICKSELECT for the pointed row.
+ * Original ui/interface/EditQueue.cpp::{ListCallback,Add,InsertInQueue} appends
+ * the selected visible item; {QueueListCallback,Remove,UpdateButtons} removes
+ * only the pointed selected queue index, protecting AlreadyBoughtFront index0.
+ * editqueue.ldl::BuildEditorWindow.ItemsBox.{UnitsList,BuildingList,WonderList}
+ * and QueueGroup.QueueList establish existing hit/selection rectangles/styles.
+ * sci_advancescreen.cpp::sci_advancescreen_listAction uses the same Research OK.
+ * Client matches first-down/up and count2 by exact role/ID/city/revision before
+ * applying the clicked selection and existing Add/Remove authorization/funding/
+ * session guards; a receipt cannot silently rebase the gesture or shift it onto
+ * another row. Key/wheel/focus/hidden-window and modal interruptions cancel it.
+ * No local execution. Higher counts only select, avoiding cascading removals;
+ * Research retains its existing explicit-row confirmation behavior.
+ * Special Capitol replacement and full source selection/scroll acceptance remain
+ * separate; no new style/placement/scaling or ordinary Remove Query is invented.
+ */
+/// One original list callback shares exact native/accessibility command bindings.
 fn click_intent(ui: &mut InGameUiModel, state: &GameState, x: i32, y: i32, clicks: u8) -> Option<ManagerIntent> {
-    match pointer_intent(ui, state, x, y) {
-        Some(ManagerIntent::Select(key, id)) if clicks > 1_u8 && key == "advance"
-            && ui.management.view.as_ref().is_some_and(|view| view.kind == ManagerKind::Research) => {
-                if !ui.management.apply_local(ManagerIntent::Select(key, id)) {
-                    return None;
-                }
-                ui.management.activate_id("Background.BackButton", state)
-            }
-        intent => intent,
-    }
+    let Some(intent) = pointer_intent(ui, state, x, y) else { ui.manager_press = None; return None; };
+    let ManagerIntent::Select(key, id) = intent else { ui.manager_press = None; return Some(intent); };
+    if let Some(view) = ui.management.view.as_ref().filter(|view| view.kind == ManagerKind::Build && matches!(key.as_str(), "queue" | "buildable")) {
+        let Some(viewer) = state.viewer.as_ref() else { ui.manager_press = None; return Some(ManagerIntent::Select(key, id)); };
+        let press = crate::gameplay::ui_model::ManagerRowPress {
+            revision: viewer.revision, kind: view.kind,
+            city_id: view.selections.get("city").or(view.city_id.as_ref()).cloned(),
+            key: key.clone(), id: id.clone(),
+        };
+        let matched = clicks == 2_u8 && ui.manager_press.as_ref() == Some(&press);
+        ui.manager_press = (clicks == 1_u8).then_some(press);
+        if !matched { return Some(ManagerIntent::Select(key, id)); }
+    } else { ui.manager_press = None; }
+    let action = match (ui.management.view.as_ref().map(|view| view.kind), key.as_str()) {
+        (Some(ManagerKind::Research), "advance") if clicks > 1_u8 => Some("Background.BackButton"),
+        (Some(ManagerKind::Build), "buildable") if clicks == 2_u8 => Some("ItemsBox.AddButton"),
+        (Some(ManagerKind::Build), "queue") if clicks == 2_u8 => Some("QueueGroup.RemoveButton"),
+        _ => None,
+    };
+    let Some(action) = action else { return Some(ManagerIntent::Select(key, id)); };
+    if !ui.management.apply_local(ManagerIntent::Select(key, id)) { return None; }
+    ui.management.activate_id(action, state)
 }
 
 /// Shared pointer descriptors also expose explicit disabled reasons; empty
@@ -210,6 +240,7 @@ fn pointer_intent(
 
 /// Window lifecycle remains owned by gameplay while cancelling local captures.
 fn window_event(event: &Event, ui: &mut InGameUiModel, state: &GameState) -> bool {
+    if matches!(*event, Event::KeyDown { .. } | Event::MouseWheel { .. }) { ui.manager_press = None; }
     if !matches!(*event, Event::Quit { .. } | Event::Window { .. }) {
         return false;
     }
@@ -220,6 +251,7 @@ fn window_event(event: &Event, ui: &mut InGameUiModel, state: &GameState) -> boo
             ..
         }
     ) {
+        ui.manager_press = None;
         ui.management.search_dragging = false;
         ui.management.scroll_drag = None;
         ui.management.pointer_extend = false;

@@ -179,3 +179,166 @@ fn build_queue_edit_native_funded_guard_does_not_fallthrough_or_mutate_queue_on_
     assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:future"),"do not replace pending removed entry with first/current head");
     assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"one exact request");
 }
+
+/// Two authorized unit definitions make non-first Add an explicit real row.
+fn buildable_fixture() -> Harness {
+    let mut harness=fixture();
+    let interface=&mut harness.state.viewer.as_mut().expect("viewer").interface;
+    interface.rules=Some(json!({"units":[{"id":"UNIT_WARRIOR","production_cost":50_i64},{"id":"UNIT_SETTLER","production_cost":330_i64}]}));
+    interface.contract.as_mut().expect("v2 opt-in").features.insert("atomic_production_queue".to_owned(),true);
+    harness.authority.session.projection=harness.state.viewer.clone();
+    harness
+}
+
+/// Native SDL input chooses a semantic current source row, never a hardcoded point.
+fn row_event(harness: &Harness, id: &str, clicks: u8, pressed: bool) -> Event {
+    let row=harness.ui.management.widgets(&harness.state).into_iter().find(|widget| widget.id==id).expect("exact displayed original source row");
+    assert!(row.rect.width>4_u32 && row.rect.height>4_u32,"nonempty visible original row");
+    let x=row.rect.x.saturating_add(2_i32);let y=row.rect.y.saturating_add(2_i32);
+    if pressed { Event::MouseButtonDown {timestamp:0_u32,window_id:0_u32,which:0_u32,mouse_btn:MouseButton::Left,clicks,x,y} }
+    else { Event::MouseButtonUp {timestamp:0_u32,window_id:0_u32,which:0_u32,mouse_btn:MouseButton::Left,clicks,x,y} }
+}
+
+/// First down/up selects without ordering; SDL then reports count2 on next down.
+fn begin_row_press(harness: &mut Harness, id: &str) {
+    let down=row_event(harness,id,1_u8,true);manager_event(harness,&down);
+    let up=row_event(harness,id,1_u8,false);manager_event(harness,&up);
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"first source row click selects only");
+}
+
+/// Production manager input remains strongly modal and uses only inert channels.
+fn manager_event(harness: &mut Harness, event: &Event) {
+    assert!(management_input::consume(event,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Some(&mut harness.authority)),"native original Build callback before world/map handlers");
+}
+
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{ListCallback,Add,
+ * InsertInQueue,QueueListCallback,Remove,ShowSelectedInfo,UpdateButtons};
+ * CityData.cpp::InsertBuildItem and bldque.cpp::{InsertBefore,RemoveNodeByIndex}.
+ * editqueue.ldl::BuildEditorWindow.ItemsBox.{UnitsList,BuildingList,WonderList}
+ * and QueueGroup.QueueList keep source hit/selection rows and styles/positions.
+ * SDL two-click callbacks select their exact current row BEFORE invoking the same
+ * Add/Remove control and guards; they do not use a previous/first selection or
+ * directly mutate original-engine queues. Pending/queued isn't execution.
+ * Higher click counts cannot cascade removals after a receipt shifts rows.
+ */
+#[test]
+fn build_double_click_left_nonfirst_unit_appends_exact_item_once_and_queued_receipt_is_not_execution() {
+    let mut harness=buildable_fixture();
+    for id in ["ItemsBox.UnitsList/UNIT_WARRIOR","QueueGroup.QueueList/c2:future"] {
+        let intent=harness.ui.management.activate_id(id,&harness.state).expect("explicit independent source selection");
+        assert!(harness.ui.management.apply_local(intent),"selection alone isn't a command");
+    }
+    let before=harness.state.viewer.clone();
+    begin_row_press(&mut harness,"ItemsBox.UnitsList/UNIT_SETTLER");
+    let event=row_event(&harness,"ItemsBox.UnitsList/UNIT_SETTLER",2_u8,true);
+    manager_event(&mut harness,&event);
+    let command=harness.jobs.as_ref().expect("jobs").try_recv().expect("original ListCallback double-click adds exact clicked unit");
+    assert_eq!(command.path,"/game/44/edit-production","same atomic current Add control");
+    assert_eq!(command.body["city_id"],"c2","non-first selected city");
+    assert_eq!(command.body["entries"],json!([{"entry_id":"c2:head"},{"entry_id":"c2:future"},{"item_id":"UNIT_SETTLER"}]),"append clicked non-first buildable, not old Warrior or selected queue entry");
+    assert_eq!(command.body["expected_revision"],7_i64,"immutable current source revision");
+    let view=harness.ui.management.view.as_ref().expect("Build stays visible");
+    assert_eq!(view.kind,ManagerKind::Build,"do not close the manager after Add");
+    assert_eq!(view.selections.get("buildable").map(String::as_str),Some("UNIT_SETTLER"),"left selection is actual clicked ID");
+    assert_eq!(view.selections.get("queue").map(String::as_str),Some("c2:future"),"right selection remains independent");
+    assert_eq!(harness.state.viewer,before,"no local append, gold or production mutation");
+    let release=row_event(&harness,"ItemsBox.UnitsList/UNIT_SETTLER",2_u8,false);
+    manager_event(&mut harness,&release);
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"mouse-up creates no duplicate/map order");
+    let mut queued=harness.authority.session.projection.clone().expect("receipt");queued.revision=8_i64;queued.interface.planning_status="queued".to_owned();
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Receipt(Box::new(queued)));
+    assert_eq!(harness.state.gold,100_i32,"queued isn't spending");
+    assert_eq!(harness.state.viewer.as_ref().expect("viewer").cities.iter().find(|city|city.id=="c2").expect("exact city").facts["queue"].as_array().map(Vec::len),Some(2_usize),"no generated entry/new execution until actual received queue changes");
+}
+
+#[test]
+fn build_double_click_queue_removes_exact_duplicate_future_but_never_funded_or_unknown_head_or_new_first_row() {
+    for mode in 0_u8..3_u8 {
+        let mut harness=buildable_fixture();
+        let projected_city=harness.state.viewer.as_mut().expect("viewer").cities.iter_mut().find(|city|city.id=="c2").expect("exact city");
+        projected_city.facts["queue"][1_usize]["id"]=json!("UNIT_HOPLITE");
+        if mode==2_u8 { projected_city.rush_buy_quote=None; } else { let quote=projected_city.rush_buy_quote.as_mut().expect("quote");quote.status="completed".to_owned();quote.cost=Some(0_i64); }
+        harness.authority.session.projection=harness.state.viewer.clone();
+        let prior=if mode==0_u8 {"QueueGroup.QueueList/c2:head"} else {"QueueGroup.QueueList/c2:future"};
+        for id in ["ItemsBox.UnitsList/UNIT_SETTLER",prior] {
+            let intent=harness.ui.management.activate_id(id,&harness.state).expect("explicit source row");
+            assert!(harness.ui.management.apply_local(intent),"local independent selection");
+        }
+        let target=if mode==0_u8 {"QueueGroup.QueueList/c2:future"} else {"QueueGroup.QueueList/c2:head"};
+        let before=harness.state.viewer.clone();
+        begin_row_press(&mut harness,target);
+        let event=row_event(&harness,target,2_u8,true);manager_event(&mut harness,&event);
+        assert_eq!(harness.state.viewer,before,"double-click isn't local production execution");
+        assert!(harness.ui.operation.is_none(),"ordinary original queue removal has no Query");
+        if mode==0_u8 {
+            let command=harness.jobs.as_ref().expect("jobs").try_recv().expect("exact duplicate future removal");
+            assert_eq!(command.body["entries"],json!([{"entry_id":"c2:head"}]),"never remove identical-content funded head or reuse prior selected head");
+            assert_eq!(harness.state.network,NetworkStatus::Pending,"queued intent only");
+            let mut received=harness.authority.session.projection.clone().expect("later actually changed queue");received.revision=8_i64;
+            let current=received.cities.iter_mut().find(|city|city.id=="c2").expect("exact city");current.facts["queue"].as_array_mut().expect("queue").truncate(1_usize);
+            let quote=current.rush_buy_quote.as_mut().expect("quote");quote.revision=8_i64;quote.status="available".to_owned();quote.cost=Some(30_i64);
+            sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Receipt(Box::new(received)));
+            let view=harness.ui.management.view.as_ref().expect("same parent");
+            assert!(!view.selections.contains_key("queue") && !view.selections.contains_key("description"),"actual removal clears exact vanished identity, never auto-selects new first/head");
+            assert_eq!(view.selections.get("buildable").map(String::as_str),Some("UNIT_SETTLER"),"independent left choice survives actual removal");
+            let third=row_event(&harness,"QueueGroup.QueueList/c2:head",3_u8,true);manager_event(&mut harness,&third);
+            assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"higher click count must not cascade into now-first unlocked head");
+        } else {
+            assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"funded/unknown head guard shared by double-click and source button");
+            assert_eq!(harness.state.network,NetworkStatus::Ready,"disabled head never submits");
+        }
+    }
+}
+
+#[test]
+fn build_double_click_queue_cannot_bypass_pending_absent_session_or_stale_session_even_after_selecting_exact_row() {
+    for mode in 0_u8..3_u8 {
+        let mut harness=fixture();
+        if mode==0_u8 { harness.state.network=NetworkStatus::Pending; }
+        if mode==2_u8 { harness.authority.session.projection.as_mut().expect("session").revision=8_i64; }
+        let before=harness.state.viewer.clone();
+        begin_row_press(&mut harness,"QueueGroup.QueueList/c2:future");
+        let event=row_event(&harness,"QueueGroup.QueueList/c2:future",2_u8,true);
+        if mode==1_u8 {
+            assert!(management_input::consume(&event,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),None),"absent authority still consumes source modal input");
+        } else { manager_event(&mut harness,&event); }
+        assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"no blocked/rebased request");
+        assert_eq!(harness.state.viewer,before,"failed dispatch never removes a canonical entry");
+        assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:future"),"failed action retains explicit clicked row, not another candidate");
+    }
+}
+
+#[test]
+fn build_double_click_interrupted_by_receipt_row_shift_city_focus_or_keyboard_never_rebases_first_press() {
+    for mode in 0_u8..6_u8 {
+        let mut harness=buildable_fixture();
+        if mode==2_u8 {
+            harness.state.viewer.as_mut().expect("viewer").interface.legal_actions.push(serde_json::from_value(json!({"route":"edit-production","entity_id":"c1","fields":["city_id","entries"],"payload":{"city_id":"c1","entries":[]}})).expect("other owned city permission"));
+            harness.authority.session.projection=harness.state.viewer.clone();
+        }
+        let first=if mode==1_u8 {"QueueGroup.QueueList/c2:head"} else if mode==2_u8 {"ItemsBox.UnitsList/UNIT_SETTLER"} else {"QueueGroup.QueueList/c2:future"};
+        begin_row_press(&mut harness,first);
+        match mode {
+            0_u8 | 1_u8 => {
+                let mut snapshot=harness.authority.session.projection.clone().expect("current snapshot");snapshot.revision=8_i64;
+                let city=snapshot.cities.iter_mut().find(|city|city.id=="c2").expect("same city");
+                city.rush_buy_quote.as_mut().expect("quote").revision=8_i64;
+                if mode==1_u8 { city.facts["queue"].as_array_mut().expect("queue").remove(0_usize); }
+                sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(snapshot)));
+            }
+            2_u8 => assert!(harness.ui.management.select_city("c1",&harness.state),"authorized city switch between presses"),
+            3_u8 => {
+                let lost=Event::Window {timestamp:0_u32,window_id:0_u32,win_event:sdl2::event::WindowEvent::FocusLost};
+                assert!(!management_input::consume(&lost,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Some(&mut harness.authority)),"window focus propagates after canceling held UI press");
+            }
+            4_u8 => manager_event(&mut harness,&key(Keycode::TAB)),
+            _ => { open(&mut harness); input(&mut harness,&key(Keycode::ESCAPE)); },
+        }
+        let second=if mode==1_u8 {"QueueGroup.QueueList/c2:future"} else {first};
+        let event=row_event(&harness,second,2_u8,true);manager_event(&mut harness,&event);
+        assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"mode{mode}: no rebased double-click on new revision, shifted row, city, or interrupted focus");
+        assert_eq!(harness.state.network,NetworkStatus::Ready,"interrupted gesture remains presentation-only");
+        assert_eq!(harness.state.viewer.as_ref().expect("viewer").cities.iter().find(|city|city.id=="c1").expect("other city").facts["queue"],json!([]),"never append in another city");
+    }
+}
