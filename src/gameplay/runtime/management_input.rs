@@ -349,6 +349,7 @@ pub(super) fn apply(
             }
         }
     }
+    ui.management.refresh_build_description(state);
 }
 
 /// Presentation identities are rechecked against the actual current receipt.

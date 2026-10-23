@@ -35,7 +35,14 @@ pub(super) fn replacement(state:&GameState, city_id:&str, entries:&[Value])->Opt
     command.valid_for(state).then_some(command)
 }
 
-/// Resolves a selected entry to its content for installed pictures/descriptions.
+/* Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::ShowSelectedInfo/
+ * Library and editqueue.ldl::{QueueGroup.QueueList,ItemDescription,LibraryButton}
+ * resolve the selected queue's content, never a guessed neighboring row. Legacy
+ * snapshots without entry_id may show their explicit content read-only; typed
+ * entries never fall back to matching content IDs. Editing still requires exact
+ * stable entry identities in request(), so this cannot grant a legacy command.
+ */
+/// Resolves exact typed entry content, or explicit read-only legacy content.
 pub(super) fn content<'view>(state:&'view GameState, view:&ManagerView, entry:&str)->Option<&'view str> {
-    data::city(state,view)?.facts["queue"].as_array()?.iter().find(|item| item["entry_id"].as_str() == Some(entry)).and_then(|item| item["id"].as_str())
+    data::city(state,view)?.facts["queue"].as_array()?.iter().find(|item| item["entry_id"].as_str().map_or_else(|| item["id"].as_str() == Some(entry), |id| id == entry)).and_then(|item| item["id"].as_str())
 }

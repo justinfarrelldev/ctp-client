@@ -148,7 +148,12 @@ pub(super) fn reconcile(view: &mut ManagerView, state: &GameState) {
     }
 }
 
-/// Source `SetHyperText` starts the new selected document at its first line.
+/* Source audit: aui_HyperTextBox::SetHyperText/RepositionRanger and
+ * aui_Ranger::SetMaximum (original ui/aui_common/) only clamp existing scroll.
+ * This earlier client Research navigation reset is a presentation difference,
+ * not an original-source rule; Science/Research full-frame acceptance stays open.
+ */
+/// Clears client Research navigation scroll, without claiming a source reset.
 pub(super) fn clear_description_scroll(view: &mut ManagerView) {
     let path = match view.kind {
         ManagerKind::Science => "CurrentResearch.Description",

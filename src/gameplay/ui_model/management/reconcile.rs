@@ -33,6 +33,7 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
         view.city_id = None;
         view.selections.remove("queue");
         view.selections.remove("description");
+        view.selections.remove("description-source");
     }
     if view
         .selections
@@ -54,8 +55,15 @@ fn view_state(view: &mut ManagerView, state: &GameState) {
                 })
         });
         if !queue_valid {
-            if view.selections.get("description") == view.selections.get("queue") {
+            /* Source: EditQueue.cpp::Update/ShowSelectedInfo and source
+             * editqueue.ldl::QueueGroup.QueueList/ItemDescription. Async client
+             * reconciliation clears only the vanished entry's description role,
+             * never a coincident independent content ID or an implicit next row.
+             */
+            let role = view.selections.get("description-source").map(String::as_str);
+            if role == Some("queue") || (role.is_none() && view.selections.get("description") == view.selections.get("queue")) {
                 view.selections.remove("description");
+                view.selections.remove("description-source");
             }
             view.selections.remove("queue");
         }

@@ -156,6 +156,60 @@ fn clear_request(state: &GameState, view: &ManagerView) -> Option<ManagerCommand
     }
 }
 
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{ToggleUnits,
+ * ToggleBuildings,ToggleWonders,SelectChoiceList} hides/deselects the other left
+ * lists, preserving the independent queue. editqueue.ldl::BuildEditorWindow.
+ * ItemsBox.{UnitsButton,BuildingsButton,WondersButton,UnitsList,BuildingList,
+ * WonderList} supplies unchanged source styles/positions. ShowSelectedInfo and
+ * citywindow.cpp::CityWindow::SetItemDescription resolve content before Library.
+ * Client's existing last-interacted/reference pane interpretation is retained,
+ * not claimed identical to released ShowSelectedInfo's queue-first priority.
+ * Explicit role disambiguates opaque entry IDs from identical content IDs;
+ * category navigation cannot retain a hidden executable choice. No local rules.
+ */
+/// Applies one source Build presentation choice without changing game facts.
+pub(super) fn select(view: &mut ManagerView, key: &str, value: &str) -> Option<bool> {
+    if view.kind != ManagerKind::Build { return None; }
+    match key {
+        "build-category" => {
+            if !matches!(value, "Units" | "Buildings" | "Wonders") { return Some(false); }
+            let previous = view.selections.get(key).map_or("Units", String::as_str);
+            if previous != value {
+                let removed = view.selections.remove("buildable");
+                let source = view.selections.get("description-source").map(String::as_str);
+                if source == Some("buildable") || (source.is_none() && removed.is_some() && view.selections.get("description") == removed.as_ref()) {
+                    view.selections.remove("description");
+                    view.selections.remove("description-source");
+                }
+            }
+            view.selections.insert(key.to_owned(), value.to_owned());
+        }
+        "buildable" | "queue" => {
+            view.selections.insert(key.to_owned(), value.to_owned());
+            view.selections.insert("description".to_owned(), value.to_owned());
+            view.selections.insert("description-source".to_owned(), key.to_owned());
+        }
+        _ => return None,
+    }
+    Some(true)
+}
+
+/*
+ * Source: EditQueue.cpp::ShowSelectedInfo -> citywindow.cpp::SetItemDescription
+ * -> aui_HyperTextBox::SetHyperText/RepositionRanger (original ui/interface and
+ * ui/aui_common paths under ctp2_source/ctp2_code/). aui_Ranger::SetMaximum only
+ * clamps excess; it does NOT reset every replacement to zero. ItemDescription
+ * in editqueue.ldl remains246x65; native measured-line units/current scaling are
+ * unchanged. Clamp stored state on input/receipt/return, not only painted text,
+ * so a shorter document cannot later resurrect an obsolete larger offset.
+ */
+/// Refreshes only the current Build hypertext ranger, preserving other offsets.
+pub(super) fn refresh_description(ui: &mut ManagementUi, state: &GameState) -> bool {
+    ui.view.as_ref().is_some_and(|view| view.kind == ManagerKind::Build && view.scroll.contains_key("ItemDescription"))
+        && ui.scroll("ItemDescription", 0_i32, state)
+}
+
 /// Unavailable controls explain the missing proof instead of becoming silent no-ops.
 fn disabled(reason: &str) -> (Option<ManagerIntent>, Option<String>) {
     (None, Some(reason.to_owned()))

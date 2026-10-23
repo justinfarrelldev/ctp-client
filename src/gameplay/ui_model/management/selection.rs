@@ -4,6 +4,7 @@ use super::{ManagerView, selectors};
 
 /// City/queue/buildable/chart state cannot overwrite unrelated independent choices.
 pub(super) fn apply(view: &mut ManagerView, key: String, value: String) -> bool {
+    if let Some(applied) = super::build::select(view, &key, &value) { return applied; }
     if key == "trade-filter" {
         view.selections.remove("trade-market");
         view.scroll.remove(super::trade::MARKET);

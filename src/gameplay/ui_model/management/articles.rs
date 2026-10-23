@@ -248,7 +248,19 @@ pub(super) fn selected_description<'view>(
         .or_else(|| view.selections.get("buildable"))
         .or_else(|| view.selections.get("queue"))
         .map(String::as_str)?;
-    Some(super::queue::content(state, view, selected).unwrap_or(selected))
+    /* Source: EditQueue.cpp::ShowSelectedInfo/Library and citywindow.cpp::
+     * CityWindow::SetItemDescription under ctp2_source/ctp2_code/ui/interface/;
+     * editqueue.ldl::{ItemDescription,ItemImage,LibraryButton} uses actual content.
+     * Client explicit source role preserves existing last-interacted behavior
+     * without guessing that an opaque queue entry is a content/library identity.
+     * Legacy fixture views without a role retain their prior lookup contract.
+     */
+    match view.selections.get("description-source").map(String::as_str) {
+        Some("buildable") => view.selections.get("buildable").filter(|id| id.as_str() == selected).map(String::as_str),
+        Some("queue") => view.selections.get("queue").filter(|id| id.as_str() == selected).and_then(|entry| super::queue::content(state, view, entry)),
+        Some(_) => None,
+        None => Some(super::queue::content(state, view, selected).unwrap_or(selected)),
+    }
 }
 
 /// Visible article title/index/search text, not client-authored game facts.

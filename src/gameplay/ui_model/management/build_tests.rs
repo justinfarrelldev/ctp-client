@@ -299,3 +299,71 @@ fn build_queue_edit_boundaries_and_removed_selection_are_not_misreported_as_miss
         assert!(ui.activate_id(path,&state).is_none(),"removed entry must not become the first/head/identical unit for {path}");
     }
 }
+
+/*
+ * Source: original ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::
+ * SelectChoiceList/ShowSelectedInfo and CityWindow::SetItemDescription in
+ * ui/interface/citywindow.cpp; aui_HyperTextBox::SetHyperText/RepositionRanger and
+ * aui_Ranger::SetMaximum preserve an in-range ranger value, clamping only excess.
+ * editqueue.ldl::BuildEditorWindow.{ItemDescription,ItemsBox,QueueGroup} retains
+ * its source geometry. These are category/description/receipt workflow tests,
+ * with opaque entry/content namespaces, not local buildability or engine state.
+ */
+#[test]
+fn build_lifecycle_category_deselects_hidden_left_choice_preserving_exact_queue_and_rejecting_unknown_category() {
+    let (mut ui,state)=clear_fixture();
+    select(&mut ui,&state,"c2:head");
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"explicit source left choice");
+    assert!(ui.apply_local(ManagerIntent::Select("build-category".to_owned(),"Units".to_owned())),"same source category");
+    assert_eq!(ui.view.as_ref().and_then(|view|view.selections.get("buildable")).map(String::as_str),Some("UNIT_SETTLER"),"reselecting current category keeps its choice");
+    assert!(ui.apply_local(ManagerIntent::Select("build-category".to_owned(),"Buildings".to_owned())),"source category switch");
+    let view=ui.view.as_ref().expect("view");
+    assert!(!view.selections.contains_key("buildable"),"SelectChoiceList deselects hidden Units list");
+    assert_eq!(view.selections.get("queue").map(String::as_str),Some("c2:head"),"independent queue preserved");
+    assert_eq!(super::articles::selected_description(view,&state),Some("UNIT_HOPLITE"),"no hidden Settler portrait/article; current exact queue remains");
+    assert!(ui.activate_id("ItemsBox.AddButton",&state).is_none(),"hidden left choice cannot add");
+    assert!(!ui.apply_local(ManagerIntent::Select("build-category".to_owned(),"unknown".to_owned())),"unsupported category cannot hide every source list");
+}
+
+#[test]
+fn build_lifecycle_description_role_prevents_content_id_matching_opaque_queue_entry_and_survives_other_role_removal() {
+    let (mut ui,mut state)=clear_fixture();
+    assert!(ui.apply_local(ManagerIntent::Select("queue".to_owned(),"UNIT_HOPLITE".to_owned())),"inject invalid typed entry ID equal to real content");
+    assert!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state).is_none(),"typed entry cannot fall back to same-content neighbor");
+    city(&mut state).facts["queue"][0_usize]["entry_id"]=json!("UNIT_SETTLER");
+    select(&mut ui,&state,"UNIT_SETTLER");
+    assert_eq!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state),Some("UNIT_HOPLITE"),"entry namespace resolves its actual content");
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"independent content namespace");
+    assert_eq!(super::articles::selected_description(ui.view.as_ref().expect("view"),&state),Some("UNIT_SETTLER"),"left content must not resolve a coincident queue entry ID");
+    city(&mut state).facts["queue"]=json!([]);state.viewer.as_mut().expect("viewer").revision=8_i64;
+    ui.reconcile(&state);
+    let view=ui.view.as_ref().expect("view");
+    assert!(!view.selections.contains_key("queue"),"removed exact entry cleared");
+    assert_eq!(view.selections.get("description").map(String::as_str),Some("UNIT_SETTLER"),"removing coincident entry must not erase independent content description");
+    assert_eq!(super::articles::selected_description(view,&state),Some("UNIT_SETTLER"),"left article still exact");
+}
+
+/// Synthetic in-memory summary lengths, no copyrighted content or file writes.
+fn description_documents(ui: &mut ManagementUi) {
+    for (id,lines) in [("UNIT_SETTLER",40_usize),("UNIT_HOPLITE",1_usize)] {
+        if let Some(art)=ui.library.catalog.art.get_mut(id) { art.summary=None; }
+        let text=core::iter::repeat_n("Synthetic summary line.\n",lines).collect::<String>();
+        ui.library.catalog.articles.entry(id.to_owned()).or_default().sections.insert(crate::gameplay::assets::library::LibrarySection::Summary,crate::gameplay::assets::library::LibraryDocument::parse(&text));
+    }
+}
+
+#[test]
+fn build_lifecycle_description_receipts_preserve_then_clamp_stored_source_ranger_without_resurrecting_old_scroll() {
+    let (mut ui,state)=clear_fixture();description_documents(&mut ui);
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"long current article");
+    let initial=ui.view.as_mut().expect("view");initial.scroll.insert("ItemDescription".to_owned(),2_usize);initial.scroll.insert("QueueGroup.QueueList".to_owned(),1_usize);initial.scroll.insert("ItemsBox.UnitsList".to_owned(),3_usize);
+    ui.reconcile(&state);
+    assert_eq!(ui.view.as_ref().and_then(|view|view.scroll.get("ItemDescription")).copied(),Some(2_usize),"source SetMaximum preserves in-range scroll, not unconditional reset");
+    select(&mut ui,&state,"c2:head");ui.reconcile(&state);
+    let clamped=ui.view.as_ref().expect("view");
+    assert_eq!(clamped.scroll.get("ItemDescription").copied(),Some(0_usize),"short document clamps stored value, not only painted thumb/text");
+    assert_eq!(clamped.scroll.get("QueueGroup.QueueList").copied(),Some(1_usize),"independent queue offset untouched");
+    assert_eq!(clamped.scroll.get("ItemsBox.UnitsList").copied(),Some(3_usize),"independent buildable offset untouched");
+    assert!(ui.apply_local(ManagerIntent::Select("buildable".to_owned(),"UNIT_SETTLER".to_owned())),"long article returns");ui.reconcile(&state);
+    assert_eq!(ui.view.as_ref().and_then(|view|view.scroll.get("ItemDescription")).copied(),Some(0_usize),"obsolete pre-clamp offset cannot resurrect");
+}

@@ -185,10 +185,17 @@ pub(super) fn dismiss(view: &mut ManagerView) -> bool {
     changed
 }
 
+/*
+ * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::CityDropDown/Update/
+ * ShowSelectedInfo and editqueue.ldl::BuildEditorWindow.SingleCityChooser
+ * replace the active city's queue/description. Client clears dependent entry,
+ * content and description-role markers together; opaque identities from a prior
+ * city cannot be reused. No local CityData mutation or implicit city selection.
+ */
 /// Local city changes invalidate dependent presentation selections, never game facts.
 pub(super) fn change_city(view: &mut ManagerView, id: &str) {
     if view.city_id.as_deref() != Some(id) {
-        for dependent in ["queue", "buildable", "description"] {
+        for dependent in ["queue", "buildable", "description", "description-source"] {
             view.selections.remove(dependent);
         }
         view.scroll.clear();

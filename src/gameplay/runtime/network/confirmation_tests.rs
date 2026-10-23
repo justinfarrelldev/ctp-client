@@ -342,3 +342,53 @@ fn build_double_click_interrupted_by_receipt_row_shift_city_focus_or_keyboard_ne
         assert_eq!(harness.state.viewer.as_ref().expect("viewer").cities.iter().find(|city|city.id=="c1").expect("other city").facts["queue"],json!([]),"never append in another city");
     }
 }
+
+/*
+ * Source: EditQueue.cpp::{SelectChoiceList,ShowSelectedInfo,Library}
+ * and citywindow.cpp::CityWindow::SetItemDescription (original ui/interface/);
+ * aui_HyperTextBox::{SetHyperText,RepositionRanger}/aui_Ranger::SetMaximum retain
+ * in-range scroll and clamp excess. editqueue.ldl::BuildEditorWindow.
+ * {ItemDescription,LibraryButton,ItemsBox,QueueGroup} provides source controls.
+ * Received removal while Library is open must not invent a replacement queue
+ * selection, erase a different content role or execute any operation on return.
+ */
+#[test]
+fn build_lifecycle_native_library_receipt_return_and_category_switch_preserve_exact_description_and_clamp_source_scroll() {
+    let mut harness=buildable_fixture();
+    for (id,lines) in [("UNIT_SETTLER",40_usize),("UNIT_HOPLITE",1_usize)] {
+        if let Some(art)=harness.ui.management.library.catalog.art.get_mut(id) {art.summary=None;}
+        let text=core::iter::repeat_n("Synthetic summary line.\n",lines).collect::<String>();
+        harness.ui.management.library.catalog.articles.entry(id.to_owned()).or_default().sections.insert(crate::gameplay::assets::library::LibrarySection::Summary,crate::gameplay::assets::library::LibraryDocument::parse(&text));
+    }
+    let queue=harness.ui.management.activate_id("QueueGroup.QueueList/c2:head",&harness.state).expect("exact source queue row");
+    assert!(harness.ui.management.apply_local(queue),"independent queue");
+    begin_row_press(&mut harness,"ItemsBox.UnitsList/UNIT_SETTLER");
+    assert!(harness.ui.management.scroll_to("ItemDescription",2_usize,&harness.state),"source measured long article ranger");
+    let words=harness.ui.management.widgets(&harness.state);
+    let pane=words.iter().find(|widget|widget.id=="ItemDescription").expect("original text viewport").rect;
+    let fragments=words.iter().filter(|widget|widget.id.starts_with("ItemDescription/word-")).collect::<Vec<_>>();
+    assert!(!fragments.is_empty(),"long selected description really supplies visible words");
+    for word in fragments {
+        assert!(word.rect.x>=pane.x && word.rect.y>=pane.y && word.rect.x.saturating_add(i32::try_from(word.rect.width).expect("word width"))<=pane.x.saturating_add(i32::try_from(pane.width).expect("pane width")) && word.rect.y.saturating_add(i32::try_from(word.rect.height).expect("word height"))<=pane.y.saturating_add(i32::try_from(pane.height).expect("pane height")),"every visible source text descriptor stays inside ItemDescription");
+    }
+    harness.ui.management.focused=Some("LibraryButton".to_owned());manager_event(&mut harness,&key(Keycode::RETURN));
+    assert_eq!(harness.ui.management.view.as_ref().map(|view|view.kind),Some(ManagerKind::Library),"source Library button opens related window");
+    assert_eq!(harness.ui.management.library.current.as_deref(),Some("UNIT_SETTLER"),"exact last active content article, not unrelated selected queue");
+    let mut snapshot=harness.authority.session.projection.clone().expect("current full snapshot");snapshot.revision=8_i64;
+    let city=snapshot.cities.iter_mut().find(|city|city.id=="c2").expect("same city");city.facts["queue"].as_array_mut().expect("queue").remove(0_usize);city.rush_buy_quote.as_mut().expect("quote").revision=8_i64;
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(snapshot)));
+    manager_event(&mut harness,&key(Keycode::ESCAPE));
+    let view=harness.ui.management.view.as_ref().expect("exact parent restored");
+    assert_eq!((view.kind,view.city_id.as_deref()),(ManagerKind::Build,Some("c2")),"same original Build/city parent");
+    assert!(!view.selections.contains_key("queue"),"removed queue identity doesn't select new first entry");
+    assert_eq!(view.selections.get("buildable").map(String::as_str),Some("UNIT_SETTLER"),"independent left choice survives actual received removal");
+    assert_eq!(view.scroll.get("ItemDescription").copied(),Some(2_usize),"source retains in-range ranger on long document return");
+    harness.ui.management.focused=Some("ItemsBox.BuildingsButton".to_owned());manager_event(&mut harness,&key(Keycode::RETURN));
+    let switched=harness.ui.management.view.as_ref().expect("Build");
+    assert!(!switched.selections.contains_key("buildable") && !switched.selections.contains_key("description"),"hidden Units choice/description cannot survive source category switch");
+    assert_eq!(switched.scroll.get("ItemDescription").copied(),Some(0_usize),"empty description clamps actual stored value");
+    assert!(harness.ui.management.activate_id("ItemsBox.AddButton",&harness.state).is_none() && harness.ui.management.activate_id("LibraryButton",&harness.state).is_none(),"no hidden choice can add or open a stale article");
+    let bounds=harness.ui.management.widgets(&harness.state).into_iter().find(|widget|widget.id=="ItemDescription").expect("original source description control").rect;
+    assert_eq!((bounds.width,bounds.height),(246_u32,65_u32),"source dimensions and current scaling unchanged");
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"navigation/return/category never submits a gameplay command");
+}

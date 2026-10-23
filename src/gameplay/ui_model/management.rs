@@ -642,6 +642,12 @@ impl ManagementUi {
     /// Keeps independent selections only while their exact identities still exist.
     pub fn reconcile(&mut self, state: &GameState) {
         reconcile::apply(self, state);
+        self.refresh_build_description(state);
+    }
+
+    /// Source Build hypertext re-clamps stored range after input, receipt or return.
+    pub fn refresh_build_description(&mut self, state: &GameState) -> bool {
+        build::refresh_description(self, state)
     }
 
     /// Accessible label activation requires a unique enabled match.
