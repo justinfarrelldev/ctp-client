@@ -113,6 +113,17 @@ pub(super) fn planned_path_turn_markers(
     markers
 }
 
+/* Released gfx/tilesys/TileHighlight.cpp::TiledMap::{DrawLegalMove,DrawUnfinishedMove} and
+ * ui/aui_ctp2/SelItem.cpp path display consume an engine-computed path. This
+ * client receives destination input authority, NOT a unit route quote:
+ * docs/server-contract-repairs.md explicitly advertises unit_route_preview:false.
+ * General tile cost cannot make a green path or turn count. Use yellow, labelled
+ * destination feedback only; no inferred passability/route/ETA or scaling edits.
+ */
+/// Authoritative destinations remain unverified until a route-quote contract exists.
+const fn route_style(state:&crate::gameplay::model::GameState)->(Color,bool) {
+    if state.authoritative {(MOVEMENT_WAIT_COLOR,false)}else{(MOVEMENT_GO_COLOR,true)}
+}
 /// Draws the currently planned movement path as original-style line segments and turn boxes.
 pub(super) fn draw_planned_path(
     canvas: &mut Canvas<Window>,
@@ -122,11 +133,12 @@ pub(super) fn draw_planned_path(
     font: Option<&Font<'_, '_>>,
 ) -> Result<(), GameplayError> {
     if let Some(origin) = input.planned_path_origin() {
-        for (segment, point) in planned_path_segments(camera, origin, input.planned_path()).into_iter().zip(input.planned_path()) {
-            let color = if crate::gameplay::model::planning::cost(state, *point).is_some() { MOVEMENT_GO_COLOR } else { MOVEMENT_WAIT_COLOR };
-            draw_thick_line(canvas, segment, color)?;
-        }
-        if let Some(id) = input.active_unit() {
+        let (color,quoted)=route_style(state);
+        let empty: &[MapPoint]=&[];
+        let path=if quoted {input.planned_path()}else{input.planned_path().last().map_or(empty,core::slice::from_ref)};
+        for segment in planned_path_segments(camera,origin,path){draw_thick_line(canvas,segment,color)?;}
+        if !quoted {destination_label(canvas,font,input.planned_path().last().copied(),camera)?;}
+        if let Some(id) = input.active_unit().filter(|_id|quoted) {
             for boundary in
                 crate::gameplay::model::planning::turn_boundaries(state, id, input.planned_path())
             {
@@ -151,8 +163,9 @@ pub(super) fn draw_planned_path(
         if let Some(unit) = state.selected_unit() {
             if let Some(viewer) = state.viewer.as_ref() {
                 if let Some(order) = viewer.interface.movement_orders.iter().find(|order| crate::gameplay::model::UnitId::from_server_id(&order.unit_id) == unit.id || order.unit_ids.iter().any(|id| crate::gameplay::model::UnitId::from_server_id(id) == unit.id)) {
-                    let path = super::super::journeys::line(unit.position, MapPoint::new(order.target_x, order.target_y));
-                    for segment in planned_path_segments(camera, unit.position, &path) { draw_thick_line(canvas, segment, MOVEMENT_WAIT_COLOR)?; }
+                    let destination=MapPoint::new(order.target_x,order.target_y);
+                    for segment in planned_path_segments(camera, unit.position, &[destination]) { draw_thick_line(canvas, segment, MOVEMENT_WAIT_COLOR)?; }
+                    destination_label(canvas,font,Some(destination),camera)?;
                 }
             }
         }
@@ -161,6 +174,15 @@ pub(super) fn draw_planned_path(
         for segment in planned_path_segments(camera, origin, input.planned_bad_path()) {
             draw_thick_line(canvas, segment, MOVEMENT_STOP_COLOR)?;
         }
+    }
+    Ok(())
+}
+
+/// Explicit server-integration label: yellow vector is an intent, never a route.
+fn destination_label(canvas:&mut Canvas<Window>,font:Option<&Font<'_, '_>>,point:Option<MapPoint>,camera:&Camera)->Result<(),GameplayError> {
+    if let Some((font,point))=font.zip(point) {
+        let anchor=tile_line_anchor(*camera,point);
+        draw_text(canvas,Some(font),"Destination only; route unavailable",anchor.x,anchor.y,MOVEMENT_WAIT_COLOR)?;
     }
     Ok(())
 }
@@ -360,5 +382,18 @@ fn tile_selection_anchor(camera: Camera, point: MapPoint) -> MovementScreenPoint
     MovementScreenPoint {
         x: screen_x.saturating_add(half_width),
         y: screen_y.saturating_add(half_height),
+    }
+}
+
+#[cfg(test)]
+mod repaired_tests {
+    use super::{route_style,MOVEMENT_WAIT_COLOR};
+    use crate::gameplay::{model::GameState,server::ServerProjection};
+    use serde_json::json;
+    #[test]
+    fn repaired_route_intents_never_show_green_legal_paths_or_fabricated_turn_quotes() {
+        let viewer:ServerProjection=serde_json::from_value(json!({"revision":7_i64,"turn":1_u32,"contract":{"version":2_u32,"features":{"unit_route_preview":false,"retained_movement_orders":true}},"tiles":[{"id":"a","x":0_u16,"y":0_u16,"terrain":"plains","planning":{"cost":1_i64}}]})).expect("current no-route-preview contract");
+        let state=GameState::from_server_projection(&viewer,1_u8,1_u64);
+        assert_eq!(route_style(&state),(MOVEMENT_WAIT_COLOR,false),"general cost/destination authorization is not a route or ETA");
     }
 }

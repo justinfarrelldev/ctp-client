@@ -13,6 +13,9 @@ fn repaired_rejection_persists_code_and_correlation_after_successful_equal_revis
     sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(snapshot)));
     assert_eq!(harness.state.network,NetworkStatus::Ready,"successful replication restores input");
     assert!(harness.ui.status_text.contains("production_prerequisite")&&harness.ui.status_text.contains("safe-reference-1"),"successful refresh cannot erase the rejected action or disguise it as a transport fault");
+    let add=harness.ui.management.widgets(&harness.state).into_iter().find(|widget|widget.id=="ItemsBox.AddButton").expect("native control").rect;
+    harness.ui.pointer=Some((add.x.saturating_add(1_i32),add.y.saturating_add(1_i32)));
+    assert!(harness.ui.footer_status(&harness.state).contains("safe-reference-1"),"native hover cannot hide the persistent safe rejection");
     assert_eq!(harness.state.viewer,before,"rejection changes no production/funds/revision");
 }
 

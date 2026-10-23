@@ -10,6 +10,8 @@ pub struct PreparedCommand {
     pub path: String,
     /// Complete immutable authenticated body.
     pub body: Value,
+    /// Local monotonic capture time for queue/admission diagnostics; never serialized.
+    pub captured_at:std::time::Instant,
 }
 impl PreparedCommand {
     /// Captures the operation and shared envelope exactly once.
@@ -26,7 +28,7 @@ impl PreparedCommand {
         body.insert("command_id".to_owned(),json!(format!("ctp-client-{key}")));
         let body=Value::Object(body);
         if body.to_string().len() > 0x0004_0000_usize { return Err(runtime_error("command exceeds server's 256 KiB limit".to_owned())); }
-        Ok(Self { path:format!("/game/{}/{route}",session.game_id),body })
+        Ok(Self { path:format!("/game/{}/{route}",session.game_id),body,captured_at:std::time::Instant::now() })
     }
 
     /// Executes this exact envelope; caller retains it if the response is lost.

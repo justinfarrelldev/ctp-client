@@ -703,7 +703,13 @@ impl InGameUiModel {
                 self.active_tab = ControlPanelTab::Unit;
             }
             InGameAction::OpenInfo | InGameAction::OpenScore | InGameAction::OpenWonders => {
-                "Info".clone_into(&mut self.status_text);
+                /* This explicit Info status adds pinned server provenance, not
+                 * original-game rules selection: controlpanelwindow.cpp::
+                 * StatsMenuCallback/BuildStatsMenu and controlpanel.ldl::
+                 * MainMenu.StatsActivator remain unchanged. Never infer a
+                 * retail pin from compatibility version or technical unit IDs.
+                 */
+                self.status_text=state.viewer.as_ref().map_or_else(||"Info".to_owned(),crate::gameplay::server::observations::provenance);
             }
             InGameAction::Fortify | InGameAction::Disband => {
                 "This order requires an authoritative server action"

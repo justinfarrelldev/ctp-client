@@ -54,6 +54,18 @@ pub(super) fn draw_panel<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         LABEL,
         false,
     )?;
+    /* Released ui/interface/TurnYearStatus.cpp::{constructor,Update,
+     * DrawDougsProgress} paints black before native player color/progress;
+     * controlpanel.ldl::ControlPanel.DougsProgressBar is (61,106,66,5).
+     * The server supplies committed actor IDs, NOT original alive-slot order,
+     * nation colors or live progress. Preserve the source black base; explicitly
+     * describe waiting/actor/unavailable in the shared semantic footer instead
+     * of hashing an ID to a color or fabricating an AI progress fraction.
+     * No scaling or claim of full original colored-progress parity.
+     */
+    if state.viewer.as_ref().is_some_and(|viewer|viewer.interface.supports("turn_context")) {
+        canvas.set_draw_color(Color::RGB(0,0,0));canvas.fill_rect(panel_rect(61,106,66,5)).map_err(runtime_error)?;
+    }
     draw_tabs(canvas, textures, ui, font)?;
     match ui.active_tab {
         ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, ui, font)?,

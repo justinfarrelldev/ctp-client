@@ -68,6 +68,27 @@ fn city_and_empire_progress_pictures_match_original_art_in_source_panel_coordina
 }
 
 #[test]
+fn repaired_committed_turn_strip_uses_original_black_bounds_without_inventing_nation_progress() {
+    let result=with_canvas((800_u32,600_u32),|canvas| {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;
+        let mut state=preview_state(PreviewScene::Panel {tab:ControlPanelTab::City,populated:true});
+        let ui=InGameUiModel {status_text:"Stable status".to_owned(),..InGameUiModel::default()};
+        canvas.set_draw_color(Color::RGB(255_u8,0_u8,255_u8));canvas.clear();super::panel::draw_panel(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;let before=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
+        let contract=state.viewer.as_mut().ok_or("viewer")?.interface.contract.get_or_insert_with(crate::gameplay::server::v2::Contract::default);contract.version=2_u32;contract.features.insert("turn_context".to_owned(),true);
+        canvas.set_draw_color(Color::RGB(255_u8,0_u8,255_u8));canvas.clear();super::panel::draw_panel(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;let after=canvas.read_pixels(None,PixelFormatEnum::RGBA32)?;
+        let bounds=crate::gameplay::runtime::layout::panel_rect(61,106,66,5);
+        for y in 0_i32..600_i32 {for x in 0_i32..800_i32 {
+            let offset=usize::try_from(y.saturating_mul(800_i32).saturating_add(x).saturating_mul(4_i32)).map_err(|error|error.to_string())?;
+            let range=offset..offset.saturating_add(3_usize);
+            if bounds.contains_point((x,y)){if after[range]!=[0_u8,0_u8,0_u8]{return Err("source black strip cannot invent a color/progress fraction".to_owned());}}
+            else if before[range.clone()]!=after[range]{return Err(format!("strip altered outside source bounds at {x},{y}"));}
+        }}
+        Ok(())
+    });
+    assert!(result.is_ok(),"in-memory source turn strip: {result:?}");
+}
+
+#[test]
 fn accessible_palette_categories_match_pointer_bounds_and_never_change_the_viewer() {
     let mut state = preview_state(PreviewScene::Panel {
         tab: ControlPanelTab::TileImprovements,

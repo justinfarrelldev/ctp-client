@@ -30,6 +30,10 @@ pub struct World {
     pub wrap_x: bool,
     /// Whether vertical wrapping is supported.
     pub wrap_y: bool,
+    /// Pinned generation lineage; absence does not imply the current generator.
+    pub generator_version: Option<String>,
+    /// Original resource registry lineage, separate from installed artwork.
+    pub resource_catalog: Option<String>,
 }
 impl World {
     /// Representable zero-origin storage extents; preceding cells stay hidden.

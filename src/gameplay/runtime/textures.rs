@@ -22,6 +22,8 @@ use crate::gameplay::{GameplayError, asset_error, runtime_error};
 mod art;
 /// Revision-bound observed-coordinate lookup shared by overlay and border drawing.
 mod observed;
+/// Original overlays selected from received center-tile river geometry.
+mod rivers;
 /// Cached original localized/default loose-picture lookup and archive decoding.
 mod pictures;
 #[cfg(test)]
@@ -233,6 +235,7 @@ impl<'texture> GameplayTextures<'texture> {
         state: &GameState,
         point: MapPoint,
     ) -> Result<Option<&Texture<'texture>>, GameplayError> {
+        if let Some(viewer)=state.viewer.as_ref(){self.observed.update(viewer);}
         let (Some(tiles), Some(creator)) = (self.tiles.as_ref(), self.creator) else {
             return Ok(None);
         };
@@ -247,17 +250,7 @@ impl<'texture> GameplayTextures<'texture> {
             neighborhood[5],
             neighborhood[7],
         ];
-        let river_neighbors = NEIGHBOR_OFFSETS.map(|(dx, dy)| {
-            point
-                .offset(dx, dy, state.width, state.height)
-                .and_then(|neighbor| state.tile(neighbor))
-                .is_some_and(|tile| tile.river && tile.fog != FogState::Hidden)
-        });
-        let river = if river_neighbors[4] {
-            tiles.river_piece(river_neighbors, neighborhood[4] == 13_u8)
-        } else {
-            None
-        };
+        let river = rivers::piece(tiles,state,point,&self.observed);
         let explored = state.filters.fog_of_war
             && state
                 .tile(point)

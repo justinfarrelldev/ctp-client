@@ -29,6 +29,13 @@ mod projection;
 pub(in crate::gameplay) mod production;
 /// Public bounded command rejections, distinct from transport uncertainty.
 pub mod rejection;
+/// Observed art geometry, committed actor context and exact pinned provenance.
+pub mod observations;
+/// Bounded public Server-Timing/read-mode metrics, never raw response headers.
+mod telemetry;
+/// Repaired metadata/cursor compatibility and privacy regressions.
+#[cfg(test)]
+mod repairs_tests;
 use projection::deserialize_nullable_vec;
 
 /// Default local server endpoint.
@@ -452,7 +459,7 @@ impl ServerClient {
         }
         let projection = ServerProjection::from_resync_event(&response.body)?;
         log::info!(
-            "Open CTP game #{game_id} resync: revision {}, turn {}, {} tiles, {} units, {} cities",
+            "Open CTP game #{game_id} snapshot refresh: revision {}, turn {}, {} tiles, {} units, {} cities",
             projection.revision,
             projection.turn,
             projection.tiles.len(),
@@ -511,6 +518,7 @@ impl ServerClient {
         body: Option<(&str, &str)>,
         extra_headers: &[(&str, &str)],
     ) -> Result<HttpResponse, GameplayError> {
+        let started=std::time::Instant::now();
         let address = self.endpoint.socket_address();
         let resolved = address
             .to_socket_addrs()
@@ -555,8 +563,10 @@ impl ServerClient {
         stream
             .read_to_end(&mut bytes)
             .map_err(|error| runtime_error(format!("failed to read server response: {error}")))?;
-        parse_http_response(&bytes)
-            .map_err(|error| runtime_error(format!("failed to read server response: {error}")))
+        let response=parse_http_response(&bytes).map_err(|error| runtime_error(format!("failed to read server response: {error}")))?;
+        let route=path.split('?').next().and_then(|path|path.rsplit('/').next()).filter(|route|route.len()<=64_usize&&route.bytes().all(|byte|byte.is_ascii_alphanumeric()||byte==b'-')).unwrap_or("unknown");
+        log::debug!("Gameplay HTTP route={route} status={} client_http_ms={} server_timing={} read_mode={}",response.status,started.elapsed().as_millis(),response.telemetry.server_timing.as_deref().unwrap_or("unavailable"),response.telemetry.read_mode.as_deref().unwrap_or("unavailable"));
+        Ok(response)
     }
 }
 
@@ -651,6 +661,8 @@ struct HttpResponse {
     status: u16,
     /// Response body text.
     body: String,
+    /// Explicit bounded gateway metrics, not canonical state or private headers.
+    telemetry:telemetry::Metadata,
 }
 
 /// Parses a raw HTTP response.
@@ -673,7 +685,7 @@ fn parse_http_response(bytes: &[u8]) -> Result<HttpResponse, GameplayError> {
     } else {
         body_text.to_owned()
     };
-    Ok(HttpResponse { status, body })
+    Ok(HttpResponse { status, body, telemetry:telemetry::Metadata::parse(header_text) })
 }
 
 /// Decodes a small chunked response body.

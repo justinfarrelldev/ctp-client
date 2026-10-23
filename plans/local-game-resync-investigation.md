@@ -2,6 +2,12 @@
 
 Parent: immediate-live-play-recovery.md and oct-22-2026-ui-followups.md; added explicitly at user request. Remains tracked alongside P0 fixes, **without displacing the latest UI-screen/original-input/all33 reference priority**. Do not equate old regression fixes with live resolution.
 
+## Implemented repaired-contract handoff (server a27b65a)
+
+Client now validates durable resync `event_cursor` separately from `current_revision`, including bounded-prefix extraction from600KB fragmented snapshots. It advances Last-Event-ID only from matching durable metadata; malformed/ambiguous legacy IDs do not become revision hints. This is an actual parser/resume fix, not merely relabelling logs. Server streaming subscription-before-initial-read and503 behavior are maintainer-owned fixes.
+
+Finite reads retain INFO visibility but say snapshot refresh. Structured rejection remains a distinct persistent UI fact through successful refresh and native hover; authentic uncertainty still triggers rollback/recovery. Public Server-Timing/read-mode headers and monotonic capture-to-worker, shared admission, HTTP and UI-reconcile diagnostics are bounded and exclude raw bodies/credentials. Same immutable retries/read budget/queued-versus-executed semantics.565 affected gameplay tests/81.50% LLVM/strict lint pass; native/full live latency timeline and original game55 screenshot attribution are still unverified. See main user-override checklist and October22 checkpoint, not another implementation queue.
+
 ## User evidence (game55, local, early turns)
 - 2026-10-22T19:07:02Z: revision10, turn2,22 tiles,2 units,0 cities.
 - 2026-10-22T19:07:52Z: revision14, turn2,22 tiles,2 units,0 cities.

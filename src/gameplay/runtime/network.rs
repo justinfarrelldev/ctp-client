@@ -77,6 +77,7 @@ pub(super) fn execute(
     command: &PreparedCommand,
     emit: &mut impl FnMut(Outcome),
 ) {
+    log::debug!("Gameplay worker client_queue_wait_ms={}",command.captured_at.elapsed().as_millis());
     let mut result = transport.submit(command);
     if result.as_ref().is_err_and(|error| {
         matches!(*error,crate::gameplay::GameplayError::Runtime { .. }) && {

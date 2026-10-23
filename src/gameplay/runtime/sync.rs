@@ -80,6 +80,7 @@ pub(super) fn apply(
     movement: &mut MovementInputState,
     outcome: Outcome,
 ) {
+    let started=std::time::Instant::now();
     match outcome {
         Outcome::Snapshot(snapshot) => {
             if snapshot.revision < authority.session.revision() {
@@ -150,4 +151,5 @@ pub(super) fn apply(
             movement.actors.rollback();
         }
     }
+    log::debug!("Gameplay UI reconciliation client_reconcile_ms={} revision={}",started.elapsed().as_millis(),authority.session.revision());
 }

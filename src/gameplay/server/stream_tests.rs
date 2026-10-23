@@ -46,9 +46,9 @@ fn large_resync_payload_is_skipped_without_promoting_snapshot_revision_to_event_
         received,
         vec![Change {
             cursor: None,
-            revision: Some(201_i64)
+            revision: None
         }],
-        "server resync ID is a snapshot revision, not a durable sequence for Last-Event-ID"
+        "malformed legacy resync data has neither a trusted durable cursor nor a revision hint"
     );
 }
 

@@ -178,6 +178,9 @@ pub struct ServerInterface {
     /// Authoritative open/queued/closed planning state.
     #[serde(default)]
     pub planning_status: String,
+    /// Revision-bound committed public scheduler context, not live resolution.
+    #[serde(default)]
+    pub turn_context: Option<super::observations::TurnContext>,
     /// Explicit protocol version and capability decisions.
     #[serde(default)]
     pub contract: Option<super::v2::Contract>,

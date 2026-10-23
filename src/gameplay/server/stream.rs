@@ -12,7 +12,7 @@ use lines::EventLines;
 /// Invalidation hints, never snapshots/patches or command acknowledgements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::gameplay) struct Change {
-    /// Durable sequence only; the resync event's revision ID is not a cursor.
+    /// Durable sequence only; repaired resync requires matching `event_cursor` metadata.
     pub cursor: Option<u64>,
     /// Optional observed revision can avoid a read already covered by a receipt.
     pub revision: Option<i64>,
@@ -121,6 +121,8 @@ impl Invalidations {
         if status != 200_u16 {
             return Err(format!("event stream returned HTTP {status}"));
         }
+        let metadata=super::telemetry::Metadata::parse(header);
+        log::debug!("Gameplay event subscription server_timing={} read_mode={}",metadata.server_timing.as_deref().unwrap_or("unavailable"),metadata.read_mode.as_deref().unwrap_or("unavailable"));
         self.transfer = if header
             .to_ascii_lowercase()
             .contains("transfer-encoding: chunked")

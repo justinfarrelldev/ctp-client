@@ -14,10 +14,13 @@ pub(super) fn source_id(ui: &InGameUiModel, id: &str, state: &GameState) -> Opti
 /// Original MouseMoveOver/MouseMoveAway ownership is ephemeral. Keyboard focus
 /// uses the same metadata; neither overwrites queued/recovery/result messages.
 pub(super) fn footer<'ui>(ui: &'ui InGameUiModel, state: &GameState) -> Cow<'ui, str> {
+    // Explicit integration difference: source status tips do not acknowledge
+    // HTTP commands. Keep the safe rejection visible even during native hover.
+    if let Some(rejection)=ui.command_rejection.as_ref(){return Cow::Owned(rejection.label());}
     let fallback = if ui.status_text.is_empty() {
-        "Unexplored"
+        state.viewer.as_ref().filter(|viewer|viewer.interface.supports("turn_context")).map_or(Cow::Borrowed("Unexplored"),|viewer|Cow::Owned(crate::gameplay::server::observations::turn_label(viewer)))
     } else {
-        ui.status_text.as_str()
+        Cow::Borrowed(ui.status_text.as_str())
     };
     if state.network != NetworkStatus::Ready
         || !state.popups.is_empty()
@@ -26,10 +29,10 @@ pub(super) fn footer<'ui>(ui: &'ui InGameUiModel, state: &GameState) -> Cow<'ui,
         || ui.open_menu.is_some()
         || ui.context.is_some()
     {
-        return Cow::Borrowed(fallback);
+        return fallback;
     }
     if !ui.keyboard_status && ui.pointer.is_none() {
-        return Cow::Borrowed(fallback);
+        return fallback;
     }
     let widgets = ui.management.widgets(state);
     let owner = if ui.keyboard_status {
@@ -49,7 +52,7 @@ pub(super) fn footer<'ui>(ui: &'ui InGameUiModel, state: &GameState) -> Cow<'ui,
     };
     owner
         .and_then(|widget| caption(ui, widget))
-        .map_or(Cow::Borrowed(fallback), Cow::Owned)
+        .map_or(fallback, Cow::Owned)
 }
 /// Disabled reasons take precedence; missing raw localization keys never leak
 /// into the native footer. Decorative children do not steal control ownership.

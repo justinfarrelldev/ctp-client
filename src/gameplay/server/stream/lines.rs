@@ -11,7 +11,7 @@ pub(super) struct EventLines {
     dropping: bool,
     /// Event ID's interpretation depends on the event name.
     id: Option<u64>,
-    /// Server event kind; a resync ID is explicitly a snapshot revision.
+    /// Event kind; repaired resync IDs require matching durable cursor metadata.
     kind: String,
     /// Bounded normal invalidation JSON, not retained world data.
     data: Vec<u8>,
@@ -34,9 +34,11 @@ impl EventLines {
                 if self.line.starts_with(b":") {
                     self.line.clear();
                     self.dropping = true;
-                } else if self.line.starts_with(b"data:")
-                    && (self.kind == "resync" || self.line.len() > MAX_LINE)
-                {
+                } else if self.line.starts_with(b"data:") && self.line.len() > MAX_LINE {
+                    // Retain only a bounded resync prefix: current_revision and
+                    // event_cursor precede snapshot in events.Store.resync. Never
+                    // buffer world/rules data or treat the SSE ID as a revision.
+                    if self.kind=="resync" && self.data.is_empty() { self.data.extend_from_slice(&self.line[5_usize..]); }
                     self.line.clear();
                     self.dropping = true;
                     self.lost_data = true;
@@ -55,8 +57,10 @@ impl EventLines {
         if text.is_empty() {
             if self.id.is_some() || self.kind == "resync" {
                 let resync = self.kind == "resync";
+                let metadata=if resync { resync_metadata(&self.data) } else {None};
+                let cursor=metadata.as_ref().and_then(|value|value["event_cursor"].as_u64()).filter(|cursor|Some(*cursor)==self.id&&i64::try_from(*cursor).is_ok());
                 let revision = if resync {
-                    self.id.and_then(|id| i64::try_from(id).ok())
+                    metadata.as_ref().and_then(|value|value["current_revision"].as_i64()).filter(|revision|*revision>=0_i64)
                 } else if self.lost_data {
                     None
                 } else {
@@ -66,7 +70,7 @@ impl EventLines {
                         .filter(|revision| *revision >= 0_i64)
                 };
                 output.push(Change {
-                    cursor: if resync { None } else { self.id },
+                    cursor: if resync { cursor } else { self.id },
                     revision,
                 });
             }
@@ -100,4 +104,13 @@ impl EventLines {
         }
         Ok(())
     }
+}
+
+/// Decode metadata from either a small complete envelope or the bounded prefix.
+/// Unknown/legacy malformed data cannot promote an ambiguous old revision ID.
+fn resync_metadata(data:&[u8])->Option<serde_json::Value> {
+    if let Ok(value)=serde_json::from_slice(data){return Some(value);}
+    let snapshot=data.windows(10_usize).position(|part|part==b"\"snapshot\"")?;
+    let prefix=core::str::from_utf8(&data[..snapshot]).ok()?.trim_end().trim_end_matches(',');
+    serde_json::from_str(&format!("{prefix}}}")).ok()
 }

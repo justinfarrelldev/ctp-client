@@ -64,11 +64,13 @@ impl ReadGate {
     }
     /// Waits only on the owning worker; cancellation is checked at most50ms apart.
     pub(super) fn wait(&self, stop: &AtomicBool) -> bool {
+        let started=Instant::now();
         let slot =
             self.reserve_at(u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX));
         while !stop.load(Ordering::Relaxed) {
             let now = u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX);
             if now >= slot {
+                log::debug!("Gameplay read client_admission_wait_ms={}",started.elapsed().as_millis());
                 return true;
             }
             thread::sleep(Duration::from_millis(slot.saturating_sub(now).min(50_u64)));
