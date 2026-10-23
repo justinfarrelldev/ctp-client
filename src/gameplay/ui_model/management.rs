@@ -650,6 +650,14 @@ impl ManagementUi {
         build::refresh_description(self, state)
     }
 
+    /// Source focused-list keyboard input: handled flag plus optional real action.
+    pub fn build_list_key(&mut self, key: super::BuildListKey, state: &GameState) -> (bool, Option<ManagerIntent>) {
+        build::navigation::key(self, state, key)
+    }
+    /// Source pointer row selection gives keyboard focus to its current list.
+    pub fn focus_build_row(&mut self, state: &GameState, role: &str, id: &str) -> bool {
+        build::navigation::focus(self, state, role, id)
+    }
     /// Accessible label activation requires a unique enabled match.
     #[must_use]
     pub fn activate(&self, label: &str, state: &GameState) -> Option<ManagerIntent> {

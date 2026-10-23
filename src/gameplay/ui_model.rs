@@ -318,6 +318,17 @@ pub struct GreatLibraryView {
  * so an asynchronous snapshot cannot reinterpret the second press as another
  * row/city or silently rebase a command. No layout/style/scaling is changed.
  */
+/// Original focused Build-list inputs, independent of OS key representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildListKey {
+    /// Select the previous row, wrapping first to last.
+    Up,
+    /// Select the next row, wrapping last to first.
+    Down,
+    /// Source Space delegates a left list to its Add control.
+    Activate,
+}
+
 /// First source Build row press; never a command or local queue execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagerRowPress {

@@ -392,3 +392,127 @@ fn build_lifecycle_native_library_receipt_return_and_category_switch_preserve_ex
     assert_eq!((bounds.width,bounds.height),(246_u32,65_u32),"source dimensions and current scaling unchanged");
     assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"navigation/return/category never submits a gameplay command");
 }
+
+/// Enough exact owner queue entries to cross the source viewport without assets.
+fn navigation_fixture() -> Harness {
+    let mut harness=buildable_fixture();
+    let entries=(0_u8..24_u8).map(|index|json!({"entry_id":format!("c2:{index}"),"id":"UNIT_HOPLITE","kind":"unit"})).collect::<Vec<_>>();
+    harness.state.viewer.as_mut().expect("viewer").cities.iter_mut().find(|city|city.id=="c2").expect("same city").facts["queue"]=json!(entries);
+    harness.authority.session.projection=harness.state.viewer.clone();
+    harness
+}
+
+/// Actual currently visible semantic row roots, excluding numeric children/rangers.
+fn visible_queue(harness: &Harness) -> Vec<String> {
+    harness.ui.management.widgets(&harness.state).into_iter().filter_map(|widget| {
+        match widget.intent {
+            Some(crate::gameplay::ui_model::management::ManagerIntent::Select(key,id)) if key=="queue" && widget.id==format!("QueueGroup.QueueList/{id}") => Some(id),
+            _=>None,
+        }
+    }).collect()
+}
+
+/*
+ * Original source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp constructor
+ * wires visible left lists' SetKeyboardActionControl(m_addButton). Original
+ * ui/aui_common/aui_listbox.cpp::{HandleKey,SendKeyboardAction,SelectItem} wraps
+ * Up/Down and delegates Space; queue has no Remove keyboard action control.
+ * EditQueue::{Up,Down,InsertInQueue} explicitly EnsureItemVisible after a change.
+ * editqueue.ldl::BuildEditorWindow.{ItemsBox,QueueGroup.QueueList} defines the
+ * unchanged list panes/rangers. Client queues never move before received facts.
+ */
+#[test]
+fn build_navigation_native_pointer_focus_arrows_wrap_exact_left_list_and_space_submits_selected_item_once() {
+    let mut harness=navigation_fixture();
+    begin_row_press(&mut harness,"QueueGroup.QueueList/c2:0");
+    begin_row_press(&mut harness,"ItemsBox.UnitsList/UNIT_SETTLER");
+    assert_eq!(harness.ui.management.focused.as_deref(),Some("ItemsBox.UnitsList"),"source pointer click gives keyboard focus to that list");
+    let before=harness.state.viewer.clone();
+    manager_event(&mut harness,&key(Keycode::UP));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("buildable")).map(String::as_str),Some("UNIT_HOPLITE"),"Up selects previous source row, not another global button");
+    manager_event(&mut harness,&key(Keycode::UP));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("buildable")).map(String::as_str),Some("UNIT_WARRIOR"),"source Up wraps first to last");
+    manager_event(&mut harness,&key(Keycode::DOWN));manager_event(&mut harness,&key(Keycode::DOWN));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("buildable")).map(String::as_str),Some("UNIT_SETTLER"),"Down wraps then returns exact non-first target");
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:0"),"independent queue selection remains");
+    manager_event(&mut harness,&key(Keycode::SPACE));
+    let command=harness.jobs.as_ref().expect("jobs").try_recv().expect("source Space dispatches same Add control");
+    assert_eq!(command.path,"/game/44/edit-production","atomic editor");
+    let entries=command.body["entries"].as_array().expect("complete captured order");
+    assert_eq!(entries.len(),25_usize,"one appended item");assert_eq!(entries.last(),Some(&json!({"item_id":"UNIT_SETTLER"})),"never old/first unit or selected queue content");
+    assert_eq!(command.body["city_id"],"c2","exact non-first city");assert_eq!(command.body["expected_revision"],7_i64,"current immutable revision");
+    assert_eq!(harness.state.viewer,before,"keyboard navigation/submission is not canonical execution");
+    manager_event(&mut harness,&key(Keycode::SPACE));
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"Pending Space cannot duplicate or act on map");
+}
+
+#[test]
+fn build_navigation_queue_wrap_keeps_exact_offscreen_entry_visible_and_space_never_removes() {
+    let mut harness=navigation_fixture();begin_row_press(&mut harness,"QueueGroup.QueueList/c2:0");
+    let before=harness.state.viewer.clone();
+    manager_event(&mut harness,&key(Keycode::UP));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:23"),"source Up wraps to exact last entry");
+    assert!(visible_queue(&harness).iter().any(|id|id=="c2:23"),"fix original offscreen keyboard selection instead of hiding focus");
+    assert!(harness.ui.management.view.as_ref().and_then(|view|view.scroll.get("QueueGroup.QueueList")).is_some_and(|offset|*offset>0_usize),"only source queue viewport moves");
+    manager_event(&mut harness,&key(Keycode::SPACE));
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"queue has no source keyboard Remove action");
+    manager_event(&mut harness,&key(Keycode::DOWN));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some("c2:0"),"source Down wraps last to first");
+    assert!(visible_queue(&harness).iter().any(|id|id=="c2:0"),"first entry returns visibly");
+    assert_eq!(harness.state.viewer,before,"no canonical queue/order changes from selection");
+}
+
+#[test]
+fn build_navigation_received_reorder_ensures_same_selected_entry_visible_without_queued_execution_or_unrelated_scroll_snap() {
+    let mut harness=navigation_fixture();
+    let page=visible_queue(&harness).len();assert!(page>1_usize && page<24_usize,"real source queue viewport");
+    let index=page.saturating_sub(1_usize);let selected=format!("c2:{index}");
+    begin_row_press(&mut harness,&format!("QueueGroup.QueueList/{selected}"));
+    harness.ui.management.focused=Some("QueueGroup.DownButton".to_owned());
+    let before=harness.state.viewer.clone();manager_event(&mut harness,&key(Keycode::RETURN));
+    let command=harness.jobs.as_ref().expect("jobs").try_recv().expect("one explicit source move down");
+    assert_eq!(command.body["entries"][page]["entry_id"],selected,"captured exact entry moved down once");
+    assert_eq!(harness.state.viewer,before,"no local reorder");
+    let mut queued=harness.authority.session.projection.clone().expect("queued receipt");queued.revision=8_i64;queued.interface.planning_status="queued".to_owned();
+    queued.cities.iter_mut().find(|city|city.id=="c2").expect("city").rush_buy_quote.as_mut().expect("quote").revision=8_i64;
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Receipt(Box::new(queued)));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.scroll.get("QueueGroup.QueueList")).copied().unwrap_or(0_usize),0_usize,"queued intent cannot scroll an unexecuted reorder");
+    let mut actual=harness.authority.session.projection.clone().expect("later actual order");actual.revision=9_i64;actual.interface.planning_status=String::new();
+    let changed_city=actual.cities.iter_mut().find(|city|city.id=="c2").expect("city");changed_city.facts["queue"].as_array_mut().expect("queue").swap(index,page);changed_city.rush_buy_quote.as_mut().expect("quote").revision=9_i64;
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(actual)));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.selections.get("queue")).map(String::as_str),Some(selected.as_str()),"same entry, never neighboring duplicate");
+    assert!(visible_queue(&harness).contains(&selected),"actual received move brings selected entry into view");
+    assert!(harness.ui.management.scroll_to("QueueGroup.QueueList",0_usize,&harness.state),"user deliberately scrolls away");
+    let mut unchanged=harness.authority.session.projection.clone().expect("unrelated current update");unchanged.revision=10_i64;
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(unchanged)));
+    assert_eq!(harness.ui.management.view.as_ref().and_then(|view|view.scroll.get("QueueGroup.QueueList")).copied(),Some(0_usize),"unchanged entry position cannot snap user scroll back");
+    let mut removed=harness.authority.session.projection.clone().expect("removed entry update");removed.revision=11_i64;
+    removed.cities.iter_mut().find(|city|city.id=="c2").expect("city").facts["queue"].as_array_mut().expect("queue").remove(page);
+    sync::apply(&mut harness.authority,&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),Outcome::Snapshot(Box::new(removed)));
+    assert!(!harness.ui.management.view.as_ref().expect("view").selections.contains_key("queue"),"vanished selected ID never becomes new first row");
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"receipts/scroll never submit another order");
+}
+
+#[test]
+fn build_navigation_space_never_reuses_hidden_stale_or_unauthorized_left_focus_and_empty_queue_has_no_phantom_row() {
+    for mode in 0_u8..5_u8 {
+        let mut harness=navigation_fixture();begin_row_press(&mut harness,"ItemsBox.UnitsList/UNIT_SETTLER");
+        match mode {
+            0_u8 => {},
+            1_u8 => harness.authority.session.projection.as_mut().expect("session").revision=8_i64,
+            2_u8 => { assert!(harness.ui.management.apply_local(crate::gameplay::ui_model::management::ManagerIntent::Select("build-category".to_owned(),"Wonders".to_owned())),"switch current source category");harness.ui.management.focused=Some("ItemsBox.UnitsList".to_owned()); },
+            3_u8 => harness.ui.management.focused=Some("ItemsBox.UnitsList/removed-id".to_owned()),
+            _ => {
+                harness.state.viewer.as_mut().expect("viewer").cities.iter_mut().find(|city|city.id=="c2").expect("city").facts["queue"]=json!([]);
+                harness.ui.management.view.as_mut().expect("view").selections.remove("queue");harness.ui.management.focused=Some("QueueGroup.QueueList".to_owned());
+                manager_event(&mut harness,&key(Keycode::UP));
+                assert!(!harness.ui.management.view.as_ref().expect("view").selections.contains_key("queue"),"empty current queue cannot manufacture a selected entry");
+            }
+        }
+        let before=harness.state.viewer.clone();
+        if mode==0_u8 {assert!(management_input::consume(&key(Keycode::SPACE),&mut harness.state,&mut harness.ui,&mut MovementInputState::default(),None),"modal input still consumed without an authority");}
+        else {manager_event(&mut harness,&key(Keycode::SPACE));}
+        assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"mode{mode}: no hidden/stale/rebased/no-session request");
+        assert_eq!(harness.state.viewer,before,"invalid keyboard action cannot mutate queue/rules");
+    }
+}

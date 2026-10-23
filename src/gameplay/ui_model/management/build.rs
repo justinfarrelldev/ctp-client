@@ -1,5 +1,7 @@
 //! Original Build queue-head purchase controls, backed only by received quotes.
 use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
+/// Source focused list keyboard selection and actual received-position visibility.
+pub(super) mod navigation;
 use crate::gameplay::{model::GameState, server::{ServerCityProjection, v2::Quote}};
 use serde_json::json;
 
@@ -206,6 +208,7 @@ pub(super) fn select(view: &mut ManagerView, key: &str, value: &str) -> Option<b
  */
 /// Refreshes only the current Build hypertext ranger, preserving other offsets.
 pub(super) fn refresh_description(ui: &mut ManagementUi, state: &GameState) -> bool {
+    navigation::track(ui, state);
     ui.view.as_ref().is_some_and(|view| view.kind == ManagerKind::Build && view.scroll.contains_key("ItemDescription"))
         && ui.scroll("ItemDescription", 0_i32, state)
 }

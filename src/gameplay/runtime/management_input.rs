@@ -8,6 +8,8 @@ use super::{MovementInputState, RuntimeAuthority, submit_authoritative_command};
 use crate::gameplay::model::GameState;
 use crate::gameplay::ui_model::InGameUiModel;
 
+/// Focused source Build-list keys delegate to exact current controls.
+mod build_input;
 /// Native Build head-selection/quote requests use an isolated gateway only.
 #[cfg(test)]
 mod build_tests;
@@ -71,22 +73,13 @@ pub(super) fn consume(
         return false;
     }
     movement.cancel_drag();
-    match value_input::consume(event, ui, state) {
+    match local_input(event, ui, state) {
         value_input::Outcome::Consumed => return true,
         value_input::Outcome::Action(intent) => {
             apply(intent, state, ui, authority);
             return true;
         }
         value_input::Outcome::Ignored => {}
-    }
-    if scroll_input::consume(event, ui, state) {
-        return true;
-    }
-    if selector_input::consume(event, ui, state) {
-        return true;
-    }
-    if editor_input::consume(event, ui, state) {
-        return true;
     }
     let intent = match event.clone() {
         Event::KeyDown {
@@ -157,6 +150,16 @@ pub(super) fn consume(
     true
 }
 
+/// Preserve existing thumb/dropdown/editor ownership before focused list keys.
+fn local_input(event: &Event, ui: &mut InGameUiModel, state: &GameState) -> value_input::Outcome {
+    let outcome = value_input::consume(event, ui, state);
+    if !matches!(outcome, value_input::Outcome::Ignored) { return outcome; }
+    if scroll_input::consume(event, ui, state) || selector_input::consume(event, ui, state) || editor_input::consume(event, ui, state) {
+        return value_input::Outcome::Consumed;
+    }
+    build_input::key(event, state, ui)
+}
+
 /*
  * Source: ctp2_source/ctp2_code/ui/aui_common/aui_listbox.cpp::
  * aui_ListBox::MouseLDoubleClickInside sends DOUBLECLICKSELECT for the pointed row.
@@ -179,6 +182,7 @@ pub(super) fn consume(
 fn click_intent(ui: &mut InGameUiModel, state: &GameState, x: i32, y: i32, clicks: u8) -> Option<ManagerIntent> {
     let Some(intent) = pointer_intent(ui, state, x, y) else { ui.manager_press = None; return None; };
     let ManagerIntent::Select(key, id) = intent else { ui.manager_press = None; return Some(intent); };
+    ui.management.focus_build_row(state, &key, &id);
     if let Some(view) = ui.management.view.as_ref().filter(|view| view.kind == ManagerKind::Build && matches!(key.as_str(), "queue" | "buildable")) {
         let Some(viewer) = state.viewer.as_ref() else { ui.manager_press = None; return Some(ManagerIntent::Select(key, id)); };
         let press = crate::gameplay::ui_model::ManagerRowPress {
