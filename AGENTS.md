@@ -32,6 +32,17 @@ Uses cargo-make for build automation.
 - Choose one test/coverage run rather than a full test run followed by an equivalent full LLVM coverage run. Reuse already-collected coverage reports when valid; retain the >=80% coverage gate and report unavailable tooling honestly.
 - Required commit hooks remain unchanged and must pass normally. Their test/lint/build runs are not permission to bypass hooks, but do not manually duplicate the same full suite/build immediately before them without a concrete reason.
 
+## Workflow-Sized Batches and Centralized Integration (User Priority)
+
+- **One commit per bounded, independently reviewable/revertible workflow, not per checkbox, callback, file, or implementation layer.** Combine the relevant source/LDL audit, model/descriptors, native and accessible input, rendering, exact mocked commands/receipts, negative cases, provenance comments, fixtures, tests and PLAN/FIXES evidence. Observe RED locally; commit the complete GREEN workflow, never an intentionally failing intermediate step.
+- Define each batch's acceptance boundary and dependencies in `PLAN.md` and its existing linked checklist. Several related substeps (roughly a day's bounded work, not a hard time/line quota) usually belong together. Do not create another micro-plan or mistake overlapping detail checklists for separate implementation queues. Preserve the main plan's priority order.
+- Split independently revertible capabilities, substantial reusable foundations, exceptional destructive/authorization semantics, or patches that become difficult to review. Missing server/art contracts or deferred scaling must not hold unrelated finished work in an indefinite whole-manager/whole-screen commit. Keep unsupported behavior explicit and unaccepted references unchecked.
+- **Use one integration owner per batch.** Parallel contributors own explicit non-overlapping leaf files or read-only source/reference/contract investigations and hand over scoped changes plus evidence; do not manufacture throwaway checkpoint commits merely for coordination. Independently shippable workflows still receive separate normal commits. Avoid routinely validating contributor commits only to squash/revalidate the same work.
+- The integrator owns shared roots/dispatch/bindings/reconciliation, final review, `PLAN.md`/linked evidence/`FIXES.txt`, staging and the normal commit. Agree stable interfaces before parallel implementation; do not concurrently edit one checkout or shared mutable build/coverage outputs. On the current host start with at most two implementation lanes plus a research/review lane, and one heavy verification/build lane; increase only with measured capacity.
+- The hook tests the **working tree, not an isolated staged index**. Integrate and verify the intended complete code snapshot; never partially stage one batch while unrelated unstaged code supplies its passing checks. Keep each commit independently buildable/testable, including shared prerequisites.
+- Run required `cargo make lint-fix` before final verification/staging so automatic changes are included; review its diff, run strict `cargo make lint`, focused GREEN/valid coverage checks, then commit normally. Re-run affected checks only after failures or relevant edits. Let unchanged hooks provide the full suite and dedicated native build rather than manually duplicating them immediately beforehand.
+- Reuse coverage only when source mappings, binaries, toolchain/features and profiles are valid for the finished code; an old percentage or `--no-clean` alone is not evidence. Retain the >=80% gate, focused TDD, source/privacy review and required hooks. Never disable tests, weaken coverage, modify/bypass hooks/rules, or use `--no-verify` to reduce overhead.
+
 # Examples
 
 See scripts folder for cargo-make build examples. Scripts folder is read-only.
@@ -138,8 +149,8 @@ You can fetch documentation here as needed:
 ## Steps (always)
 
 1. Open `PLAN.md`, the single priority/acceptance index, and update its existing linked detail checklist. Keep comprehensive task/subtask checkboxes there; avoid a new micro-plan for each fix/commit. Any genuinely necessary new detail plan must be directly linked from `PLAN.md`.
-2. Pick the next unchecked item → **write focused tests first** (incl. edge cases) and observe RED.
-3. Implement/refactor to GREEN, then perform **one planned verification pass** under Efficient Verification above. Run `cargo make lint` and fix issues; choose relevant tests by default, not an automatic full `cargo make test`.
+2. Pick the next unchecked workflow-sized batch → **write focused tests first** for its missing behaviors (incl. edge cases) and observe RED locally.
+3. Implement/refactor the complete batch to GREEN, then perform **one planned verification pass** under Efficient Verification and Centralized Integration above. Run `cargo make lint` and fix issues; choose relevant tests by default, not an automatic full `cargo make test`.
 4. Retain coverage **≥80%**: use `./scripts/check-coverage-fast.sh` when available, otherwise the available LLVM gate. Combine test/coverage execution when needed instead of re-running the same suite; update `PLAN.md` and completed checkboxes with actual scope/results.
 5. Ensure one dedicated build succeeds. A normal hook's dedicated build of the same finished code satisfies this step; do not duplicate it manually without a concrete need.
 6. Final code review (security, performance, maintainability, original-source/plan adherence). If code changes or checks fail, re-run the relevant checks, not unrelated suites by default.

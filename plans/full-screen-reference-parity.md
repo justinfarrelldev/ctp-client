@@ -40,6 +40,7 @@ National's verified component is in the [main completed ledger](../PLAN.md#compl
   - [ ] Complete remaining control/navigation/sound/feedback coverage; per-control progress is not whole-screen acceptance.
 - [ ] Audit each unavailable original operation against current server routes/capabilities and document exact remaining contract/environment limitations without changing the server.
 - [ ] Final full-suite/lint/coverage/native build/Windows check, source/privacy/performance review and normal atomic commits; reconcile parent and component checklists only on actual evidence.
+  - [x] User-authorized verification maintenance: AGENTS workflow-sized batches/central integration; fileless architecture RED then6-line binary/library-owned bootstrap; inventory retains all676 shared+18 original startup cases, with fileless injected archive operations instead of five writing fixtures. Cached-manifest+2 architecture regressions added. Fresh full-target717 executions/86.01% LLVM and strict lint pass; normal named suite716 versus1389, no test target disabled. Native build/full normal tests remain the unchanged commit-hook gate, no redundant manual run. Main's size debt resolved; three other legacy oversized files/Windows cross environment remain open. No UI/scaling/reference acceptance; resume Build/City afterward.
 
 ## Per-reference complete-frame acceptance
 

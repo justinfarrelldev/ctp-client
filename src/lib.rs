@@ -29,6 +29,8 @@ extern crate alloc;
 
 /// Installation asset extraction module.
 pub mod asset_extraction;
+/// Canonical application startup used by the thin executable entry point.
+pub mod bootstrap;
 /// Configuration management module.
 pub mod config;
 mod dialogs;
