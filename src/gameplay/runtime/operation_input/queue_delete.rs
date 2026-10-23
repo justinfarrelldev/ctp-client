@@ -1,11 +1,12 @@
-//! Strongly modal original Delete question, no implicit affirmative or file I/O.
+//! Original destructive local file questions, no implicit affirmative or file I/O.
 use crate::gameplay::ui_model::{InGameUiModel, management::saved::save};
 use sdl2::{
     event::Event,
     keyboard::{Keycode, Mod},
     mouse::MouseButton,
 };
-/* Released ui/interface/EditQueue.cpp::DeleteCallback -> MessageBoxDialog.cpp::
+/* Released ui/interface/EditQueue.cpp::{DeleteCallback,
+ * ConfirmOverwriteQueueAction::Execute,SaveQueryCallback} -> MessageBoxDialog.cpp::
  * Query/LeftButtonActionCallback/RightButtonActionCallback -> DeleteQueryCallback.
  * messagebox.ldl source MB_OK/MB_CANCEL rectangles/fonts/hit order are retained.
  * Explicit original OK only, no default Enter or destructive Don'tShow replay.
@@ -77,7 +78,7 @@ pub(in crate::gameplay::runtime) fn activate(ui: &mut InGameUiModel, id: &str) -
     let Some(dialog) = ui
         .operation
         .as_ref()
-        .filter(|dialog| dialog.queue_delete.is_some())
+        .filter(|dialog| dialog.queue_delete.is_some() || dialog.queue_overwrite.is_some())
     else {
         return false;
     };
@@ -92,24 +93,15 @@ pub(in crate::gameplay::runtime) fn activate(ui: &mut InGameUiModel, id: &str) -
         ui.operation = None;
         return true;
     }
-    let Some(capture) = dialog.queue_delete.as_ref() else {
-        return false;
+    if id!=save::OK{return false;}
+    let current=match (dialog.queue_delete.as_ref(),dialog.queue_overwrite.as_ref()) {
+        (Some(capture),None)=>!capture.approved&&capture.current(&ui.management),
+        (None,Some(capture))=>!capture.approved&&capture.current(&ui.management),
+        _=>false,
     };
-    if id != save::OK || capture.approved {
-        return false;
-    }
-    if !capture.current(&ui.management) {
-        "The selected profile file/preview has changed; no deletion was requested"
-            .clone_into(&mut ui.status_text);
-        return false;
-    }
-    if let Some(approved) = ui
-        .operation
-        .as_mut()
-        .and_then(|form| form.queue_delete.as_mut())
-    {
-        approved.approved = true;
-    }
+    if !current {"The local template or selected profile snapshot changed; no destructive file effect was requested".clone_into(&mut ui.status_text);return false;}
+    if let Some(approved)=ui.operation.as_mut().and_then(|form|form.queue_delete.as_mut()){approved.approved=true;}
+    if let Some(approved)=ui.operation.as_mut().and_then(|form|form.queue_overwrite.as_mut()){approved.approved=true;}
     true
 }
 /// Original visual left-to-right Cancel then OK, with initially no selected button.

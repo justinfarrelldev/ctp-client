@@ -11,6 +11,8 @@ pub mod custom;
 pub mod save;
 /// Explicit source profile-file deletion questions and complete byte snapshots.
 pub mod delete;
+/// Original explicit existing-name Overwrite with immutable local/file snapshots.
+pub mod overwrite;
 #[cfg(test)]
 mod tests;
 
@@ -94,8 +96,8 @@ pub struct QueueLibrary {
  * current pinned kinds/IDs, captures one atomic revision-bound replacement and
  * retains known funded head. No costs/private buildability/local CityData edits.
  * Failed/invalid files cannot clear a queue before open as original Load does.
- * Local authoring delegates to custom, new-file Save to save, profile Delete
- * to delete; Overwrite remains unfinished, never a raw authoritative substitute.
+ * Local authoring, Save-name, explicit profile Delete/Overwrite use dedicated
+ * local modules; none is a raw authoritative city-command substitute.
  */
 /// True only for the visible original inline browser mode.
 pub(super) fn active(view: &ManagerView) -> bool {

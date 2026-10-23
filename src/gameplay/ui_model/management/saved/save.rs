@@ -50,8 +50,8 @@ impl Capture {
  * Capture owned template/lifetime/name instead of source static saveFileName and
  * mutable m_customBuildList callback data. Do not truncate255-byte C buffers,
  * ignore fopen/write failures, swap CAP/INF or leave Custom before real success.
- * This create-only workflow never overwrites an existing file or installation;
- * destructive overwrite/delete require their separate versioned confirmations.
+ * The initial create-only attempt never overwrites a file or installation;
+ * existing snapshots require the separate explicit versioned Overwrite question.
  */
 /// Creates actual cached source `TextQuery`, not a fake server command/form.
 #[must_use]

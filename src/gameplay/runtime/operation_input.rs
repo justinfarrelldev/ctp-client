@@ -24,7 +24,7 @@ pub(super) fn consume(
     ui: &mut InGameUiModel,
     authority: Option<&mut RuntimeAuthority>,
 ) -> bool {
-    if ui.operation.as_ref().is_some_and(|dialog|dialog.queue_delete.is_some()) {
+    if ui.operation.as_ref().is_some_and(|dialog|dialog.queue_delete.is_some() || dialog.queue_overwrite.is_some()) {
         ui.manager_press=None;
         return queue_delete::consume(event,ui);
     }

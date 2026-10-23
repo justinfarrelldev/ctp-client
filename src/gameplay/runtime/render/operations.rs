@@ -22,7 +22,7 @@ pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&mut GameplayTextures<'_>
             } else if widget.node.name == "LeftButton" && !affirmative(dialog,state,ui) {
                 let mut disabled = widget.clone();
                 disabled.intent = None;
-                disabled.unavailable = Some("This confirmation is no longer authorized at its captured revision".to_owned());
+                disabled.unavailable = Some(if dialog.queue_save.is_some()||dialog.queue_delete.is_some()||dialog.queue_overwrite.is_some(){"The captured local template/profile snapshot is no longer current or is awaiting storage"}else{"This confirmation is no longer authorized at its captured revision"}.to_owned());
                 super::management::draw_widget(canvas,textures,&disabled,fonts.control(&disabled.node))?;
             } else {
                 super::management::draw_widget(canvas,textures,widget,fonts.control(&widget.node))?;
@@ -63,6 +63,7 @@ pub(super) fn draw(canvas:&mut Canvas<Window>,textures:&mut GameplayTextures<'_>
 /// Source affirmative reflects exact local-file approval or canonical authorization.
 fn affirmative(dialog:&OperationDialog,state:&GameState,ui:&InGameUiModel)->bool{
     if let Some(capture)=dialog.queue_delete.as_ref(){return !capture.approved&&capture.current(&ui.management);}
+    if let Some(capture)=dialog.queue_overwrite.as_ref(){return !capture.approved&&capture.current(&ui.management);}
     dialog.queue_save.as_ref().map_or_else(||dialog.choices.first().is_some_and(|choice|choice.command.valid_for(state)),|capture|capture.name.is_none()&&capture.current(&ui.management)&&crate::gameplay::ui_model::management::saved::save::name_valid(&dialog.text))
 }
 /* Released ctp2_source/ctp2_code/ui/aui_common/aui_textfield.cpp::CreateWin/

@@ -149,3 +149,24 @@ fn build_delete_original_question_art_and_stale_affirmative_render_without_param
         super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;Ok(())
     });assert!(result.is_ok(),"source Delete question and stale paint: {result:?}");
 }
+
+/* Released EditQueue.cpp::ConfirmOverwriteQueueAction::Execute and
+ * MessageBoxDialog::Query use original messagebox.ldl Question, not TextQuery.
+ * Local draft/raw profile-version staleness disables the actual source OK.
+ */
+#[test]
+fn build_overwrite_original_question_art_and_changed_template_affirmative_render_in_memory(){
+    let result=with_canvas((800_u32,600_u32),|canvas| {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;
+        let projection:ServerProjection=serde_json::from_value(json!({"revision":7_i64,"turn":1_u32,"tiles":[],"cities":[],"rules":{"units":[{"id":"UNIT_SETTLER"}]}})).map_err(|error|error.to_string())?;let state=GameState::from_server_projection(&projection,1_u8,1_u64);
+        let mut ui=InGameUiModel {management:ManagementUi::new(LayoutBook::load(&root).map_err(|error|error.to_string())?).map_err(|error|error.to_string())?,..InGameUiModel::default()};ui.management.open(ManagerKind::Build,&state,None);
+        if !crate::gameplay::ui_model::management::saved::custom::apply(&mut ui.management,&state,crate::gameplay::ui_model::management::saved::custom::Action::Begin){return Err("Custom unavailable".to_owned());}
+        let mut capture=crate::gameplay::ui_model::management::saved::save::dialog(&ui.management).and_then(|dialog|dialog.queue_save).ok_or_else(||"Save capture".to_owned())?;capture.name=Some("existing %s".to_owned());
+        let question=crate::gameplay::ui_model::management::saved::overwrite::dialog(&mut ui.management,capture,b"# old file\n".to_vec()).ok_or_else(||"Overwrite source unavailable".to_owned())?;
+        if question.input.is_some()||question.confirmation_focus.is_some()||question.confirmation.iter().any(|widget|widget.node.name=="TextField"){return Err("Overwrite is not an explicit original Query".to_owned());}
+        ui.operation=Some(question);canvas.set_draw_color(Color::BLACK);canvas.clear();super::management::draw_management(canvas,&mut textures,&state,&ui,None).map_err(|error|error.to_string())?;
+        super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;
+        ui.management.saved_queues.custom.draft.as_mut().ok_or_else(||"draft".to_owned())?.version=8_u64;
+        super::operations::draw(canvas,&mut textures,&state,&ui,RenderFonts {body:None,management:None}).map_err(|error|error.to_string())?;Ok(())
+    });assert!(result.is_ok(),"source Overwrite question and stale paint: {result:?}");
+}

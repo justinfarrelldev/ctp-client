@@ -54,6 +54,8 @@ pub struct OperationDialog {
     pub queue_save: Option<super::management::saved::save::Capture>,
     /// Original file Delete question; immutable profile identity/complete byte version.
     pub queue_delete: Option<super::management::saved::delete::Capture>,
+    /// Existing-name Overwrite: captured local template and approved profile byte version.
+    pub queue_overwrite: Option<super::management::saved::overwrite::Capture>,
     /// First visible choice index, page-sized and bounded.
     pub start: usize,
     /// Explicit keyboard target selection.
@@ -91,6 +93,11 @@ impl OperationDialog {
     #[must_use]
     pub fn queue_delete(title:&str,widgets:Vec<ManagerWidget>,capture:super::management::saved::delete::Capture)->Self{
         let mut dialog=Self::blank(title,0_i64);dialog.confirmation=widgets;dialog.queue_delete=Some(capture);dialog
+    }
+    /// Captures original local Overwrite Query without a canonical game command.
+    #[must_use]
+    pub fn queue_overwrite(title:&str,widgets:Vec<ManagerWidget>,capture:super::management::saved::overwrite::Capture)->Self{
+        let mut dialog=Self::blank(title,0_i64);dialog.confirmation=widgets;dialog.queue_overwrite=Some(capture);dialog
     }
     /// Current actual field geometry for source `TextQuery` or generic forms.
     #[must_use]
@@ -399,6 +406,7 @@ impl OperationDialog {
             close_load_on_submit: false,
             queue_save: None,
             queue_delete: None,
+            queue_overwrite: None,
             start: 0,
             focused: 0,
         }

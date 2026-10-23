@@ -1,5 +1,5 @@
 //! In-memory create/readback model; no `NativeWriter`, filesystem or network access.
-use super::{QueueWriter, service_with};
+use super::{CreateResult, QueueWriter, service_with};
 use crate::gameplay::ui_model::{
     InGameUiModel,
     management::{
@@ -23,11 +23,12 @@ struct Store {
     mismatch: bool,
 }
 impl QueueWriter for Store {
-    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<Vec<u8>, String> {
+    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<CreateResult, String> {
         self.calls.push((name.to_owned(), bytes.to_vec()));
         if self.failure {
             return Err("fake disk failure".to_owned());
         }
+        if let Some(existing)=self.files.get(name){return Ok(CreateResult::Existing(existing.clone()));}
         if self
             .files
             .keys()
@@ -37,9 +38,9 @@ impl QueueWriter for Store {
         }
         self.files.insert(name.to_owned(), bytes.to_vec());
         if self.mismatch {
-            Ok(b"BAD".to_vec())
+            Ok(CreateResult::Created(b"BAD".to_vec()))
         } else {
-            Ok(bytes.to_vec())
+            Ok(CreateResult::Created(bytes.to_vec()))
         }
     }
 }

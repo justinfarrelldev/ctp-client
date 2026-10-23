@@ -10,6 +10,8 @@ pub(super) mod writes;
 mod profile;
 /// Explicit destructive original Delete after exact source confirmation.
 pub(super) mod deletes;
+/// Source exact-name Overwrite after explicit captured profile-version confirmation.
+pub(super) mod overwrites;
 
 /// Read-only directory metadata; symbolic links/folders are never opened as files.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,11 +44,11 @@ impl QueueReader for NativeReader {
         if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() { return Err("Saved queue source is not a safe directory".to_owned()); }
         let directory = fs::read_dir(directory).map_err(|error| format!("Saved queue directory could not be read: {error}"))?;
         let mut entries = Vec::new();
-        for result in directory.take(saved::MAX_FILES.saturating_add(2_usize)) {
+        for result in directory.take(saved::MAX_FILES.saturating_mul(2_usize).saturating_add(2_usize)) {
             let entry = result.map_err(|error| format!("Saved queue entry could not be read: {error}"))?;
             let kind = entry.file_type().map_err(|error| format!("Saved queue file type is unavailable: {error}"))?;
             let name = entry.file_name().into_string().map_err(|_name| "Saved queue filename is not valid Unicode".to_owned())?;
-            if name == profile::LOCK_NAME { continue; }
+            if name.starts_with('.') { continue; }
             entries.push(Entry { name, regular: regular(kind) });
         }
         Ok(entries)
@@ -84,6 +86,10 @@ pub(super) fn service(ui: &mut InGameUiModel) -> bool {
         sources.push(("standalone".to_owned(), root.join("ctp2_program/save/queues")));
     }
     service_with(ui, &sources, &mut NativeReader)
+}
+/// Executes only explicitly approved current local effects, never game commands.
+pub(super) fn service_effects(ui:&mut InGameUiModel){
+    writes::service(ui);deletes::service(ui);overwrites::service(ui);
 }
 /// Strong mode/request ownership; canceled or hidden views cannot scan files.
 fn requested(ui: &InGameUiModel) -> bool {

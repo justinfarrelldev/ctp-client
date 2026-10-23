@@ -5,16 +5,23 @@ use crate::gameplay::ui_model::{
 };
 use std::{
     fs,
-    io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 #[cfg(test)]
 mod tests;
 
+/// Result of a create-only attempt: an existing snapshot is not overwrite authority.
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub(in crate::gameplay::runtime) enum CreateResult {
+    /// Actual new publication with complete readback.
+    Created(Vec<u8>),
+    /// Exact existing profile basename read under lock; explicit Query required.
+    Existing(Vec<u8>),
+}
 /// One explicit no-clobber effect with readback; never means overwrite permission.
 pub(in crate::gameplay::runtime) trait QueueWriter {
     /// Publishes full bytes only to a new portable basename, returns verified bytes.
-    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<Vec<u8>, String>;
+    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<CreateResult, String>;
 }
 /* Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{SaveNameResponse,
  * Save,SaveQueryCallback} writes custom U/B/W/CAP/INF and restores old mode.
@@ -37,7 +44,7 @@ struct NativeWriter {
     home: PathBuf,
 }
 impl QueueWriter for NativeWriter {
-    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<Vec<u8>, String> {
+    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<CreateResult, String> {
         if !save::name_valid(name) || bytes.len() > codec::MAX_BYTES {
             return Err("Invalid bounded local queue filename/data".to_owned());
         }
@@ -56,34 +63,14 @@ impl QueueWriter for NativeWriter {
             if existing==super::profile::LOCK_NAME {continue;}
             count=count.saturating_add(1_usize);
             if existing.to_lowercase() == name.to_lowercase() {
-                return Err("A queue/file with this name already exists; overwrite requires its separate confirmation workflow".to_owned());
+                if existing!=name{return Err("A different-case filename exists; choose its exact spelling before overwrite confirmation".to_owned());}
+                return profile.read(name).map(CreateResult::Existing);
             }
         }
         if count >= saved::MAX_FILES {
             return Err("Saved queue directory has reached its safe file-count limit".to_owned());
         }
-        let mut temporary = tempfile::NamedTempFile::new_in(root)
-            .map_err(|error| format!("Cannot stage local queue: {error}"))?;
-        temporary
-            .write_all(bytes)
-            .map_err(|error| format!("Cannot write complete local queue: {error}"))?;
-        temporary
-            .as_file()
-            .sync_all()
-            .map_err(|error| format!("Cannot sync local queue: {error}"))?;
-        let mut file = temporary
-            .persist_noclobber(root.join(name))
-            .map_err(|error| format!("Queue was not published without clobber: {}", error.error))?;
-        file.seek(SeekFrom::Start(0_u64))
-            .map_err(|error| format!("Saved queue readback could not seek: {error}"))?;
-        let mut readback = Vec::new();
-        file.take(
-            u64::try_from(codec::MAX_BYTES.saturating_add(1_usize))
-                .map_err(|error| error.to_string())?,
-        )
-        .read_to_end(&mut readback)
-        .map_err(|error| format!("Saved queue readback failed; retain your draft: {error}"))?;
-        Ok(readback)
+        profile.publish(name,bytes,super::profile::Publication::Create).map(CreateResult::Created)
     }
 }
 /// Production session executes only an explicit currently owned local approval.
@@ -138,7 +125,13 @@ pub(in crate::gameplay::runtime) fn service_with(
         }
     };
     match writer.create(name, &bytes) {
-        Ok(readback) if readback == bytes => {
+        Ok(CreateResult::Existing(expected))=>{
+            match crate::gameplay::ui_model::management::saved::overwrite::dialog(&mut ui.management,capture,expected){
+                Some(question)=>ui.operation=Some(question),
+                None=>fail(ui,"Existing profile snapshot or original overwrite confirmation is unavailable; no file was overwritten"),
+            }
+        },
+        Ok(CreateResult::Created(readback)) if readback == bytes => {
             let id = format!("profile:{name}");
             let cached = QueueFile::from_bytes(id.clone(), name.clone(), &readback);
             if cached.parsed.as_ref() != Ok(&capture.template) {
@@ -157,7 +150,7 @@ pub(in crate::gameplay::runtime) fn service_with(
                 "Saved local queue; original editor parent is unavailable".clone_into(&mut ui.status_text);
             }
         }
-        Ok(_readback) => fail(
+        Ok(CreateResult::Created(_readback)) => fail(
             ui,
             "Saved queue readback differed; retain your draft. No existing file will be overwritten",
         ),

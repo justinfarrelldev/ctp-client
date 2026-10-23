@@ -4,7 +4,7 @@ use crate::gameplay::{
     runtime::{
         management_input::editor_input::Clipboard,
         operation_input,
-        saved_queues::writes::{QueueWriter, service_with},
+        saved_queues::writes::{CreateResult, QueueWriter, service_with},
     },
     ui_model::management::saved::save,
 };
@@ -21,12 +21,12 @@ struct Store {
     failure: bool,
 }
 impl QueueWriter for Store {
-    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<Vec<u8>, String> {
+    fn create(&mut self, name: &str, bytes: &[u8]) -> Result<CreateResult, String> {
         self.calls.push((name.to_owned(), bytes.to_vec()));
         if self.failure {
             Err("fake permission denied".to_owned())
         } else {
-            Ok(bytes.to_vec())
+            Ok(CreateResult::Created(bytes.to_vec()))
         }
     }
 }
