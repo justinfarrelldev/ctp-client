@@ -46,6 +46,8 @@ pub struct OperationDialog {
     pub confirmation: Vec<ManagerWidget>,
     /// Explicit original control ID; never an implicit destructive default.
     pub confirmation_focus: Option<String>,
+    /// Original `QueryLoadQueue` returns to `ItemsBox` only after real enqueue/ack.
+    pub close_load_on_submit: bool,
     /// First visible choice index, page-sized and bounded.
     pub start: usize,
     /// Explicit keyboard target selection.
@@ -360,6 +362,7 @@ impl OperationDialog {
             choices: Vec::new(),
             confirmation: Vec::new(),
             confirmation_focus: None,
+            close_load_on_submit: false,
             start: 0,
             focused: 0,
         }

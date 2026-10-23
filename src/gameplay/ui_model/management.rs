@@ -28,6 +28,8 @@ mod articles;
 mod bindings;
 /// Original Build selected-head prices and revision-safe purchase controls.
 mod build;
+/// Cached original saved-queue previews and confirmed server-authoritative loading.
+pub mod saved;
 /// Original Build queue-head price/authorization regressions using received facts.
 #[cfg(test)]
 mod build_tests;
@@ -328,6 +330,8 @@ pub struct ManagementUi {
     pub confirmation_layout: Option<LayoutNode>,
     /// Original dynamic item templates, resolved once rather than doing frame-time I/O.
     pub row_templates: BTreeMap<&'static str, LayoutNode>,
+    /// Explicit read-only local saved-queue snapshot, never canonical production.
+    pub saved_queues: saved::QueueLibrary,
     /// Open manager, independent of map/control-panel selections.
     pub view: Option<ManagerView>,
     /// Explicit keyboard focus; Enter never activates an arbitrary first action.
@@ -393,6 +397,7 @@ impl ManagementUi {
             chart,
             confirmation_layout,
             row_templates,
+            saved_queues: saved::QueueLibrary::default(),
             panel,
             view: None,
             focused: None,
@@ -513,18 +518,7 @@ impl ManagementUi {
 
     /// Executes the original all-category text search once, caching its matches.
     pub fn search_library(&mut self) {
-        let labels: BTreeMap<_, _> = self
-            .library
-            .catalog
-            .articles
-            .keys()
-            .map(|id| (id.clone(), data::label(self, id)))
-            .collect();
-        self.library
-            .execute_search(|id| labels.get(id).cloned().unwrap_or_else(|| id.to_owned()));
-        if let Some(view) = self.view.as_mut() {
-            view.scroll.remove("IndexSheet");
-        }
+        index::search(self);
     }
 
     /// Scrolls only a current list/text box, clamping the stored offset as well as

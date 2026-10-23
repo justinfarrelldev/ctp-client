@@ -8,6 +8,13 @@ use crate::gameplay::ui_model::library::LibraryCategory;
 use alloc::collections::BTreeMap;
 use serde_json::Value;
 
+/// Executes the existing cached all-category search; keeps the shared root bounded.
+pub(super) fn search(ui: &mut ManagementUi) {
+    let labels: BTreeMap<_, _> = ui.library.catalog.articles.keys().map(|id| (id.clone(), data::label(ui, id))).collect();
+    ui.library.execute_search(|id| labels.get(id).cloned().unwrap_or_else(|| id.to_owned()));
+    if let Some(view) = ui.view.as_mut() { view.scroll.remove("IndexSheet"); }
+}
+
 /// Applies reference-version metadata from the public community greatlibrary.ldl;
 /// no installed layout/art is modified or embedded. Source coordinates differ
 /// from the earlier retail layout in the read-only installation.

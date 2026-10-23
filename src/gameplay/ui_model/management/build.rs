@@ -159,6 +159,36 @@ fn clear_request(state: &GameState, view: &ManagerView) -> Option<ManagerCommand
 }
 
 /*
+ * Source: EditQueue.cpp::LoadQueryCallback -> CityData::LoadQueue ->
+ * gs/gameobj/bldque.cpp::Load in original ctp2_source/ctp2_code/. Retail keeps
+ * AlreadyBoughtFront before appending every loaded record. Current completed
+ * quote proves funding, not purchase history: conservatively retain that exact
+ * stable head. Unknown/stale/queued funding cannot unlock it. An explicit empty
+ * queue or current empty-queue quote proves no head; absence alone does not.
+ * No file content supplies costs/effects or mutates canonical production.
+ */
+/// Captures one source load replacement after the complete local parse/preview.
+pub(super) fn load_replacement(state: &GameState, view: &ManagerView, items: &[String]) -> Option<ManagerCommand> {
+    let viewer = state.viewer.as_ref()?;
+    if viewer.interface.planning_status == "queued" { return None; }
+    let city = data::city(state, view)?;
+    let current = quote(state, city);
+    let empty = city.facts["queue"].as_array().map_or_else(|| current.is_some_and(|quote| quote.status == "empty-queue"), Vec::is_empty);
+    let mut entries = Vec::new();
+    if !empty {
+        let current = current?;
+        match current.status.as_str() {
+            "available" | "insufficient-gold" if current.cost.is_some_and(|cost| cost >= 0_i64) => {},
+            "completed" => { let head = city.facts["queue"].as_array()?.first()?["entry_id"].as_str()?; entries.push(json!({"entry_id":head})); },
+            _ => return None,
+        }
+    }
+    if entries.len().saturating_add(items.len()) > super::saved::codec::MAX_ITEMS { return None; }
+    entries.extend(items.iter().map(|id| json!({"item_id":id})));
+    super::queue::replacement(state, &city.id, &entries)
+}
+
+/*
  * Source: ctp2_source/ctp2_code/ui/interface/EditQueue.cpp::{ToggleUnits,
  * ToggleBuildings,ToggleWonders,SelectChoiceList} hides/deselects the other left
  * lists, preserving the independent queue. editqueue.ldl::BuildEditorWindow.
@@ -174,6 +204,25 @@ fn clear_request(state: &GameState, view: &ManagerView) -> Option<ManagerCommand
 pub(super) fn select(view: &mut ManagerView, key: &str, value: &str) -> Option<bool> {
     if view.kind != ManagerKind::Build { return None; }
     match key {
+        super::saved::MODE => {
+            if !matches!(value, "true" | "false") { return Some(false); }
+            if value == "true" {
+                view.selections.insert(super::saved::MODE.to_owned(), value.to_owned());
+                view.selections.insert(super::saved::REFRESH.to_owned(), "true".to_owned());
+            } else {
+                view.selections.remove(super::saved::MODE);
+                view.selections.remove(super::saved::REFRESH);
+            }
+            for dependent in ["saved-queue", "saved-preview"] { view.selections.remove(dependent); }
+            for path in ["LoadBox.QueuesList", "LoadBox.Contents"] { view.scroll.remove(path); }
+        }
+        "saved-queue" => {
+            if view.selections.get(key).is_none_or(|previous| previous != value) {
+                view.selections.remove("saved-preview");
+                view.scroll.remove("LoadBox.Contents");
+            }
+            view.selections.insert(key.to_owned(), value.to_owned());
+        }
         "build-category" => {
             if !matches!(value, "Units" | "Buildings" | "Wonders") { return Some(false); }
             let previous = view.selections.get(key).map_or("Units", String::as_str);

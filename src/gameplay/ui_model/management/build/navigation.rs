@@ -16,7 +16,7 @@ use crate::gameplay::{model::GameState, ui_model::BuildListKey};
  * not queued receipts, unrelated snapshots or an invented neighboring selection.
  */
 /// Exact original current list controls, not arbitrary path-like focus strings.
-const PATHS: [&str; 4] = ["ItemsBox.UnitsList", "ItemsBox.BuildingList", "ItemsBox.WonderList", "QueueGroup.QueueList"];
+const PATHS: [&str; 6] = ["ItemsBox.UnitsList", "ItemsBox.BuildingList", "ItemsBox.WonderList", "QueueGroup.QueueList", "LoadBox.QueuesList", "LoadBox.Contents"];
 /// Presentation-only anchor keys; never serialized as authoritative commands.
 const ANCHOR: [&str; 3] = ["queue-viewport-entry", "queue-viewport-city", "queue-viewport-index"];
 
@@ -25,6 +25,8 @@ fn role_path(view: &ManagerView, role: &str) -> Option<&'static str> {
     if view.kind != ManagerKind::Build { return None; }
     match role {
         "queue" => Some(PATHS[3_usize]),
+        "saved-queue" if super::super::saved::active(view) => Some(PATHS[4_usize]),
+        "saved-preview" if super::super::saved::active(view) => Some(PATHS[5_usize]),
         "buildable" => match view.selections.get("build-category").map_or("Units", String::as_str) {
             "Units" => Some(PATHS[0_usize]), "Buildings" => Some(PATHS[1_usize]), "Wonders" => Some(PATHS[2_usize]), _ => None,
         },
@@ -47,7 +49,7 @@ fn focused(ui: &ManagementUi, state: &GameState) -> Option<&'static str> {
     let view = ui.view.as_ref().filter(|view| view.kind == ManagerKind::Build)?;
     let focus = ui.focused.as_deref()?;
     let path = PATHS.iter().copied().find(|path| focus == *path || focus.strip_prefix(path).is_some_and(|suffix| suffix.starts_with('/')))?;
-    let role = if path == PATHS[3_usize] { "queue" } else { "buildable" };
+    let role = match path { "QueueGroup.QueueList" => "queue", "LoadBox.QueuesList" => "saved-queue", "LoadBox.Contents" => "saved-preview", _ => "buildable" };
     if role_path(view, role) != Some(path) { return None; }
     let widgets = ui.widgets(state);
     if !widgets.iter().any(|widget| widget.id == path) { return None; }
@@ -59,12 +61,12 @@ fn focused(ui: &ManagementUi, state: &GameState) -> Option<&'static str> {
 pub(in crate::gameplay::ui_model::management) fn key(ui: &mut ManagementUi, state: &GameState, key: BuildListKey) -> (bool, Option<ManagerIntent>) {
     let Some(path) = focused(ui, state) else { return (false, None); };
     if key == BuildListKey::Activate {
-        return (true, (path != PATHS[3_usize]).then(|| ui.activate_id("ItemsBox.AddButton", state)).flatten());
+        return (true, path.starts_with("ItemsBox.").then(|| ui.activate_id("ItemsBox.AddButton", state)).flatten());
     }
     let Some(view) = ui.view.as_ref() else { return (false, None); };
     let rows = data::rows(ui, state, view, path);
     if rows.is_empty() { return (true, None); }
-    let role = if path == PATHS[3_usize] { "queue" } else { "buildable" };
+    let role = match path { "QueueGroup.QueueList" => "queue", "LoadBox.QueuesList" => "saved-queue", "LoadBox.Contents" => "saved-preview", _ => "buildable" };
     let current = view.selections.get(role).and_then(|id| rows.iter().position(|row| row.0 == *id));
     let index = match key {
         BuildListKey::Up => current.unwrap_or(0_usize).checked_sub(1_usize).unwrap_or_else(|| rows.len().saturating_sub(1_usize)),

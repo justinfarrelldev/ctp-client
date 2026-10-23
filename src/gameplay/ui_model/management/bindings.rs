@@ -44,7 +44,8 @@ pub(super) fn binding(
     if let Some(binding) = super::government::binding(state, view, path) {
         return binding;
     }
-    if let Some(binding) = super::build::binding(ui, state, view, path)
+    if let Some(binding) = super::saved::binding(ui, state, view, path)
+        .or_else(|| super::build::binding(ui, state, view, path))
         .or_else(|| super::science::binding(view, path))
         .or_else(|| super::research::binding(state, view, path)) {
         return binding;
@@ -250,18 +251,6 @@ fn build(
     view: &ManagerView,
     path: &str,
 ) -> (Option<ManagerIntent>, Option<String>) {
-    if matches!(
-        path,
-        "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton"
-    ) {
-        return dialog(super::data::city(state, view).and_then(|city| {
-            crate::gameplay::ui_model::operations::OperationDialog::input(
-                state,
-                &city.id,
-                crate::gameplay::ui_model::operations::InputKind::Queue,
-            )
-        }));
-    }
     if let Some(command) = super::queue::request(state, view, path) {
         return enabled(ManagerIntent::Submit(command));
     }
@@ -305,9 +294,6 @@ fn build(
         | "QueueGroup.DownButton"
         | "QueueGroup.ClearButton" => disabled(
             "Server has no atomic indexed queue-edit operation; cancel/re-add would destroy production (QUEUE-01/02)",
-        ),
-        "ItemsBox.LoadSaveButton" | "NormalModeButtons.CustomButton" => disabled(
-            "Applying a custom queue requires a safe authoritative queue-edit contract (QUEUE-02/03)",
         ),
         "LibraryButton" => super::articles::selected_description(view, state)
             .filter(|id| ui.library.catalog.article(id).is_some())

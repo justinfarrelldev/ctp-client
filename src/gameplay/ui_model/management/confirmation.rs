@@ -23,20 +23,30 @@ use crate::gameplay::{assets::layout::LayoutNode, model::GameState, ui_model::{M
 
 /// Builds source controls entirely from cached data; opening never submits.
 pub(super) fn dialog(ui: &ManagementUi, state: &GameState, command: ManagerCommand) -> Option<OperationDialog> {
+    question(ui, state, ui.book.label("str_ldl_ClearQueueQuery"), command)
+}
+
+/* Source: EditQueue.cpp::{LoadCallback,LoadQueryCallback} uses the same original
+ * MessageBoxDialog::Query/messagebox.ldl controls for QueryLoadQueue, with its
+ * cached localized filename/city message. Body and immutable command are captured
+ * together; never re-read a mutable filename after the user previews it.
+ */
+/// Builds the shared source Query for an explicitly captured localized message.
+pub(super) fn question(ui: &ManagementUi, state: &GameState, message: &str, command: ManagerCommand) -> Option<OperationDialog> {
     let root = ui.confirmation_layout.as_ref()?;
     let width = root.integer("widthpix").and_then(|width| u32::try_from(width).ok())?;
     let height = root.integer("heightpix").and_then(|height| u32::try_from(height).ok())?;
     let bounds = MenuRect { x: 800_i32.saturating_sub(i32::try_from(width).ok()?).div_euclid(2), y:600_i32.saturating_sub(i32::try_from(height).ok()?).div_euclid(2), width, height };
     let mut widgets = Vec::new();
-    append(ui, root, "MessageBoxDialog", bounds, &command, &mut widgets);
-    OperationDialog::confirmation(state, ui.book.label("str_ldl_ClearQueueQuery"), widgets, command)
+    append(ui, root, "MessageBoxDialog", bounds, message, &command, &mut widgets);
+    OperationDialog::confirmation(state, message, widgets, command)
 }
 
 /// Tail-to-head source painting; a hidden text field is not a semantic target.
-fn append(ui: &ManagementUi, node: &LayoutNode, path: &str, bounds: MenuRect, command: &ManagerCommand, widgets: &mut Vec<ManagerWidget>) {
+fn append(ui: &ManagementUi, node: &LayoutNode, path: &str, bounds: MenuRect, message: &str, command: &ManagerCommand, widgets: &mut Vec<ManagerWidget>) {
     if node.name == "TextField" { return; }
     let (label, intent, unavailable) = match node.name.as_str() {
-        "MessageDisplay" => (ui.book.label("str_ldl_ClearQueueQuery").to_owned(), None, None),
+        "MessageDisplay" => (message.to_owned(), None, None),
         "LeftButton" => (ui.book.label("str_ldl_MB_OK").to_owned(), Some(ManagerIntent::Submit(command.clone())), None),
         "RightButton" => (ui.book.label("str_ldl_MB_CANCEL").to_owned(), Some(ManagerIntent::Close), None),
         "DontShowButton" => (ui.book.label("str_ldl_DontShowAgain").to_owned(), None, Some("Destructive requests always require explicit current confirmation".to_owned())),
@@ -47,6 +57,6 @@ fn append(ui: &ManagementUi, node: &LayoutNode, path: &str, bounds: MenuRect, co
     widgets.push(ManagerWidget { id:path.to_owned(), label, rect:bounds, node:flat, intent, unavailable, selected:false });
     for child in node.children.iter().rev() {
         let rect = tree::child_rect(child, bounds);
-        append(ui, child, &format!("{path}.{}", child.name), rect, command, widgets);
+        append(ui, child, &format!("{path}.{}", child.name), rect, message, command, widgets);
     }
 }

@@ -16,6 +16,8 @@ pub(super) fn templates(
         "eq_UnitItem",
         "eq_BuildingWonderItem",
         "eq_QueueListItem",
+        "eq_LoadListItem",
+        "eq_ContentsItem",
         "ScienceAdvanceListItem",
         "SciListItem",
         "cw_CityItem",
@@ -105,6 +107,13 @@ impl Row<'_> {
 
     /// Numeric fields use verified runtime semantics; unknown scales/rates stay unknown.
     fn value(&self, name: &str) -> String {
+        /* Original EditQueue.cpp::{UpdateFileLists,DisplayQueueContents} creates
+         * eq_LoadListItem/eq_ContentsItem (editqueue.ldl). Their lowercase label
+         * is actual filename/preview content, never a guessed library identity.
+         */
+        if matches!(self.path, "LoadBox.QueuesList" | "LoadBox.Contents") {
+            return super::saved::rows(self.ui, self.view, self.path).and_then(|rows| rows.into_iter().find(|row| row.0 == self.id)).map_or_else(String::new, |row| row.1);
+        }
         if self.path == "Advisor.List" {
             return super::advisors::row_value(self.ui, self.state, self.id, name);
         }
@@ -340,6 +349,8 @@ fn template_name(kind: ManagerKind, path: &str) -> Option<&'static str> {
         return super::selectors::template(kind, path);
     }
     match kind {
+        ManagerKind::Build if path == "LoadBox.QueuesList" => Some("eq_LoadListItem"),
+        ManagerKind::Build if path == "LoadBox.Contents" => Some("eq_ContentsItem"),
         ManagerKind::Build if path == "QueueGroup.QueueList" => Some("eq_QueueListItem"),
         ManagerKind::Build if path == "ItemsBox.UnitsList" => Some("eq_UnitItem"),
         ManagerKind::Build => Some("eq_BuildingWonderItem"),

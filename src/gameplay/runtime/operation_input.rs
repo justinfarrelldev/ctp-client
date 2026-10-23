@@ -99,8 +99,17 @@ pub(super) fn consume(
                 })
             }
         });
+    /* Original EditQueue.cpp::LoadQueryCallback exits Load mode after approval.
+     * Here only accepted immutable enqueue/ack qualifies; failure/stale/pending
+     * keeps Query and browser captured, and Cancel closes only the question.
+     */
+    let leave_load = submitted && ui.operation.as_ref().is_some_and(|question| question.close_load_on_submit);
     if close || submitted {
         ui.operation = None;
+    }
+    if leave_load {
+        ui.management.apply_local(crate::gameplay::ui_model::management::ManagerIntent::Select(crate::gameplay::ui_model::management::saved::MODE.to_owned(), "false".to_owned()));
+        ui.management.refresh_build_description(state);
     }
     true
 }

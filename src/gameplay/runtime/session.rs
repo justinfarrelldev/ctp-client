@@ -218,6 +218,7 @@ pub(super) fn run_sdl_game_on_canvas(
         }
         super::sync::frame(authority.as_mut(), &mut state, &mut ui, &mut movement);
         super::management_input::open_pending_build(&mut state, &mut ui);
+        super::saved_queues::service(&mut ui);
         movement
             .actors
             .begin_frame(u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX));

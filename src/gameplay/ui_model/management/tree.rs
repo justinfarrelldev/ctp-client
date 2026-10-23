@@ -567,6 +567,8 @@ fn selection_key(kind: ManagerKind, path: &str) -> &'static str {
         };
     }
     match kind {
+        ManagerKind::Build if path == "LoadBox.QueuesList" => "saved-queue",
+        ManagerKind::Build if path == "LoadBox.Contents" => "saved-preview",
         ManagerKind::Build if path == "QueueGroup.QueueList" => "queue",
         ManagerKind::Build => "buildable",
         ManagerKind::Science | ManagerKind::Research => "advance",
@@ -626,8 +628,13 @@ fn hidden(view: &ManagerView, path: &str) -> bool {
         }
     }
     if view.kind == ManagerKind::Build {
+        /* Original EditQueue.cpp::{LoadModeCallback,ExitLoadMode} shows LoadBox
+         * in place of ItemsBox; editqueue.ldl declares both at44,147/435x193.
+         * The queue/right pane remains. No native generic editor substitution.
+         */
+        if path == "LoadBox" { return !super::saved::active(view); }
+        if path == "ItemsBox" { return super::saved::active(view); }
         if [
-            "LoadBox",
             "MultiGroup",
             "MultiCityList",
             "CustomModeButtons",

@@ -98,6 +98,7 @@ pub(super) fn rows(
     if view.kind == ManagerKind::Library {
         return super::index::rows(ui, state);
     }
+    if let Some(rows) = super::saved::rows(ui, view, path) { return rows; }
     let Some(viewer) = state.viewer.as_ref() else {
         return Vec::new();
     };
@@ -340,6 +341,7 @@ pub(super) fn text(
         return Some(text);
     }
     if let Some(text) = articles::text(ui, view, path)
+        .or_else(|| super::saved::text(ui, view, path))
         .or_else(|| super::trade::text(view, path))
         .or_else(|| super::national::text(state, view, path))
     {

@@ -1,4 +1,6 @@
 //! Original Build questions/queue guards with inert bounded command channels.
+/// Original saved-file browser/preview/confirmed-load journeys, with fake storage.
+mod saved_load_tests;
 use super::{Network, Outcome};
 use crate::gameplay::{assets::layout::LayoutBook, model::{GameState, NetworkStatus}, runtime::{MovementInputState, RuntimeAuthority, authority::state_from_authority_projection, management_input, operation_input, sync}, server::{ServerClient, ServerConfig, ServerGameplaySession, envelope::PreparedCommand}, ui_model::{InGameUiModel, management::{ManagementUi, ManagerKind}}};
 use alloc::sync::Arc;
@@ -515,4 +517,30 @@ fn build_navigation_space_never_reuses_hidden_stale_or_unauthorized_left_focus_a
         assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"mode{mode}: no hidden/stale/rebased/no-session request");
         assert_eq!(harness.state.viewer,before,"invalid keyboard action cannot mutate queue/rules");
     }
+}
+
+/* Original source: EditQueue.cpp::{LoadModeCallback,ExitLoadMode} and
+ * editqueue.ldl::BuildEditorWindow.{ItemsBox.LoadSaveButton,LoadBox,
+ * LoadBox.CancelButton}. Loading is an original inline browser/preview mode,
+ * not the unrelated generic comma-separated authoritative queue editor.
+ */
+#[test]
+fn build_saved_load_enters_original_file_browser_without_raw_editor_or_command_and_cancel_restores_items() {
+    let mut harness=buildable_fixture();begin_row_press(&mut harness,"ItemsBox.UnitsList/UNIT_SETTLER");
+    let before=harness.state.viewer.clone();
+    harness.ui.management.focused=Some("ItemsBox.LoadSaveButton".to_owned());manager_event(&mut harness,&key(Keycode::RETURN));
+    assert!(harness.ui.operation.is_none(),"source Load opens LoadBox, never raw custom queue form");
+    let widgets=harness.ui.management.widgets(&harness.state);
+    let load=widgets.iter().find(|widget|widget.id=="LoadBox").expect("actual original LoadBox shown");
+    assert_eq!((load.rect.width,load.rect.height),(435_u32,193_u32),"source mode bounds, current scaling unchanged");
+    assert!(!widgets.iter().any(|widget|widget.id=="ItemsBox.UnitsList"),"original ItemsBox hidden while loading");
+    assert!(widgets.iter().any(|widget|widget.id=="LoadBox.QueuesList") && widgets.iter().any(|widget|widget.id=="LoadBox.Contents"),"source file and preview lists visible");
+    assert!(harness.ui.management.activate_id("LoadBox.LoadButton",&harness.state).is_none(),"missing explicit known file selection cannot apply anything");
+    harness.ui.management.focused=Some("LoadBox.CancelButton".to_owned());manager_event(&mut harness,&key(Keycode::RETURN));
+    let view=harness.ui.management.view.as_ref().expect("source Build stays open");
+    assert_eq!((view.kind,view.city_id.as_deref()),(ManagerKind::Build,Some("c2")),"same original city/manager");
+    assert_eq!(view.selections.get("buildable").map(String::as_str),Some("UNIT_SETTLER"),"source visible item category/selection returns");
+    assert!(harness.ui.management.widgets(&harness.state).iter().any(|widget|widget.id=="ItemsBox.UnitsList"),"actual original item list restored");
+    assert_eq!(harness.state.viewer,before,"mode entry/cancel never replaces queue");
+    assert_eq!(harness.jobs.as_ref().expect("jobs").try_recv(),Err(TryRecvError::Empty),"no game operation on open/cancel");
 }

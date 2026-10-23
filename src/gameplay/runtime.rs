@@ -69,6 +69,8 @@ mod operation_input;
 mod render;
 /// Bootstrap and the live SDL presentation loop.
 mod session;
+/// Explicit read-only original saved-queue requests with an injected byte boundary.
+mod saved_queues;
 /// Explicit opt-in framebuffer previews and capture.
 pub mod snapshot;
 /// UI-thread authoritative replacement and pending/recovery presentation.
