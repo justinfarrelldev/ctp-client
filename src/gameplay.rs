@@ -30,6 +30,15 @@ pub mod ui_model;
 /// Errors raised while launching or running the in-game session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GameplayError {
+    /// Safe startup endpoint/status context; not a gameplay order or uncertain replay.
+    Setup {
+        /// Fixed client setup route, never a credential-bearing URL or payload.
+        stage:String,
+        /// Received HTTP status when available; transport failures remain unknown.
+        status:Option<u16>,
+        /// Allowlisted public reason or fixed safe fallback, never a raw server body.
+        message:String,
+    },
     /// Authoritative rejection, not a lost response or a successful refresh.
     Rejected {
         /// Bounded public reason and safe diagnostics correlation.
@@ -54,6 +63,7 @@ impl Display for GameplayError {
     )]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            Self::Setup {stage,status,message}=>write!(f,"Game setup failed at {stage} (HTTP {}): {message}",status.map_or_else(||"unavailable".to_owned(),|status|status.to_string())),
             Self::Rejected { rejection } => write!(f,"{}",rejection.label()),
             Self::Runtime { message } => write!(f, "gameplay runtime failed: {message}"),
             Self::Asset { message } => write!(f, "gameplay asset failed: {message}"),

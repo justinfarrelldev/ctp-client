@@ -72,6 +72,19 @@ pub(super) fn controls(
     .append(root, "MessageBoxDialog", bounds, &mut widgets);
     Some(widgets)
 }
+/* Released ui/interface/MessageBoxDialog.cpp::{Information,constructor,
+ * RightButtonActionCallback}, under ctp2_source/ctp2_code/, uses the same
+ * messagebox.ldl root but hides LeftButton/TextField/DontShow and labels the
+ * remaining RightButton with str_ldl_MB_OK. It is strongly modal; dismissal
+ * acknowledges information only, never confirms/retries an operation.
+ */
+/// Startup failure information shares original cached controls, not a fake game command.
+pub(in crate::gameplay) fn information(ui:&ManagementUi,message:&str)->Option<Vec<ManagerWidget>> {
+    let mut widgets=controls(ui,message,ManagerIntent::Close,false)?;
+    widgets.retain(|widget|!widget.id.split('.').any(|part|matches!(part,"LeftButton"|"TextField"|"DontShowButton")));
+    for widget in &mut widgets {if widget.node.name=="RightButton" {ui.book.label("str_ldl_MB_OK").clone_into(&mut widget.label);widget.intent=Some(ManagerIntent::Close);}}
+    Some(widgets)
+}
 /// Cohesive traversal context, not eight recursive independent parameters.
 struct Presentation<'ui> {
     /// Cached source styles/strings.

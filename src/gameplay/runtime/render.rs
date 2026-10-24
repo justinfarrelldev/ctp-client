@@ -256,6 +256,8 @@ mod player_color_tests;
 mod border_tests;
 /// Source solid/dashed borders from authoritative observed assignments.
 mod borders;
+/// Standalone source information controls paint without a game state.
+pub(super) mod information;
 /// Independent source-art checks for native policy sliders and percentage controls.
 #[cfg(test)]
 mod policy_tests;

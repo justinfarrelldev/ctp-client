@@ -11,7 +11,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Write as _;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::thread;
@@ -21,6 +21,8 @@ use super::{GameplayError, asset_error, runtime_error};
 
 /// Complete management metadata and source-authorized actions.
 pub mod interface;
+/// Source-compatible startup and safe endpoint/status failure context.
+mod setup;
 #[cfg(test)]
 mod interface_tests;
 /// Viewer snapshot envelope and Go nil-slice decoding.
@@ -54,10 +56,18 @@ const SETUP_RETRY_DELAYS: [Duration; 5] = [
     Duration::from_secs(1),
     Duration::from_secs(2),
 ];
-/// AI country slots used for local single-human games.
+/* Released ctp2/ctp2_data/default/gamedata/civilisation.txt and
+ * english/gamedata/civ_str.txt define these original country aliases.
+ * Aztecs are absent in this released42-record catalog (an installation extension,
+ * not a base-game default). Server internal/game/start_gameplay.go resolves
+ * pinned civilization aliases and rejects the whole start for an unknown one.
+ * Use supported defaults, never silently retry a rejected setup with fewer AIs,
+ * a different country or injected rules. Custom catalogs may still reject safely.
+ */
+/// Original-compatible default AI slots, independent of encounter/render ordering.
 const AI_COUNTRIES: [&str; 7] = [
     "Romans",
-    "Aztecs",
+    "English",
     "Egyptians",
     "Japanese",
     "Vikings",
@@ -333,10 +343,7 @@ impl ServerClient {
         if response.status == 200 {
             Ok(())
         } else {
-            Err(runtime_error(format!(
-                "Open CTP server health check failed with HTTP {}. Start the local server in $CTPSERVER and keep it running.",
-                response.status
-            )))
+            Err(GameplayError::Rejected {rejection:rejection::Rejection::decode(response.status,&response.body)})
         }
     }
 
@@ -350,58 +357,7 @@ impl ServerClient {
         leader_name: &str,
         empire_count: u8,
     ) -> Result<ServerGameplaySession, GameplayError> {
-        self.check_health()?;
-        let login = self.create_or_login_ephemeral_account(leader_name)?;
-        let game = self.post_json(
-            "/game/create_game",
-            &json!({
-                "session_id": login.session_id,
-                "owner_account_id": login.account_id,
-                "name": format!("{}'s Local Game", leader_name),
-                "style": "sequential",
-                "starting_settlers": 1_i32,
-                "starting_gold": 0_i32,
-                "is_public": false,
-                "is_locked": true,
-                "password_protected": false
-            }),
-        )?;
-        let game_id = json_i64(&game, "id")?;
-        let _selected = self.post_json(
-            "/game/select_country",
-            &json!({"session_id": login.session_id, "game_id": game_id, "country": "Greeks"}),
-        )?;
-        for (index, country) in AI_COUNTRIES
-            .iter()
-            .take(usize::from(empire_count.saturating_sub(1)))
-            .enumerate()
-        {
-            let _ai = self.post_json(
-                "/game/add_ai",
-                &json!({
-                    "session_id": login.session_id,
-                    "game_id": game_id,
-                    "country": country,
-                    "name": format!("AI {}", index.saturating_add(1))
-                }),
-            )?;
-        }
-        let started = self.post_json(
-            "/game/start_game",
-            &json!({"session_id": login.session_id, "game_id": game_id}),
-        )?;
-        let mut roster=roster::PlayerRoster::from_game(&started,game_id,login.account_id).unwrap_or_else(|| {
-            log::warn!("Original foreign player colors unavailable: start response lacks a complete bounded public roster");roster::PlayerRoster::default().for_account(login.account_id)
-        });
-        let projection = self.fetch_resync_projection(game_id, login.session_id)?;
-        if let Some(received)=roster::PlayerRoster::from_projection(&projection.interface){roster=received.for_account(login.account_id);}
-        Ok(ServerGameplaySession {
-            game_id,
-            session_id: login.session_id,
-            account_id: login.account_id,
-            projection: Some(projection),
-            roster,
-        })
+        setup::bootstrap(self,leader_name,empire_count)
     }
 
     /// Submits a gameplay command through the authoritative command gateway.
@@ -416,41 +372,6 @@ impl ServerClient {
         payload: Value,
     ) -> Result<ServerCommandResponse, GameplayError> {
         envelope::PreparedCommand::new(session, command, payload)?.execute(self)
-    }
-
-    /// Creates and logs into a unique local account for the launch session.
-    fn create_or_login_ephemeral_account(
-        &self,
-        leader_name: &str,
-    ) -> Result<LoginResponse, GameplayError> {
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| runtime_error(format!("system clock is before UNIX epoch: {error}")))?
-            .as_nanos();
-        let email = format!("ctp-client-{suffix}@local.invalid");
-        let password = format!("ctp-client-{suffix}");
-        let _created = self.post_json(
-            "/account/create_account",
-            &json!({
-                "account": {
-                    "email": email,
-                    "name": leader_name,
-                    "experience_level": 2_i32,
-                    "location": "Local",
-                    "info": "Temporary local client account"
-                },
-                "password": password
-            }),
-        )?;
-        let login = self.post_json(
-            "/account/login",
-            &json!({"email": email, "password": password}),
-        )?;
-        serde_json::from_value(login).map_err(|error| {
-            asset_error(format!(
-                "server login response did not match schema: {error}"
-            ))
-        })
     }
 
     /// Fetches a one-shot current projection through the SSE resync endpoint.
@@ -747,6 +668,9 @@ fn json_i64(value: &Value, field: &str) -> Result<i64, GameplayError> {
     })
 }
 
+/// Actual startup catalog/legacy rejection regressions, no file or live effects.
+#[cfg(test)]
+mod launch_tests;
 #[cfg(test)]
 mod command_tests;
 /// Exact command input shapes and current viewer authorization.

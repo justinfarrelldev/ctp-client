@@ -116,7 +116,9 @@ pub(super) struct GameplayTextures<'texture> {
 impl<'texture> GameplayTextures<'texture> {
     /// Stubs art entirely in memory for renderer fallback tests.
     #[cfg(test)]
-    pub(super) fn without_assets_for_test() -> Self {
+    pub(super) fn without_assets_for_test() -> Self {Self::empty()}
+    /// No terrain, canonical state or artwork is required to report a launch failure.
+    fn empty()->Self {
         Self {
             creator: None,
             tiles: None,
@@ -142,6 +144,10 @@ impl<'texture> GameplayTextures<'texture> {
         }
     }
 
+    /// Lazy UI-only cache for pre-game information; missing assets use an explicit fallback.
+    pub(super) fn information(root:&Path,creator:&'texture TextureCreator<WindowContext>)->Self {
+        let mut textures=Self::empty();textures.creator=Some(creator);textures.root=root.to_path_buf();textures.pictures=pictures::PictureSources::discover(root).unwrap_or_default();textures
+    }
     /// Loads original art read-only. Strict mode never substitutes debug geometry.
     pub(super) fn load(
         root: &Path,

@@ -41,7 +41,7 @@ mod chart_tests;
 /// Immutable command authorization, separate from manager presentation.
 mod command;
 /// Cached original `MessageBoxDialog` controls for explicit queue confirmation.
-mod confirmation;
+pub(in crate::gameplay) mod confirmation;
 /// Viewer-safe dynamic list rows and accounting labels.
 mod data;
 /// Original tall intelligence table and privacy-safe contact columns.

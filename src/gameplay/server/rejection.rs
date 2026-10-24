@@ -30,10 +30,19 @@ impl Rejection {
     /// Decodes current/legacy/middleware failures without ever displaying a raw body.
     #[must_use]
     pub fn decode(status:u16,body:&str)->Self {
+        /* Server internal/game/starting_advances.go::errCivilizationSetup and
+         * game_handler.go::handleGameHandlerError write this EXACT bare400 body.
+         * Only this known public validation sentence is promoted; arbitrary
+         * legacy text/SQL/credentials must never be displayed or logged.
+         */
+        if status==400_u16&&body.trim()=="selected country is not available in the pinned retail civilization catalog" {return Self {status,code:"setup_country_unavailable".to_owned(),message:"A selected civilization is unavailable in the server's retail catalog.".to_owned(),correlation_id:None};}
         let wire=serde_json::from_str::<Wire>(body).ok();
         let known=wire.as_ref().and_then(|wire|wire.code.as_deref()).filter(|code|matches!(*code,"revision_conflict"|"idempotency_conflict"|"controller_restricted"|"phase_restricted"|"queue_identity"|"queue_shape"|"queue_capacity"|"content_unavailable"|"production_prerequisite"|"command_invalid"|"request_invalid"|"request_too_large"|"authentication_required"|"not_found"|"state_conflict"|"rate_limited"|"internal_error"));
         let message=known.and_then(|_|wire.as_ref()?.message.as_deref()).filter(|message|!message.is_empty()&&message.chars().count()<=512_usize&&!message.chars().any(char::is_control)).unwrap_or("The server rejected this order.").to_owned();
         let correlation_id=wire.as_ref().and_then(|wire|wire.correlation_id.as_ref()).filter(|id|!id.is_empty()&&id.len()<=128_usize&&id.bytes().all(|byte|byte.is_ascii_alphanumeric()||matches!(byte,b'-'|b'_'))).cloned();
+        // internal/ratelimit/ratelimit.go uses a different legacy JSON schema.
+        // HTTP429 is admission refusal, never proof an order executed.
+        if status==429_u16 {return Self {status,code:"rate_limited".to_owned(),message:if known==Some("rate_limited"){message}else{"The server is busy. Wait a moment, then try again.".to_owned()},correlation_id};}
         Self{status,code:known.unwrap_or("command_rejected").to_owned(),message,correlation_id}
     }
     /// Persistent UI sentence; refresh success does not invalidate a rejected operation.

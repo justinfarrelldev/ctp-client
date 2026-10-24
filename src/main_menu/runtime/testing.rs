@@ -123,6 +123,7 @@ pub(in crate::main_menu) fn black_pixels_inside_viewport_after_resize_for_test(
             -1_i32,
             -1_i32,
             None,
+            None,
         )?;
         apply_resolution(&mut canvas, second_size.0, second_size.1)?;
         frame::draw_current_menu(
@@ -133,6 +134,7 @@ pub(in crate::main_menu) fn black_pixels_inside_viewport_after_resize_for_test(
             &shell_state,
             -1_i32,
             -1_i32,
+            None,
             None,
         )?;
 

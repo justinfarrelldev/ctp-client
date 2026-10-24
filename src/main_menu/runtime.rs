@@ -6,7 +6,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::thread;
 use std::time::Duration;
 
 use sdl2::event::Event;
@@ -57,6 +56,8 @@ mod button_art;
 mod event_sound;
 /// Whole-frame menu composition.
 mod frame;
+/// Same-window menu/gameplay lifecycle and injected launch failures.
+mod session;
 /// Single-player shell runtime rendering and navigation.
 mod shell_runtime;
 /// High-resolution text rendering helpers.
@@ -70,7 +71,6 @@ use audio::{SdlMenuMusicBackend, advance_audio_after_frame, apply_audio_effects}
 use audio::{music_track_relative_path, option_volume_to_mixer_volume};
 use event_sound::{play_menu_sound, sound_before_menu_event};
 use frame::draw_current_menu;
-use text::MenuFontCache;
 use viewport::{output_point_to_menu_point, scaled_font_point_size_for_output_size};
 
 /// Event-loop settings used by production and headless smoke tests.
@@ -227,139 +227,13 @@ fn run_sdl_event_loop_with_options(
 }
 
 /// Runs the SDL event loop with configurable test hooks and optional audio backend.
-#[expect(
-    clippy::too_many_lines,
-    reason = "SDL menu setup, frame processing, and in-place gameplay handoff share one canvas owner"
-)]
 fn run_sdl_event_loop_with_options_and_audio(
     model: &MainMenuModel,
     options: RuntimeLoopOptions,
-    mut audio_backend: Option<&mut SdlMenuMusicBackend>,
+    audio_backend: Option<&mut SdlMenuMusicBackend>,
     gameplay_config: Option<&SinglePlayerLaunchConfig>,
 ) -> Result<MainMenuAction, MainMenuError> {
-    let sdl = sdl2::init().map_err(runtime_error)?;
-    let video = sdl.video().map_err(runtime_error)?;
-    let text_input = video.text_input();
-    text_input.start();
-    let window = video
-        .window(
-            "Call to Power II",
-            options.initial_window_size.0,
-            options.initial_window_size.1,
-        )
-        .position_centered()
-        .build()
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let mut canvas = window
-        .into_canvas()
-        .software()
-        .build()
-        .map_err(|error| runtime_error(error.to_string()))?;
-    let texture_creator = canvas.texture_creator();
-    let textures = load_menu_textures(&texture_creator, model);
-    let ttf_context = sdl2::ttf::init().ok();
-    let font_path = find_existing_font();
-    let mut font_cache = MenuFontCache::new(ttf_context.as_ref(), font_path);
-
-    let event_subsystem = sdl.event().map_err(runtime_error)?;
-    for event in options.initial_events {
-        event_subsystem.push_event(event).map_err(runtime_error)?;
-    }
-
-    let mut event_pump = sdl.event_pump().map_err(runtime_error)?;
-    let mut shell_state = shell_runtime::ShellRuntimeState::new();
-    let mut selected_action = None;
-    let mut suppressed_keydown_text: Option<String> = None;
-    let mut rendered_frames = 0_u32;
-
-    while selected_action.is_none() {
-        let event_output_size = canvas_output_size(&canvas);
-        for event in event_pump.poll_iter() {
-            if let Some(sound) =
-                sound_before_menu_event(&event, model, &shell_state, event_output_size)
-            {
-                if let Some(backend) = audio_backend.as_deref_mut() {
-                    play_menu_sound(backend, sound);
-                }
-            }
-            if let Some(sound) = handle_menu_event(
-                &event,
-                model,
-                &mut shell_state,
-                &mut selected_action,
-                event_output_size,
-                &mut suppressed_keydown_text,
-            ) {
-                if let Some(backend) = audio_backend.as_deref_mut() {
-                    play_menu_sound(backend, sound);
-                }
-            }
-            update_text_input_focus(&text_input, &shell_state, event_output_size);
-        }
-
-        apply_shell_runtime_effects(
-            &mut canvas,
-            model,
-            audio_backend.as_deref_mut(),
-            &shell_state.take_effects(),
-        )?;
-        advance_audio_after_frame(audio_backend.as_deref_mut(), &model.installation_root);
-
-        let mouse_state = event_pump.mouse_state();
-        let draw_output_size = canvas_output_size(&canvas);
-        let (mouse_x, mouse_y) = output_point_to_menu_point(
-            draw_output_size.0,
-            draw_output_size.1,
-            mouse_state.x(),
-            mouse_state.y(),
-        )
-        .map_or((-1_i32, -1_i32), |point| point);
-        let font_point_size = scaled_font_point_size_for_output_size(
-            draw_output_size.0,
-            draw_output_size.1,
-            BUTTON_FONT_POINT_SIZE,
-        );
-        let frame_font = font_cache.font_for_point_size(font_point_size);
-        draw_current_menu(
-            &mut canvas,
-            &texture_creator,
-            &textures,
-            model,
-            &shell_state,
-            mouse_x,
-            mouse_y,
-            frame_font,
-        )?;
-        rendered_frames = rendered_frames.saturating_add(1);
-        if options
-            .frame_limit
-            .is_some_and(|frame_limit| rendered_frames >= frame_limit)
-        {
-            break;
-        }
-
-        thread::sleep(FRAME_DELAY);
-    }
-
-    let action = selected_action
-        .ok_or_else(|| runtime_error("menu loop ended without an action".to_owned()))?;
-    let launch_config = (action == MainMenuAction::LaunchSinglePlayer)
-        .then_some(gameplay_config)
-        .flatten();
-    if let Some(config) = launch_config {
-        let mut configured = config.clone();
-        configured.graphics = shell_state.gameplay_graphics();
-        log::info!("Launching single-player gameplay in the existing SDL menu window");
-        drop(textures);
-        drop(font_cache);
-        crate::gameplay::runtime::run_sdl_game_on_existing_window(
-            &configured,
-            &mut canvas,
-            &mut event_pump,
-        )
-        .map_err(|error| runtime_error(format!("single-player gameplay failed: {error}")))?;
-    }
-    Ok(action)
+    session::run(model,options,audio_backend,gameplay_config,crate::gameplay::runtime::run_sdl_game_on_existing_window)
 }
 
 /// Returns the physical renderer output size, falling back to the original menu size.

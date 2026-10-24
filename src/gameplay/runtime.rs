@@ -67,6 +67,8 @@ mod network_worker_tests;
 mod operation_input;
 /// Gameplay frame rendering.
 mod render;
+/// Original source information modal without constructing a game world.
+pub(crate) mod information;
 /// Bootstrap and the live SDL presentation loop.
 mod session;
 /// Explicit read-only original saved-queue requests with an injected byte boundary.

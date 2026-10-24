@@ -26,6 +26,7 @@ pub(super) fn draw_current_menu(
     mouse_x: i32,
     mouse_y: i32,
     font: Option<&Font<'_, '_>>,
+    information:Option<&mut crate::gameplay::runtime::information::Information<'_, '_>>,
 ) -> Result<(), MainMenuError> {
     let viewport = prepare_menu_canvas(canvas)?;
     if viewport.width == 0 || viewport.height == 0 {
@@ -61,6 +62,7 @@ pub(super) fn draw_current_menu(
     } else {
         shell_state.draw_text_overlay(canvas, textures, mouse_x, mouse_y, font)?;
     }
+    if let Some(information)=information {information.draw(canvas,to_sdl_rect(&viewport)).map_err(|error|runtime_error(error.to_string()))?;}
     canvas.present();
     Ok(())
 }
