@@ -46,6 +46,12 @@ impl ReadGate {
             next: AtomicU64::new(READ_INTERVAL_MS),
         }
     }
+    /// Negotiated persistent subscriptions have a separate server budget. The
+    /// first connection is immediate; reconnects retain the same bounded pace.
+    pub(super) fn stream() -> Self {
+        Self { epoch: Instant::now(), next: AtomicU64::new(0_u64) }
+    }
+
     /// Pure fake-time admission; returns the slot rather than sleeping in tests.
     pub(super) fn reserve_at(&self, now: u64) -> u64 {
         let mut previous = self.next.load(Ordering::Relaxed);

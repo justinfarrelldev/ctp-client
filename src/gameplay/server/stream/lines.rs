@@ -1,5 +1,5 @@
-//! Bounded SSE metadata hints; data never becomes authoritative gameplay state.
-use super::Change;
+//! Bounded legacy hints and explicitly negotiated complete viewer models.
+use super::{Change, snapshots::{self, Snapshot, MAX_SNAPSHOT_BYTES}};
 /// Only small invalidation JSON may supply revision hints; resync snapshots skip.
 const MAX_LINE: usize = 4096;
 /// Per-event metadata keeps durable sequence and snapshot revision namespaces apart.
@@ -17,6 +17,10 @@ pub(super) struct EventLines {
     data: Vec<u8>,
     /// Missing/truncated/large hints conservatively require a current read.
     lost_data: bool,
+    /// Enabled only by the server's explicit snapshot-stream response header.
+    pub(super) snapshots: bool,
+    /// Coalesced full model; historical intermediate snapshots need not queue.
+    pub(super) latest: Option<Snapshot>,
 }
 impl EventLines {
     /// Processes arbitrary fragments without retaining huge fog/rules snapshots.
@@ -34,7 +38,9 @@ impl EventLines {
                 if self.line.starts_with(b":") {
                     self.line.clear();
                     self.dropping = true;
-                } else if self.line.starts_with(b"data:") && self.line.len() > MAX_LINE {
+                } else if self.full_model() && self.line.len() > MAX_SNAPSHOT_BYTES {
+                    return Err("snapshot data exceeded its bound".to_owned());
+                } else if self.line.starts_with(b"data:") && !self.full_model() && self.line.len() > MAX_LINE {
                     // Retain only a bounded resync prefix: current_revision and
                     // event_cursor precede snapshot in events.Store.resync. Never
                     // buffer world/rules data or treat the SSE ID as a revision.
@@ -42,20 +48,30 @@ impl EventLines {
                     self.line.clear();
                     self.dropping = true;
                     self.lost_data = true;
-                } else if self.line.len() > MAX_LINE {
+                } else if !self.full_model() && self.line.len() > MAX_LINE {
                     return Err("event metadata line exceeded its bound".to_owned());
                 }
             }
         }
         Ok(())
     }
-    /// Publishes a hint only at a complete event terminator, never a partial line.
+    /// Only negotiated complete-model event kinds may retain large data.
+    fn full_model(&self) -> bool {
+        self.snapshots && (self.kind == "resync" || self.kind == "terminal") && self.line.starts_with(b"data:")
+    }
+
+    /// Publishes only at a complete event terminator, never a partial line.
     fn finish_line(&mut self, output: &mut Vec<Change>) -> Result<(), String> {
         let text = core::str::from_utf8(&self.line)
             .map_err(|error| error.to_string())?
             .trim_end_matches('\r');
         if text.is_empty() {
-            if self.id.is_some() || self.kind == "resync" {
+            if self.snapshots && (self.kind == "resync" || self.kind == "terminal") {
+                let next = snapshots::decode(&self.kind, self.id, &self.data)?;
+                if self.latest.as_ref().is_none_or(|known| next.projection.revision >= known.projection.revision) {
+                    self.latest = Some(next);
+                }
+            } else if self.id.is_some() || self.kind == "resync" {
                 let resync = self.kind == "resync";
                 let metadata=if resync { resync_metadata(&self.data) } else {None};
                 let cursor=metadata.as_ref().and_then(|value|value["event_cursor"].as_u64()).filter(|cursor|Some(*cursor)==self.id&&i64::try_from(*cursor).is_ok());
@@ -92,11 +108,13 @@ impl EventLines {
                 .len()
                 .saturating_add(data.len())
                 .saturating_add(1_usize)
-                <= MAX_LINE
+                <= if self.snapshots && (self.kind == "resync" || self.kind == "terminal") { MAX_SNAPSHOT_BYTES } else { MAX_LINE }
             {
                 self.data
                     .extend_from_slice(data.strip_prefix(' ').unwrap_or(data).as_bytes());
                 self.data.push(b'\n');
+            } else if self.snapshots && (self.kind == "resync" || self.kind == "terminal") {
+                return Err("snapshot data exceeded its bound".to_owned());
             } else {
                 self.data.clear();
                 self.lost_data = true;

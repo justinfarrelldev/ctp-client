@@ -41,6 +41,7 @@ fn fixture() -> Harness {
     let io = Network {
         jobs: job_sink,
         results: result_receiver,
+        delivery: Arc::new(super::workers::Delivery::new(9_i64, results.clone())),
         stop: Arc::new(AtomicBool::new(false)),
     };
     let authority = RuntimeAuthority {

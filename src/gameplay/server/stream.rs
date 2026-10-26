@@ -8,7 +8,12 @@ use std::time::Duration;
 
 /// Small revision hints stay separate from large viewer snapshot payloads.
 mod lines;
+/// Full viewer model decoding is separate from legacy bounded metadata hints.
+mod snapshots;
 use lines::EventLines;
+/// Complete negotiated snapshot parsing regressions use injected bytes only.
+#[cfg(test)]
+mod snapshot_tests;
 /// Invalidation hints, never snapshots/patches or command acknowledgements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::gameplay) struct Change {
@@ -46,6 +51,11 @@ pub(in crate::gameplay) struct Invalidations {
     events: EventLines,
 }
 impl Invalidations {
+    /// Takes the newest complete negotiated model without issuing a current read.
+    pub(in crate::gameplay) const fn take_snapshot(&mut self) -> Option<snapshots::Snapshot> {
+        self.events.latest.take()
+    }
+
     /// Accepts arbitrary network fragments and emits complete event cursors only.
     pub(in crate::gameplay) fn push(&mut self, bytes: &[u8]) -> Result<Vec<Change>, String> {
         if self.transfer == Transfer::Ended {
@@ -123,6 +133,7 @@ impl Invalidations {
         }
         let metadata=super::telemetry::Metadata::parse(header);
         log::debug!("Gameplay event subscription server_timing={} read_mode={}",metadata.server_timing.as_deref().unwrap_or("unavailable"),metadata.read_mode.as_deref().unwrap_or("unavailable"));
+        self.events.snapshots = header.lines().filter_map(|line| line.split_once(':')).any(|(name, value)| name.eq_ignore_ascii_case("X-Gameplay-Stream") && value.trim() == "snapshots-v1");
         self.transfer = if header
             .to_ascii_lowercase()
             .contains("transfer-encoding: chunked")
@@ -167,6 +178,7 @@ pub(in crate::gameplay) fn watch(
     cursor: &mut u64,
     stop: &Arc<AtomicBool>,
     notify: &mut impl FnMut(Option<i64>),
+    snapshot: &mut impl FnMut(Box<super::ServerProjection>),
 ) -> Result<(), String> {
     let address = client.endpoint.socket_address();
     let resolved = address
@@ -186,8 +198,9 @@ pub(in crate::gameplay) fn watch(
         "/game/{}/events?session_id={}",
         session.game_id, session.session_id
     ));
+    let replication = if session.snapshot_stream() { "X-Gameplay-Stream: snapshots-v1\r\n" } else { "" };
     let request = format!(
-        "GET {path} HTTP/1.1\r\nHost: {}\r\nAccept: text/event-stream\r\nLast-Event-ID: {cursor}\r\nConnection: close\r\n\r\n",
+        "GET {path} HTTP/1.1\r\nHost: {}\r\nAccept: text/event-stream\r\nLast-Event-ID: {cursor}\r\n{replication}Connection: close\r\n\r\n",
         client.endpoint.host_header()
     );
     stream
@@ -204,6 +217,10 @@ pub(in crate::gameplay) fn watch(
                         *cursor = (*cursor).max(sequence);
                     }
                     notify(change.revision);
+                }
+                if let Some(received) = parser.take_snapshot() {
+                    *cursor = (*cursor).max(received.cursor);
+                    snapshot(received.projection);
                 }
             }
             Err(error)

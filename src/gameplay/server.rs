@@ -290,6 +290,11 @@ pub struct ServerClient {
 }
 
 impl ServerGameplaySession {
+    /// Opt-in replication support is a server capability, never action permission.
+    pub(in crate::gameplay) fn snapshot_stream(&self) -> bool {
+        self.projection.as_ref().and_then(|projection| projection.interface.contract.as_ref()).is_some_and(|contract| contract.features.get("snapshot_stream") == Some(&true))
+    }
+
     /// Returns the latest known authoritative revision.
     #[must_use]
     pub fn revision(&self) -> i64 {

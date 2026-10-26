@@ -50,11 +50,12 @@ fn fixture() -> Harness {
         "legal_actions":[{"route":"pass","payload":{}}]
     })).expect("viewer-private current research/planning schema");
     let (sender, jobs) = mpsc::sync_channel(1_usize);
-    let (_results, receiver) = mpsc::sync_channel(1_usize);
+    let (result_sink, receiver) = mpsc::sync_channel(1_usize);
     let authority = RuntimeAuthority {
         io: Some(Network {
             jobs: sender,
             results: receiver,
+            delivery: Arc::new(super::workers::Delivery::new(7_i64, result_sink)),
             stop: Arc::new(AtomicBool::new(false)),
         }),
         client: ServerClient::from_config(&ServerConfig {

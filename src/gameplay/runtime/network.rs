@@ -7,7 +7,9 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use recovery::{ReadGate, RefreshRequests};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
-use std::time::Duration;
+use workers::Delivery;
+/// Command and background transports have independent receiving loops.
+mod workers;
 
 /// Original queue-clear questions use inert source-shaped command channels only.
 #[cfg(test)]
@@ -23,6 +25,15 @@ mod recovery;
 /// Fake-time recovery/coalescing regressions perform no IO.
 #[cfg(test)]
 mod recovery_tests;
+/// Command and background transports must make independent progress.
+#[cfg(test)]
+mod isolation_tests;
+/// Complete real-shaped snapshot/receipt workflow against an isolated fake only.
+#[cfg(test)]
+mod snapshot_worker_tests;
+/// Inline recovery completion races use inert channels and no service/file IO.
+#[cfg(test)]
+mod inline_recovery_tests;
 
 /// Worker messages contain complete viewer state, never canonical patches.
 #[derive(Debug)]
@@ -138,6 +149,8 @@ pub(super) struct Network {
     results: Receiver<Outcome>,
     /// Cooperative cancellation; read timeouts bound stream shutdown latency.
     stop: Arc<AtomicBool>,
+    /// Bounded newest complete stream model, separate from ordered receipts.
+    delivery: Arc<Delivery>,
 }
 impl Network {
     /// Starts independent command/current-read and invalidation workers.
@@ -153,13 +166,14 @@ impl Network {
         let (invalid_sink, invalidations) = mpsc::sync_channel::<()>(1);
         let stop = Arc::new(AtomicBool::new(false));
         let gate = Arc::new(ReadGate::new());
+        let delivery = Arc::new(Delivery::new(session.revision(), result_sink));
         let refresh_requests = Arc::new(RefreshRequests::default());
-        let watcher_gate = Arc::clone(&gate);
+        let watcher_gate = if session.snapshot_stream() { Arc::new(ReadGate::stream()) } else { Arc::clone(&gate) };
         let watcher_refresh = Arc::clone(&refresh_requests);
-        let command_refresh = Arc::clone(&refresh_requests);
         let watcher_stop = Arc::clone(&stop);
         let watcher_client = client.clone();
         let watcher_session = session.clone();
+        let watcher_delivery = Arc::clone(&delivery);
         let _watcher = thread::Builder::new()
             .name("ctp-events".to_owned())
             .spawn(move || {
@@ -170,68 +184,36 @@ impl Network {
                         let _delivery = invalid_sink.try_send(());
                     };
                     if let Err(error) = crate::gameplay::server::stream::watch(
-                        &watcher_client,
-                        &watcher_session,
-                        &mut cursor,
-                        &watcher_stop,
-                        &mut notify,
+                        &watcher_client, &watcher_session, &mut cursor, &watcher_stop,
+                        &mut notify, &mut |snapshot| watcher_delivery.stream(snapshot),
                     ) {
                         log::warn!("Gameplay stream reconnect: {error}");
                     }
-                    // A disconnect requires one current read, but never a400ms
-                    // reconnect/current-read storm on the shared limited route.
-                    if !watcher_stop.load(Ordering::Relaxed) {
-                        notify(None);
-                    }
+                    if !watcher_stop.load(Ordering::Relaxed) { notify(None); }
                 }
             })
             .map_err(|error| error.to_string())?;
+        let read_stop = Arc::clone(&stop);
+        let read_delivery = Arc::clone(&delivery);
+        let read_transport = HttpTransport { client: client.clone(), session: session.clone(), gate: Arc::clone(&gate), stop: Arc::clone(&stop) };
+        let reader = thread::Builder::new().name("ctp-current".to_owned()).spawn(move || {
+            workers::background_loop(read_transport, &invalidations, &refresh_requests, &read_delivery, &read_stop);
+        });
+        if let Err(error) = reader {
+            stop.store(true, Ordering::Relaxed);
+            return Err(error.to_string());
+        }
         let command_stop = Arc::clone(&stop);
-        let known_initial = session.revision();
-        let commands = thread::Builder::new()
-            .name("ctp-commands".to_owned())
-            .spawn(move || {
-                let mut transport = HttpTransport {
-                    client,
-                    session,
-                    gate,
-                    stop: Arc::clone(&command_stop),
-                };
-                let mut needs_recovery = false;
-                let mut known_revision = known_initial;
-                while !command_stop.load(Ordering::Relaxed) {
-                    let recovering = needs_recovery;
-                    let known_before = known_revision;
-                    let mut emit = |outcome| {
-                        let outcome = complete(outcome, &mut known_revision);
-                        needs_recovery = matches!(outcome, Outcome::Failure(_));
-                        // UI departure disconnects the receiver, so a worker cannot
-                        // retain/mutate a later SDL session or block shutdown forever.
-                        let _delivery = result_sink.send(outcome);
-                    };
-                    match requests.recv_timeout(Duration::from_millis(100)) {
-                        Ok(command) => execute(&mut transport, &command, &mut emit),
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                        Err(mpsc::RecvTimeoutError::Timeout) => {
-                            // Wakeups are only hints; already-covered own events
-                            // must not force another limited current read.
-                            while invalidations.try_recv().is_ok() {}
-                            if command_refresh.take_needed(known_before) || recovering {
-                                refresh(&mut transport, &mut emit);
-                            }
-                        }
-                    }
-                }
-            });
+        let command_delivery = Arc::clone(&delivery);
+        let transport = HttpTransport { client, session, gate, stop: Arc::clone(&stop) };
+        let commands = thread::Builder::new().name("ctp-commands".to_owned()).spawn(move || {
+            workers::command_loop(transport, &requests, &command_delivery, &command_stop);
+        });
         if let Err(error) = commands {
             stop.store(true, Ordering::Relaxed);
             return Err(error.to_string());
         }
-        Ok(Self {
-            jobs,
-            results,
-            stop,
-        })
+        Ok(Self { jobs, results, stop, delivery })
     }
 
     /// Nonblocking enqueue; caller disables further authoritative input until receipt.
@@ -243,7 +225,7 @@ impl Network {
 
     /// One result per frame leaves recovery presentation visible before replacement.
     pub(super) fn poll(&self) -> Option<Outcome> {
-        self.results.try_recv().ok()
+        self.results.try_recv().ok().or_else(|| self.delivery.take_stream())
     }
 }
 impl Drop for Network {
