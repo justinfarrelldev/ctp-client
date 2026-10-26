@@ -60,7 +60,7 @@ fn build_rows_use_installed_columns_and_keep_cell_clicks_bound_to_exact_parent_i
         .find(|widget| widget.id == "ItemsBox.UnitsList/UNIT_SETTLER/cell/box.Time")
         .expect("turns");
     assert_eq!(
-        time.label, "—",
+        time.label, "---",
         "missing authoritative production rate cannot invent a turn forecast"
     );
     assert_eq!(

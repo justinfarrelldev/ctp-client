@@ -93,7 +93,18 @@ impl Row<'_> {
         parent: MenuRect,
         widgets: &mut Vec<ManagerWidget>,
     ) {
-        let rect = tree::child_rect(node, parent);
+        let mut rect = tree::child_rect(node, parent);
+        /* Released EditQueue::UpdateQueueList -> CityWindow::PopulateQueueList
+         * creates editqueue.ldl::eq_QueueListItem.StaticThing.Turns. Its wrapper
+         * x4 plus Turns x117/width36 exceeds the declared153px row by4. AUI's
+         * window-level text clip lets it spill; our required pane clip hid the
+         * rightmost digits. Fix that source overflow by narrowing only this
+         * right-aligned field to the pane; keep row/x/font/scaling unchanged.
+         */
+        if self.path == "QueueGroup.QueueList" && node.name == "Turns" {
+            let right = self.bounds.x.saturating_add(i32::try_from(self.bounds.width).unwrap_or(i32::MAX));
+            rect.width = rect.width.min(u32::try_from(right.saturating_sub(rect.x)).unwrap_or(0_u32));
+        }
         let label = if node.children.is_empty() {
             self.value(&node.name)
         } else {
@@ -112,6 +123,9 @@ impl Row<'_> {
          * eq_QueueListItem. No city ETA is applicable to an independent template.
          */
         if let Some(text)=super::build::description::time(self.view,name){return text;}
+        if self.view.kind == ManagerKind::Build {
+            if let Some(text) = super::build::estimates::text(self.state, self.view, self.path, self.id, name) { return text; }
+        }
         /* Original EditQueue.cpp::{UpdateFileLists,DisplayQueueContents} creates
          * eq_LoadListItem/eq_ContentsItem (editqueue.ldl). Their lowercase label
          * is actual filename/preview content, never a guessed library identity.

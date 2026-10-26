@@ -68,6 +68,42 @@ fn city_and_empire_progress_pictures_match_original_art_in_source_panel_coordina
 }
 
 #[test]
+fn panel_turn_captions_match_centered_source_text_defaults_in_native_pixels() {
+    let result = with_canvas((800_u32, 600_u32), |canvas| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");
+        let creator = canvas.texture_creator();
+        let mut textures = GameplayTextures::load(&root, &creator, true).map_err(|error| error.to_string())?;
+        let mut state = preview_state(PreviewScene::Panel { tab: ControlPanelTab::City, populated: true });
+        let viewer = state.viewer.as_mut().ok_or("viewer")?;
+        let forecast = crate::gameplay::server::v2::Forecast { revision: viewer.revision, status: "estimated".to_owned(), turns: Some(34_u32), rate: Some(16_i64), assumption: "constant-current-economy".to_owned() };
+        viewer.interface.research.as_mut().ok_or("research")?.forecast = Some(forecast.clone());
+        viewer.cities.first_mut().ok_or("city")?.production_forecast = Some(forecast);
+        let mut ui = InGameUiModel { management: ManagementUi::new(LayoutBook::load(&root).map_err(|error| error.to_string())?).map_err(|error| error.to_string())?, ..InGameUiModel::default() };
+        let context = sdl2::ttf::init().map_err(|error| error.to_string())?;
+        let fonts = crate::gameplay::runtime::fonts::ManagementFonts::load(&context, &ui.management).map_err(|error| error.to_string())?;
+        for tab in [ControlPanelTab::Domestic, ControlPanelTab::City] {
+            ui.active_tab = tab;
+            let actual = ui.management.panel_widgets(&state, &ui).into_iter().find(|widget| widget.id.ends_with(".RadialButton")).ok_or("radial")?;
+            if actual.label != "34" || actual.rect.width != 85_u32 || actual.rect.height != 18_u32 { return Err("unchanged source radial bounds/current supplied turns".to_owned()); }
+            let font = fonts.get(&crate::gameplay::ui_model::management::typography::SourceFont::from_node(&actual.node)).ok_or("radial source font")?;
+            let (width, height) = font.size_of("34").map_err(|error| error.to_string())?;
+            let mut background = actual.clone(); background.label.clear();
+            canvas.set_draw_color(Color::RGB(255_u8, 0_u8, 255_u8)); canvas.clear();
+            super::management::draw_widget(canvas, &mut textures, &background, Some(font)).map_err(|error| error.to_string())?;
+            canvas.set_clip_rect(Rect::new(actual.rect.x, actual.rect.y, actual.rect.width, actual.rect.height));
+            super::text::draw_text(canvas, Some(font), "34", actual.rect.x.saturating_add(i32::try_from(actual.rect.width.saturating_sub(width).div_euclid(2_u32)).map_err(|error| error.to_string())?), actual.rect.y.saturating_add(i32::try_from(actual.rect.height.saturating_sub(height).div_euclid(2_u32)).map_err(|error| error.to_string())?), Color::RGB(50_u8, 50_u8, 50_u8)).map_err(|error| error.to_string())?;
+            canvas.set_clip_rect(None);
+            let expected = canvas.read_pixels(None, PixelFormatEnum::RGBA32)?;
+            canvas.set_draw_color(Color::RGB(255_u8, 0_u8, 255_u8)); canvas.clear();
+            super::management::draw_widget(canvas, &mut textures, &actual, Some(font)).map_err(|error| error.to_string())?;
+            if canvas.read_pixels(None, PixelFormatEnum::RGBA32)? != expected { return Err(format!("{tab:?}: turn text must be centered, not cut into the top border")); }
+        }
+        Ok(())
+    });
+    assert!(result.is_ok(), "native source turn captions: {result:?}");
+}
+
+#[test]
 fn repaired_committed_turn_strip_uses_original_black_bounds_without_inventing_nation_progress() {
     let result=with_canvas((800_u32,600_u32),|canvas| {
         let root=Path::new(env!("CARGO_MANIFEST_DIR")).join("ctp2");let creator=canvas.texture_creator();let mut textures=GameplayTextures::load(&root,&creator,true).map_err(|error|error.to_string())?;

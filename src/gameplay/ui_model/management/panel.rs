@@ -67,6 +67,25 @@ pub(super) fn widgets(
     painter.widgets
 }
 
+/* Released ui/aui_common/aui_textbase.cpp::InitCommonLdl begins with
+ * JUSTCENTER|VERTCENTER and resets those flags only for a nonempty just,
+ * TRUE vertcenter or TRUE wordwrap. Thus the explicit FALSE in ctp_template.ldl::
+ * CTP2_NO_TITLE_PROGRESS_DISPLAY.IconBorder.IconButton.RadialButton does NOT
+ * remove default centering (no just/wordwrap). controlpanel.ldl::{DomesticTab.
+ * TabPanel.AdvanceProgress,CityTab.TabPanel.BuildProgress} inherits that85x18/
+ * times.ttf8/upcb15 nodule. Normalize only these descriptors for our renderer's
+ * literal-boolean semantics; no position/art/font/scaling/navigation changes.
+ * DomesticControlPanel::UpdateScience/CityControlPanel::UpdateBuildItem sets
+ * the turn caption; both constructor callbacks remain wired by panel_intent,
+ * never commands from painting.
+ */
+/// Preserve AUI's centered default without changing unrelated explicit alignment.
+fn center_turn_caption(style: &mut LayoutNode, path: &str) {
+    if path.ends_with(".RadialButton") && style.field("just").is_none() && !style.field("wordwrap").is_some_and(|value| value.eq_ignore_ascii_case("true")) {
+        style.fields.insert("vertcenter".to_owned(), "true".to_owned());
+    }
+}
+
 /// Only fresh owned city identities may populate the City tab.
 fn selected_city<'state>(
     state: &'state GameState,
@@ -117,6 +136,7 @@ impl Body<'_> {
                 .fields
                 .insert("vertcenter".to_owned(), "false".to_owned());
         }
+        center_turn_caption(&mut style, path);
         let mut rect = tree::child_rect(&style, parent);
         if selectors::is_dropdown(source) {
             rect.height = 29_u32;

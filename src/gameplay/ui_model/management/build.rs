@@ -1,5 +1,7 @@
 //! Original Build queue-head purchase controls, backed only by received quotes.
 use super::{ManagementUi, ManagerCommand, ManagerIntent, ManagerKind, ManagerView, data};
+/// Current owner-private production-rate display estimates, not queue simulation.
+pub(super) mod estimates;
 /// Source focused list keyboard selection and actual received-position visibility.
 pub(super) mod navigation;
 /// Released queue-first content and explicit blank-pane presentation selection.
