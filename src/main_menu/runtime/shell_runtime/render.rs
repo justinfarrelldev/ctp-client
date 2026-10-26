@@ -88,9 +88,16 @@ pub(super) fn draw_shell_text_overlay(
     screen: &ShellScreen,
     mouse_x: i32,
     mouse_y: i32,
-    font: Option<&sdl2::ttf::Font<'_, '_>>,
+    fonts: super::super::text::MenuFonts<'_, '_, '_>,
 ) -> Result<(), MainMenuError> {
     for control in screen.controls() {
+        /* Original aui_TextBase::InitCommonLdl/TextReloadFont and
+         * ctp_template.ldl::{CTP2_STANDARD_FONT,CTP_GREY_TITLE_FONT} choose
+         * distinct inherited faces. Cached screen/control identity preserves
+         * regular titles versus bold labels/buttons without changing any
+         * geometry, current scaling, hit regions or callback behavior.
+         */
+        let font = fonts.control(screen.ldl_name(), control.ldl_name());
         draw_shell_control_text(canvas, textures, screen, control, mouse_x, mouse_y, font)?;
     }
     Ok(())

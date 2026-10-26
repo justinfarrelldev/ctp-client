@@ -34,6 +34,8 @@ pub mod bootstrap;
 /// Configuration management module.
 pub mod config;
 mod dialogs;
+/// Common original-compatible installed-font discovery and native UI typography.
+mod fonts;
 /// Gameplay module.
 pub mod gameplay;
 /// Internationalization module.

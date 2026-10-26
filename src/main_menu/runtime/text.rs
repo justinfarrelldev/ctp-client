@@ -1,6 +1,9 @@
 //! High-resolution text rendering for the proportionally scaled SDL menu.
 
-use std::path::PathBuf;
+use super::typography::ShellTypography;
+use crate::gameplay::ui_model::management::typography::SourceFont;
+use alloc::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use sdl2::pixels::Color;
 use sdl2::rect::Rect as SdlRect;
@@ -13,42 +16,119 @@ use crate::main_menu::{MainMenuError, MenuRect};
 use super::viewport::menu_viewport_for_output_size;
 use super::{BUTTON_LABEL_TEXT_COLOR, VERSION_TEXT_COLOR, runtime_error};
 
-/// Cached TTF font for the current physical menu scale.
+/// Cached source faces for the existing physical menu scale.
 pub(super) struct MenuFontCache<'ttf> {
-    /// `SDL_ttf` context used to load fonts when available.
+    /// Optional SDL context, borrowed for the session lifetime.
     context: Option<&'ttf Sdl2TtfContext>,
-    /// Chosen system font path.
-    path: Option<PathBuf>,
-    /// Point size currently stored in [`Self::font`].
+    /// Shared installation/platform discovery results, never copied font data.
+    paths: BTreeMap<SourceFont, (PathBuf, bool)>,
+    /// Cached original screen/control face identities.
+    typography: ShellTypography,
+    /// Original standard identity reused without allocating a name on every frame.
+    standard_key: SourceFont,
+    /// Current physical size, preserving the existing viewport scaling policy.
     point_size: Option<u16>,
-    /// Font loaded for the current viewport scale.
-    font: Option<Font<'ttf, 'static>>,
+    /// Fonts loaded only on first frame or physical-size change.
+    faces: BTreeMap<SourceFont, Font<'ttf, 'static>>,
 }
 
 impl<'ttf> MenuFontCache<'ttf> {
-    /// Creates an empty scaled-font cache.
-    pub(super) const fn new(context: Option<&'ttf Sdl2TtfContext>, path: Option<PathBuf>) -> Self {
+    /// Resolves source names once, sharing gameplay's read-only discovery policy.
+    pub(super) fn new(context: Option<&'ttf Sdl2TtfContext>, root: &Path) -> Self {
+        let typography = ShellTypography::load(root);
+        let paths = typography
+            .keys()
+            .into_iter()
+            .filter_map(|key| {
+                let found = crate::fonts::find(Some(root), &key.name, key.bold, key.italic);
+                if let Some(resolved) = found.as_ref() {
+                    if !resolved.1 {
+                        log::warn!(
+                            "Shell font {} unavailable; using {} (nonexact)",
+                            key.name,
+                            resolved.0.display()
+                        );
+                    }
+                }
+                found.map(|resolved| (key, resolved))
+            })
+            .collect();
         Self {
             context,
-            path,
+            paths,
+            typography,
+            standard_key: SourceFont::default(),
             point_size: None,
-            font: None,
+            faces: BTreeMap::new(),
         }
     }
 
-    /// Returns a font loaded at `point_size`, reloading only when the scale changes.
-    pub(super) fn font_for_point_size(&mut self, point_size: u16) -> Option<&Font<'ttf, 'static>> {
-        let requested_point_size = point_size.max(1_u16);
-        if self.point_size != Some(requested_point_size) {
-            let loaded = self.context.and_then(|context| {
-                self.path
-                    .as_ref()
-                    .and_then(|path| context.load_font(path, requested_point_size).ok())
-            });
-            self.font = loaded;
-            self.point_size = Some(requested_point_size);
+    /// Loads all source faces at the current physical size, never per control/frame.
+    pub(super) fn font_for_point_size(&mut self, point_size: u16) -> MenuFonts<'_, 'ttf, 'static> {
+        let requested = point_size.max(1_u16);
+        if self.point_size != Some(requested) {
+            self.faces.clear();
+            if let Some(context) = self.context {
+                for (key, resolved) in &self.paths {
+                    if let Ok(mut font) = context.load_font(&resolved.0, requested) {
+                        // Open substitutes already select the combined style-specific face.
+                        let mut style = sdl2::ttf::FontStyle::NORMAL;
+                        if resolved.1 && key.bold {
+                            style |= sdl2::ttf::FontStyle::BOLD;
+                        }
+                        if resolved.1 && key.italic {
+                            style |= sdl2::ttf::FontStyle::ITALIC;
+                        }
+                        font.set_style(style);
+                        self.faces.insert(key.clone(), font);
+                    }
+                }
+            }
+            self.point_size = Some(requested);
         }
-        self.font.as_ref()
+        MenuFonts {
+            standard: self.faces.get(&self.standard_key),
+            typography: Some(&self.typography),
+            faces: Some(&self.faces),
+        }
+    }
+}
+
+/// Borrowed source font set; explicit font-free preview tests remain supported.
+#[derive(Clone, Copy)]
+pub(super) struct MenuFonts<'draw, 'ttf, 'rwops> {
+    /// Original Times Bold standard, or the test's explicit font.
+    standard: Option<&'draw Font<'ttf, 'rwops>>,
+    /// Resolved source inheritance when a production session owns the cache.
+    typography: Option<&'draw ShellTypography>,
+    /// Production faces, kept alive by the owning cache through painting.
+    faces: Option<&'draw BTreeMap<SourceFont, Font<'ttf, 'static>>>,
+}
+
+impl<'draw, 'ttf, 'rwops> From<Option<&'draw Font<'ttf, 'rwops>>>
+    for MenuFonts<'draw, 'ttf, 'rwops>
+{
+    fn from(standard: Option<&'draw Font<'ttf, 'rwops>>) -> Self {
+        Self {
+            standard,
+            typography: None,
+            faces: None,
+        }
+    }
+}
+
+impl<'draw, 'ttf, 'rwops> MenuFonts<'draw, 'ttf, 'rwops> {
+    /// Landing labels retain the original standard Times Bold face.
+    pub(super) const fn standard(self) -> Option<&'draw Font<'ttf, 'rwops>> {
+        self.standard
+    }
+
+    /// Screen-local LDL identity, not label text or a guessed all-labels font.
+    pub(super) fn control(self, screen: &str, control: &str) -> Option<&'draw Font<'ttf, 'rwops>> {
+        self.typography
+            .and_then(|source| source.face(screen, control))
+            .and_then(|key| self.faces.and_then(|faces| faces.get(key)))
+            .or(self.standard)
     }
 }
 

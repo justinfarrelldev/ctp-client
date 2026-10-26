@@ -60,6 +60,50 @@ fn missing_installation_faces_keep_an_explicit_style_specific_platform_fallback(
         "no invented file/face if all candidates are absent"
     );
 }
+/// A missing proprietary face must not silently turn every control into bold sans.
+#[test]
+fn emergency_font_fallback_preserves_every_source_family_and_style() {
+    for (source, fallback) in [
+        ("times.ttf", "DejaVuSerif.ttf"),
+        ("timesbd.ttf", "DejaVuSerif-Bold.ttf"),
+        ("timesi.ttf", "DejaVuSerif-Italic.ttf"),
+        ("timesbi.ttf", "DejaVuSerif-BoldItalic.ttf"),
+        ("arial.ttf", "DejaVuSans.ttf"),
+        ("arialbd.ttf", "DejaVuSans-Bold.ttf"),
+        ("ariali.ttf", "DejaVuSans-Oblique.ttf"),
+        ("arialbi.ttf", "DejaVuSans-BoldOblique.ttf"),
+    ] {
+        let key = SourceFont {
+            name: source.to_owned(),
+            ..SourceFont::default()
+        };
+        let expected = Path::new("/usr/share/fonts/truetype/dejavu").join(fallback);
+        assert_eq!(
+            find_with(None, &key, |path| path == expected),
+            Some((expected, false)),
+            "preserve original face family/weight/slant for {source}"
+        );
+    }
+}
+
+/// Liberation is common on Fedora as well as Debian/Ubuntu; neither is universal.
+#[test]
+fn widely_available_font_directories_are_not_debian_only() {
+    for expected in [
+        "/usr/share/fonts/liberation-serif/LiberationSerif-Bold.ttf",
+        "/usr/share/fonts/liberation/LiberationSerif-Bold.ttf",
+        "/Library/Fonts/Times New Roman Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf",
+    ] {
+        let expected_path = PathBuf::from(expected);
+        assert_eq!(
+            find_with(None, &SourceFont::default(), |path| path == expected_path),
+            Some((expected_path, !expected.contains("Liberation"))),
+            "discover common platform fonts without copying them: {expected}"
+        );
+    }
+}
+
 #[test]
 fn source_font_names_are_safe_basenames_on_both_platforms_before_any_probe() {
     for name in [

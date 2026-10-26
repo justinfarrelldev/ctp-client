@@ -1,5 +1,5 @@
 //! Own the SDL menu/window across gameplay handoffs; launch failures are recoverable.
-use super::{MainMenuModel,MainMenuAction,MainMenuError,RuntimeLoopOptions,SinglePlayerLaunchConfig,FRAME_DELAY,canvas_output_size,sound_before_menu_event,play_menu_sound,handle_menu_event,update_text_input_focus,apply_shell_runtime_effects,advance_audio_after_frame,output_point_to_menu_point,scaled_font_point_size_for_output_size,BUTTON_FONT_POINT_SIZE,draw_current_menu,load_menu_textures,find_existing_font,runtime_error};
+use super::{MainMenuModel,MainMenuAction,MainMenuError,RuntimeLoopOptions,SinglePlayerLaunchConfig,FRAME_DELAY,canvas_output_size,sound_before_menu_event,play_menu_sound,handle_menu_event,update_text_input_focus,apply_shell_runtime_effects,advance_audio_after_frame,output_point_to_menu_point,scaled_font_point_size_for_output_size,BUTTON_FONT_POINT_SIZE,draw_current_menu,load_menu_textures,runtime_error};
 use super::{audio::SdlMenuMusicBackend,shell_runtime::ShellRuntimeState,text::MenuFontCache};
 use crate::gameplay::{GameplayError,GameplayOutcome};
 use sdl2::{EventPump,event::{Event,WindowEvent},render::Canvas,video::Window};
@@ -17,8 +17,7 @@ pub(super) fn run(model:&MainMenuModel,options:RuntimeLoopOptions,mut audio_back
     let texture_creator=canvas.texture_creator();
     let textures=load_menu_textures(&texture_creator,model);
     let ttf_context=sdl2::ttf::init().ok();
-    let font_path=find_existing_font();
-    let mut font_cache=MenuFontCache::new(ttf_context.as_ref(),font_path);
+    let mut font_cache=MenuFontCache::new(ttf_context.as_ref(),&model.installation_root);
     let event_subsystem=sdl.event().map_err(runtime_error)?;
     for event in options.initial_events {event_subsystem.push_event(event).map_err(runtime_error)?;}
     let mut event_pump=sdl.event_pump().map_err(runtime_error)?;

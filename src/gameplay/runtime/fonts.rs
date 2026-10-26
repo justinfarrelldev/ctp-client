@@ -4,7 +4,7 @@ use crate::gameplay::assets::layout::LayoutNode;
 use crate::gameplay::ui_model::management::{ManagementUi, typography::SourceFont};
 use crate::gameplay::{GameplayError, runtime_error};
 
-/// Original selected-installation font search order shared with gameplay body text.
+/// Shared licensed-system/opted-in installation policy for all gameplay text.
 pub(super) mod discovery;
 /// Fileless installation-first/font-name path-boundary regressions.
 #[cfg(test)]
@@ -19,9 +19,11 @@ use sdl2::ttf::{Font, FontStyle, Hinting, Sdl2TtfContext};
 pub(super) struct ManagementFonts<'ttf> {
     /// Resolved source styles; no raw pointers or globally leaked TTF resources.
     faces: BTreeMap<SourceFont, Font<'ttf, 'static>>,
+    /// Runtime-created map labels have their own original Arial string-table face.
+    map_key: SourceFont,
 }
 impl<'ttf> ManagementFonts<'ttf> {
-    /// Loads original installation fonts first, then explicit platform fallbacks.
+    /// Loads authorized originals or common style-matched system substitutes.
     pub(super) fn load(
         context: &'ttf Sdl2TtfContext,
         ui: &ManagementUi,
@@ -42,16 +44,26 @@ impl<'ttf> ManagementFonts<'ttf> {
                 .map_err(runtime_error)?;
             font.set_hinting(Hinting::Mono);
             let mut style = FontStyle::NORMAL;
-            if key.bold {
+            /* Original ctp2_source/ctp2_code/ui/aui_common/aui_textbase.cpp::
+             * TextReloadFont passes explicit flags alongside the named face
+             * (ctp_template.ldl::CTP2_STANDARD_FONT and per-control overrides).
+             * Exact authorized files retain that behavior; sizes are unchanged.
+             * Our open fallback already resolves their combined bold/italic face;
+             * synthesizing those flags again would incorrectly double-embolden it.
+             */
+            if exact && key.bold {
                 style |= FontStyle::BOLD;
             }
-            if key.italic {
+            if exact && key.italic {
                 style |= FontStyle::ITALIC;
             }
             font.set_style(style);
             faces.insert(key, font);
         }
-        Ok(Self { faces })
+        Ok(Self {
+            faces,
+            map_key: SourceFont::tiled_map(&ui.book),
+        })
     }
     /// Loads and measures once before accepting interactive source-control input.
     pub(super) fn load_measured(
@@ -114,6 +126,13 @@ impl<'draw, 'ttf, 'rwops> From<Option<&'draw Font<'ttf, 'rwops>>>
     }
 }
 impl<'draw, 'ttf, 'rwops> RenderFonts<'draw, 'ttf, 'rwops> {
+    /// Original `TiledMap` label font, separate from the generic UI body face.
+    pub(super) fn map(self) -> Option<&'draw Font<'ttf, 'rwops>> {
+        self.management
+            .and_then(|fonts| fonts.get(&fonts.map_key))
+            .or(self.body)
+    }
+
     /// Native source style when available, or the caller's explicit fallback.
     pub(super) fn control(self, node: &LayoutNode) -> Option<&'draw Font<'ttf, 'rwops>> {
         self.management

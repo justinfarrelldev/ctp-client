@@ -1,7 +1,7 @@
 //! Original source font metadata and measured word geometry, independent of SDL.
 
 use super::ManagementUi;
-use crate::gameplay::assets::layout::LayoutNode;
+use crate::gameplay::assets::layout::{LayoutBook, LayoutNode};
 use crate::gameplay::assets::library::LibrarySpan;
 use alloc::collections::{BTreeMap, BTreeSet};
 
@@ -49,6 +49,36 @@ impl SourceFont {
                 .is_some_and(|value| value.eq_ignore_ascii_case("true")),
         }
     }
+    /* Original gfx/tilesys/tiledmap.cpp::TiledMap constructs
+     * TiledMapFontStringTable, loads string0's face and sets string1's points.
+     * gfx/tilesys/tiledraw.cpp::DrawCityNames and gfx/spritesys/UnitActor.cpp::
+     * DrawFortifying share m_font.
+     * ctp2/ctp2_data/english/uidata/layouts/civ3.ldl::TiledMapFontStringTable
+     * resolves through english/gamedata/ldl_str.txt to arialbd.ttf / 9, NOT the
+     * CTP2_STANDARD_FONT Times Bold used by menus. Missing-table fallback is the
+     * released table's face/size, not guessed economic/geographic information.
+     * Keep current camera/UI scaling; these are original font role definitions.
+     */
+    /// Reads the runtime-created map font from the cached localized string table.
+    #[must_use]
+    pub fn tiled_map(book: &LayoutBook) -> Self {
+        let table = book.resolve("TiledMapFontStringTable").unwrap_or_default();
+        Self {
+            name: table
+                .field("string0")
+                .map_or("arialbd.ttf", |key| book.label(key))
+                .to_ascii_lowercase(),
+            points: table
+                .field("string1")
+                .map(|key| book.label(key))
+                .and_then(|value| value.parse::<u16>().ok())
+                .filter(|size| *size > 0_u16)
+                .unwrap_or(9_u16),
+            bold: false,
+            italic: false,
+        }
+    }
+
     /// Original `aui_BitmapFont` sets 96 DPI, not one raster pixel per source point.
     #[must_use]
     pub const fn pixel_size(&self) -> u16 {
@@ -94,6 +124,7 @@ impl FontMetrics {
 pub(super) fn keys(ui: &ManagementUi) -> BTreeSet<SourceFont> {
     let mut keys = BTreeSet::new();
     keys.insert(SourceFont::default());
+    keys.insert(SourceFont::tiled_map(&ui.book));
     for root in ui
         .layouts
         .values()

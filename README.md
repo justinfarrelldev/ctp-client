@@ -34,6 +34,14 @@ cargo build --release
 cargo run --release
 ```
 
+### Fonts
+
+The client uses installed Times New Roman/Arial or the common open-licensed
+Liberation Serif/Sans equivalents, preserving each control's family and style.
+On Linux, install your distribution's Liberation fonts (e.g. `fonts-liberation2`
+on Debian/Ubuntu). No font files are bundled or downloaded. Game-bundled fonts
+require a separate licensing acknowledgement; see [font policy and licensing](FONT-LICENSES.md).
+
 ## Development
 
 ### Prerequisites

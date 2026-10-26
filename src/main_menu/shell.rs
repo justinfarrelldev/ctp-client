@@ -424,8 +424,7 @@ pub(super) struct ShellControl {
 }
 
 impl ShellControl {
-    /// Returns the original LDL name.
-    #[cfg(test)]
+    /// Returns the original LDL name for source font lookup and tests.
     pub(super) const fn ldl_name(&self) -> &'static str {
         self.ldl_name
     }
@@ -502,8 +501,7 @@ impl ShellScreen {
         self.id
     }
 
-    /// Returns the original LDL block name.
-    #[cfg(test)]
+    /// Returns the original LDL block name for source typography and tests.
     pub(super) const fn ldl_name(&self) -> &'static str {
         self.ldl_name
     }

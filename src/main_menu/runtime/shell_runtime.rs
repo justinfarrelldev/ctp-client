@@ -477,10 +477,10 @@ impl ShellRuntimeState {
         textures: &MenuTextures<'_>,
         mouse_x: i32,
         mouse_y: i32,
-        font: Option<&sdl2::ttf::Font<'_, '_>>,
+        fonts: super::text::MenuFonts<'_, '_, '_>,
     ) -> Result<(), MainMenuError> {
         let screen = current_screen(&self.model);
-        render::draw_shell_text_overlay(canvas, textures, &screen, mouse_x, mouse_y, font)
+        render::draw_shell_text_overlay(canvas, textures, &screen, mouse_x, mouse_y, fonts)
     }
 }
 

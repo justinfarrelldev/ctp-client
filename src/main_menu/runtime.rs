@@ -4,8 +4,6 @@ extern crate alloc;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use sdl2::event::Event;
@@ -34,17 +32,6 @@ const BUTTON_LABEL_TEXT_COLOR: (u8, u8, u8) = (0, 0, 0);
 const VERSION_TEXT_COLOR: (u8, u8, u8) = (100, 100, 255);
 /// Font point size used by original CTP2 shell button templates.
 const BUTTON_FONT_POINT_SIZE: u16 = 10;
-/// Candidate fonts used only for drawing fallback text over original assets.
-const FONT_CANDIDATES: [&str; 8] = [
-    "C:/Windows/Fonts/timesbd.ttf",
-    "/usr/share/fonts/truetype/msttcorefonts/timesbd.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    "C:/Windows/Fonts/arialbd.ttf",
-];
 
 /// Original CTP2 RIM/ZFS asset loading.
 mod assets;
@@ -62,6 +49,11 @@ mod session;
 mod shell_runtime;
 /// High-resolution text rendering helpers.
 mod text;
+/// Cached original shell font-face inheritance, independent of renderer scaling.
+mod typography;
+/// Fileless inherited shell face and exact control-identity regressions.
+#[cfg(test)]
+mod typography_tests;
 /// Resolution-independent viewport mapping helpers.
 mod viewport;
 
@@ -626,19 +618,6 @@ pub(super) use testing::{
     shell_control_draw_order_for_test, shell_left_top_text_color_for_test,
     slider_sound_summaries_for_test,
 };
-
-/// Finds an installed font suitable for button labels.
-fn find_existing_font() -> Option<PathBuf> {
-    FONT_CANDIDATES
-        .iter()
-        .map(PathBuf::from)
-        .find(|path| path_is_regular_file(path))
-}
-
-/// Returns whether the path metadata identifies a regular file.
-fn path_is_regular_file(path: &Path) -> bool {
-    fs::metadata(path).is_ok_and(|metadata| !metadata.file_type().is_dir())
-}
 
 /// Wraps a runtime error string.
 const fn runtime_error(message: String) -> MainMenuError {

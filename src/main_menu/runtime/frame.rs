@@ -17,7 +17,7 @@ use super::{MenuTextures, button_art, runtime_error, shell_runtime};
     clippy::too_many_arguments,
     reason = "The menu frame renderer borrows SDL resources explicitly."
 )]
-pub(super) fn draw_current_menu(
+pub(super) fn draw_current_menu<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     canvas: &mut Canvas<Window>,
     texture_creator: &TextureCreator<WindowContext>,
     textures: &MenuTextures<'_>,
@@ -25,9 +25,10 @@ pub(super) fn draw_current_menu(
     shell_state: &shell_runtime::ShellRuntimeState,
     mouse_x: i32,
     mouse_y: i32,
-    font: Option<&Font<'_, '_>>,
+    font_source: impl Into<super::text::MenuFonts<'draw, 'ttf, 'rwops>>,
     information:Option<&mut crate::gameplay::runtime::information::Information<'_, '_>>,
 ) -> Result<(), MainMenuError> {
+    let fonts = font_source.into();
     let viewport = prepare_menu_canvas(canvas)?;
     if viewport.width == 0 || viewport.height == 0 {
         canvas.present();
@@ -58,9 +59,9 @@ pub(super) fn draw_current_menu(
         .map_err(runtime_error)?;
 
     if shell_state.is_landing() {
-        draw_menu_text_overlay(canvas, textures, model, mouse_x, mouse_y, font)?;
+        draw_menu_text_overlay(canvas, textures, model, mouse_x, mouse_y, fonts.standard())?;
     } else {
-        shell_state.draw_text_overlay(canvas, textures, mouse_x, mouse_y, font)?;
+        shell_state.draw_text_overlay(canvas, textures, mouse_x, mouse_y, fonts)?;
     }
     if let Some(information)=information {information.draw(canvas,to_sdl_rect(&viewport)).map_err(|error|runtime_error(error.to_string()))?;}
     canvas.present();

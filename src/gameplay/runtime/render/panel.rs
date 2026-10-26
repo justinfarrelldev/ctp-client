@@ -68,7 +68,7 @@ pub(super) fn draw_panel<'draw, 'ttf: 'draw, 'rwops: 'draw>(
     }
     draw_tabs(canvas, textures, ui, font)?;
     match ui.active_tab {
-        ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, ui, font)?,
+        ControlPanelTab::Unit => draw_unit_panel(canvas, textures, state, ui, fonts)?,
         ControlPanelTab::Domestic
         | ControlPanelTab::City
         | ControlPanelTab::Messages
@@ -176,8 +176,9 @@ fn draw_unit_panel(
     textures: &mut GameplayTextures<'_>,
     state: &GameState,
     ui: &InGameUiModel,
-    font: Option<&Font<'_, '_>>,
+    fonts: crate::gameplay::runtime::fonts::RenderFonts<'_, '_, '_>,
 ) -> Result<(), GameplayError> {
+    let font = fonts.body;
     panel_art(
         canvas,
         textures,
@@ -234,24 +235,7 @@ fn draw_unit_panel(
             LABEL,
             false,
         )?;
-        for (value, x, y) in [
-            (unit_stat(source, "attack"), 306_i32, 78_i32),
-            (unit_stat(source, "defense"), 325, 78),
-            (unit_stat(source, "ranged"), 306, 100),
-            (unit_stat(source, "firepower"), 325, 100),
-            (
-                unit.movement_points
-                    .max(0_i16)
-                    .saturating_add(99_i16)
-                    .div_euclid(100_i16)
-                    .to_string(),
-                306,
-                122,
-            ),
-            (unit_stat(source, "armor"), 325, 122),
-        ] {
-            draw_centered_text(canvas, font, &value, panel_rect(x, y, 19, 18), LABEL, true)?;
-        }
+        draw_unit_values(canvas, source, unit.movement_points, ui, fonts)?;
         draw_health(
             canvas,
             source,
@@ -284,6 +268,44 @@ fn draw_unit_panel(
         )?;
     }
     draw_orders(canvas, textures, state)
+}
+
+/// Paints the six received values with the actual inherited numeric face.
+fn draw_unit_values(
+    canvas: &mut Canvas<Window>,
+    source: Option<&crate::gameplay::server::ServerUnitProjection>,
+    movement_points: i16,
+    ui: &InGameUiModel,
+    fonts: crate::gameplay::runtime::fonts::RenderFonts<'_, '_, '_>,
+) -> Result<(), GameplayError> {
+    /* Original ctp2_source/ctp2_code/ui/interface/UnitControlPanel.cpp::
+     * UnitControlPanel/UpdateSingleSelectionDisplay binds these exact Value
+     * controls. English controlpanel.ldl::ICON_VALUE_PAIR.Value overrides
+     * the Times standard with arialbd.ttf10 and white shadow; UnitTab.
+     * TabPanel.UnitSelectionDisplay.SingleSelect.{Attack,Defend,Range,
+     * Firepower,Move,Armor} inherits that template. Use the already cached
+     * source face, retaining current bounds/shadows/scaling/received stats.
+     */
+    let stat_styles = ui.management.panel.child("ControlPanel")
+        .and_then(|panel| panel.child("ControlTabPanel"))
+        .and_then(|tabs| tabs.child("UnitTab"))
+        .and_then(|tab| tab.child("TabPanel"))
+        .and_then(|panel| panel.child("UnitSelectionDisplay"))
+        .and_then(|display| display.child("SingleSelect"));
+    for (name, value, x, y) in [
+        ("Attack", unit_stat(source, "attack"), 306_i32, 78_i32),
+        ("Defend", unit_stat(source, "defense"), 325, 78),
+        ("Range", unit_stat(source, "ranged"), 306, 100),
+        ("Firepower", unit_stat(source, "firepower"), 325, 100),
+        ("Move", movement_points.max(0_i16).saturating_add(99_i16).div_euclid(100_i16).to_string(), 306, 122),
+        ("Armor", unit_stat(source, "armor"), 325, 122),
+    ] {
+        let value_font = stat_styles.and_then(|styles| styles.child(name))
+            .and_then(|stat| stat.child("Value"))
+            .map_or(fonts.body, |node| fonts.control(node));
+        draw_centered_text(canvas, value_font, &value, panel_rect(x, y, 19, 18), LABEL, true)?;
+    }
+    Ok(())
 }
 
 /// Source health bar, shared with expanded portraits; unknown live health stays

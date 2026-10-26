@@ -1,7 +1,7 @@
 //! Source font choices/metrics are data, independently testable without SDL or files.
 
 use super::typography::{FontMetrics, SourceFont};
-use crate::gameplay::assets::layout::LayoutNode;
+use crate::gameplay::assets::layout::{LayoutBook, LayoutNode};
 
 #[test]
 fn source_points_use_original_96_dpi_and_do_not_turn_regular_headers_into_bold_body_text() {
@@ -19,6 +19,42 @@ fn source_points_use_original_96_dpi_and_do_not_turn_regular_headers_into_bold_b
         SourceFont::from_node(&node).pixel_size(),
         18_u16,
         "14-point title"
+    );
+}
+
+/// Runtime-created map fonts must respect installed table values and safe defaults.
+#[test]
+fn map_font_table_preserves_literal_variant_and_rejects_invalid_point_sizes() {
+    let parsed = LayoutBook::parse(&[r#"
+        TiledMapFontStringTable { string string0 "ariali.ttf" string string1 "11" }
+    "#]);
+    assert!(parsed.is_ok(), "valid injected map table");
+    let variant = SourceFont::tiled_map(&parsed.unwrap_or_default());
+    assert_eq!(
+        variant.name, "ariali.ttf",
+        "keep actual installed variant face"
+    );
+    assert_eq!(
+        variant.points, 11_u16,
+        "keep actual installed variant points"
+    );
+    for invalid in ["0", "-1", "bad", "70000"] {
+        let source = format!("TiledMapFontStringTable {{ string string1 \"{invalid}\" }}");
+        let book = LayoutBook::parse(&[&source]).unwrap_or_default();
+        let fallback = SourceFont::tiled_map(&book);
+        assert_eq!(
+            fallback.name, "arialbd.ttf",
+            "missing face uses released map default"
+        );
+        assert_eq!(
+            fallback.points, 9_u16,
+            "invalid size uses released map default"
+        );
+    }
+    assert_eq!(
+        SourceFont::tiled_map(&LayoutBook::default()).points,
+        9_u16,
+        "absent table preserves original map default"
     );
 }
 

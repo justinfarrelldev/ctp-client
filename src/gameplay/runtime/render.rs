@@ -77,8 +77,16 @@ pub(super) fn draw_frame<'draw, 'ttf: 'draw, 'rwops: 'draw>(
         let (x, y) = camera.tile_to_screen(point);
         draw_tile_diamond(canvas, camera, x, y, Color::RGB(255, 255, 0))?;
     }
-    movement::draw_planned_path(canvas, input, state, camera, font)?;
-    cities::draw_labels(canvas, textures, state, ui, camera, font)?;
+    /* Original gfx/tilesys/tiledmap.cpp::TiledMap loads civ3.ldl::
+     * TiledMapFontStringTable (Arial Bold9); tiledraw.cpp::DrawCityNames uses
+     * it for city/population/production strips, not the Times menu/body font.
+     * TileHighlight.cpp::DrawLegalMove/DrawUnfinishedMove instead uses Win32
+     * primitives_DrawText for path turns. Our server-authoritative destination
+     * annotations use the same portable map family, NOT a claim of exact GDI
+     * path glyphs or invented turns. Current scaling/placement/values retained.
+     */
+    movement::draw_planned_path(canvas, input, state, camera, fonts.map())?;
+    cities::draw_labels(canvas, textures, state, ui, camera, fonts.map())?;
     panel::draw_panel(canvas, textures, state, ui, fonts)?;
     if state.filters.radar {
         radar::draw_radar(canvas, textures, state)?;
@@ -246,6 +254,9 @@ mod option_tests;
 /// Native lower-panel portraits and semantic category selection.
 #[cfg(test)]
 mod panel_tests;
+/// Native Arial exceptions for map labels and Unit numeric values.
+#[cfg(test)]
+mod font_tests;
 #[cfg(test)]
 mod pixel_tests;
 /// Original player palette and exact-owner native flags/city/fog rendering.
